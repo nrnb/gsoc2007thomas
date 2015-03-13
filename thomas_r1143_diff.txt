@@ -1,0 +1,196 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1142)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1143)
+@@ -47,6 +47,7 @@
+ 	public void init() {
+ 		SwingEngine.setCurrent(new SwingEngine());
+ 		Engine.setCurrent(new Engine());
++		GuiInit.init();
+ 		
+ 		System.out.println("INIT CALLED....");
+ 		Logger.log.trace("INIT CALLED....");
+@@ -71,7 +72,6 @@
+ 		
+ 		final RunnableWithProgress r = new RunnableWithProgress() {
+ 			public Object excecuteCode() {				
+-				GuiInit.init();
+ 				parseArguments();
+ 
+ 				try {
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1142)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1143)
+@@ -145,7 +145,7 @@
+ 				highlight((StyledDocument)fb.getDocument());
+ 			}
+ 			String replaceSeparators(String authors) {
+-				return authors.replaceAll(PublicationXRef.AUTHOR_SEP + " ", PublicationXRef.AUTHOR_SEP + "\n");
++				return authors.replaceAll(PublicationXRef.AUTHOR_SEP, PublicationXRef.AUTHOR_SEP + "\n");
+ 			}
+ 			void highlight(StyledDocument doc) {
+ 				SimpleAttributeSet clean = new SimpleAttributeSet();
+Index: trunk/src/swing/org/pathvisio/gui/swing/GuiInit.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/GuiInit.java	(revision 1142)
++++ trunk/src/swing/org/pathvisio/gui/swing/GuiInit.java	(revision 1143)
+@@ -20,6 +20,7 @@
+ 
+ import org.pathvisio.Engine;
+ import org.pathvisio.debug.Logger;
++import org.pathvisio.model.GpmlFormat;
+ import org.pathvisio.model.MappFormat;
+ import org.pathvisio.preferences.GlobalPreference;
+ 
+@@ -29,16 +30,21 @@
+ 		initExporters();
+ 		try {
+ 			Logger.log.setStream(new PrintStream(GlobalPreference.FILE_LOG.getValue())); 
+-		} catch(Exception e) {}
++		} catch(Exception e) {
++			System.err.println("Unable to set log stream to " + GlobalPreference.FILE_LOG.getValue());
++			e.printStackTrace();
++		}
+ 		Logger.log.setLogLevel(true, true, true, true, true, true);//Modify this to adjust log level
+ 		
+ 	}
+ 	
+ 	private static void initImporters() {
+ 		Engine.getCurrent().addPathwayImporter(new MappFormat());
++		Engine.getCurrent().addPathwayImporter(new GpmlFormat());
+ 	}
+ 	
+ 	private static void initExporters() {
+ 		Engine.getCurrent().addPathwayExporter(new MappFormat());
++		Engine.getCurrent().addPathwayExporter(new GpmlFormat());
+ 	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1142)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1143)
+@@ -185,25 +185,28 @@
+ 	}
+ 	
+ 	public boolean exportPathway(final File f) {
+-		final SwingProgressKeeper pk = new SwingProgressKeeper(ProgressKeeper.PROGRESS_UNKNOWN);
+-		final ProgressDialog d = new ProgressDialog(JOptionPane.getFrameForComponent(getApplicationPanel()), 
+-				"Exporting pathway", pk, false, true);
+-				
+-		SwingWorker sw = new SwingWorker() {
+-			protected Object doInBackground() throws Exception {
+-				try {
+-					Engine.getCurrent().exportPathway(f);
+-					return true;
+-				} catch(ConverterException e) {
+-					handleConverterException(e.getMessage(), null, e);
+-					return false;
+-				} finally {
+-					pk.finished();
++		if(mayOverwrite(f)) {
++			final SwingProgressKeeper pk = new SwingProgressKeeper(ProgressKeeper.PROGRESS_UNKNOWN);
++			final ProgressDialog d = new ProgressDialog(JOptionPane.getFrameForComponent(getApplicationPanel()), 
++					"Exporting pathway", pk, false, true);
++
++			SwingWorker sw = new SwingWorker() {
++				protected Object doInBackground() throws Exception {
++					try {
++						Engine.getCurrent().exportPathway(f);
++						return true;
++					} catch(ConverterException e) {
++						handleConverterException(e.getMessage(), null, e);
++						return false;
++					} finally {
++						pk.finished();
++					}
+ 				}
+-			}
+-		};
+-		
+-		return processTask(pk, d, sw);
++			};
++
++			return processTask(pk, d, sw);
++		}
++		return false;
+ 	}
+ 
+ 	public boolean importPathway() {
+Index: trunk/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1142)
++++ trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1143)
+@@ -340,7 +340,6 @@
+ 				setAttribute("Pathway", "Organism", root, o.getOrganism());
+ 
+ 				updateComments(o, root);
+-				updateBiopax(o, root);
+ 				updateBiopaxRef(o, root);
+ 				
+ 				Element graphics = new Element("Graphics", ns);
+Index: trunk/src/core/org/pathvisio/data/PubMedQuery.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/PubMedQuery.java	(revision 1142)
++++ trunk/src/core/org/pathvisio/data/PubMedQuery.java	(revision 1143)
+@@ -48,6 +48,7 @@
+ 	String parsingElement;
+ 	String parsingValue;
+ 	public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
++//		System.out.println("New element: " + localName + ", " + attributes.getValue(NAME));
+ 		parsingElement = localName;
+ 		parsingName = attributes.getValue(NAME);
+ 		parsingValue = "";
+@@ -55,9 +56,11 @@
+ 	
+ 	public void characters(char[] ch, int start, int length) throws SAXException {		
+ 		parsingValue += new String(ch, start, length).trim();
++//		System.out.println("characters: " + new String(ch, start, length).trim());
+ 	}
+ 	
+ 	public void endElement(String uri, String localName, String qName) throws SAXException {
++//		System.out.println("End element: " + localName);
+ 		if(parsingElement == ID) {
+ 			parsingId = parsingValue;
+ 		}
+@@ -75,9 +78,11 @@
+ 			result.setSource(parsingValue);
+ 		}
+ 		else if (AUTHOR.equalsIgnoreCase(parsingName)) {
+-//			System.out.println("Parsing author: " + value);
++//			System.out.println("Parsed author: " + parsingValue);
+ 			result.addAuthor(parsingValue);
+ 		}
++		parsingElement = "";
++		parsingName = "";
+ 	}
+ 	
+ 	static final String ITEM = "Item";
+Index: trunk/src/core/org/pathvisio/data/PubMedResult.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/PubMedResult.java	(revision 1142)
++++ trunk/src/core/org/pathvisio/data/PubMedResult.java	(revision 1143)
+@@ -47,7 +47,9 @@
+ 	}
+ 	
+ 	void addAuthor(String author) {
+-		authors.add(author);
++		if(!authors.contains(author)) {
++			authors.add(author);
++		}
+ 	}
+ 	
+ }
+Index: trunk/src/core/org/pathvisio/view/AlignType.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/AlignType.java	(revision 1142)
++++ trunk/src/core/org/pathvisio/view/AlignType.java	(revision 1143)
+@@ -23,7 +23,7 @@
+ 	RIGHT("Right", "Align right edges", "icons/alignright.gif"),
+ 	TOP("Top", "Align top edges", "icons/aligntop.gif"),
+ 	BOTTOM("Bottom", "Align bottom edges", "icons/alignbottom.gif"),
+-	WIDTH("Width", "Set common width", "icons/sizeheight.gif"),
++	WIDTH("Width", "Set common width", "icons/sizewidth.gif"),
+ 	HEIGHT("Height", "Set common height", "icons/sizeheight.gif"),
+ 	;
+ 	

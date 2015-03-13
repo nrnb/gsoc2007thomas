@@ -1,0 +1,20 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1035)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1036)
+@@ -14,9 +14,13 @@
+ 	return true;
+ }
+ 
+-function createApplet( &$parser, $idClick = 'appletButton', $idReplace = 'pwThumb', $new = '' ) {
++function createApplet( &$parser, $idClick = 'appletButton', $idReplace = 'pwThumb', $new = '', $pwTitle = '' ) {
+ 	try {
+-		$pathway = Pathway::newFromTitle($parser->mTitle);
++		if(!$pwTitle) {
++			$pathway = Pathway::newFromTitle($parser->mTitle);
++		} else {
++			$pathway = Pathway::newFromTitle($pwTitle);
++		}
+ 		$appletCode = makeAppletFunctionCall($pathway, $idReplace, $idClick, $new);
+ 		$output = scriptTag('', JS_SRC_PROTOTYPE) . scriptTag('', JS_SRC_RESIZE) . scriptTag('', JS_SRC_EDITAPPLET) . $appletCode;
+ 	} catch(Exception $e) {

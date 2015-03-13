@@ -1,0 +1,12 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 992)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 993)
+@@ -194,6 +194,7 @@
+ require_once('wpi/extensions/googleSearch.php');
+ require_once('wpi/extensions/button.php');
+ require_once('wpi/extensions/pathwayThumb.php');
++require_once('wpi/extensions/BrowsePathwaysPage/BrowsePathwaysPage.php');
+ 
+ /* Biblio extension
+ Isbndb account: thomas.kelder@bigcat.unimaas.nl / BigC0w~wiki

@@ -1,0 +1,179 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/movePathway.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/movePathway.php	(revision 0)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/movePathway.php	(revision 1049)
+@@ -0,0 +1,47 @@
++<?php
++require_once('wpi/wpi.php');
+++$wgHooks['SpecialMovepageAfterMove'][] = 'movePathwayPages';
++
++function movePathwayPages(&$movePageForm , &$ot , &$nt) {
++	if($ot->getNamespace() == NS_PATHWAY) {
++		wfDebug("MOVINGPATHWAY!!");
++		$pwOld = Pathway::newFromTitle($ot);
++		$pwNew = Pathway::newFromTitle($nt);
++		moveAlong($pwOld->getFileTitle(FILETYPE_GPML), $pwNew->getFileTitle(FILETYPE_GPML), $movePageForm);
++		
++		$pwOld->clearCache(null, true);
++		$pwNew->updateCache();
++	}
++	return(true);
++}
++
++function moveAlong($ot, $nt, $movePageForm) {
++		wfDebug("MOVING PAGE " . $ot->getFullText() . " TO " . $nt->getFullText() . "\n");
++		##MODIFIED FROM SpecialMovePage, doSubmit()
++		##This is a quick hack to make moving pathway pages work
++		##Will be removed when all pathway information is combined on a single wiki page
++		$error = $ot->moveTo( $nt, true, $movePageForm->reason );
++		wfDebug("\tMOVING....title says:$error\n");
++		# Move the talk page if relevant, if it exists, and if we've been told to
++		$ott = $ot->getTalkPage();
++		if( $ott->exists() ) {
++			if( !$ot->isTalkPage() && !$nt->isTalkPage() ) {
++				$ntt = $nt->getTalkPage();
++	
++				# Attempt the move
++				$ott->moveTo( $ntt, true, $movePageForm->reason );
++			}
++		}
++		
++/*		
++		# Deal with watches
++		if( $movePageForm->watch ) {
++			$wgUser->addWatch( $ot );
++			$wgUser->addWatch( $nt );
++		} else {
++			$wgUser->removeWatch( $ot );
++			$wgUser->removeWatch( $nt );
++		}
++*/
++}
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1048)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1049)
+@@ -238,7 +238,8 @@
+ 		if($name && $code) {
+ 			return new Pathway($name, $species);
+ 		} else {
+-			throw new Exception("Couldn't parse pathway article title: $title");
++		
++	throw new Exception("Couldn't parse pathway article title: $title");
+ 		}
+ 	}
+ 	
+@@ -391,12 +392,16 @@
+ 	}
+ 	
+ 	private function saveImage($gpmlFile, $description) {
++		$imgName = $this->getFileName(FILETYPE_IMG);
++
+ 		# Convert gpml to svg
+ 		$gpmlFile = realpath($gpmlFile);
+-		$imgName = $this->getFileName(FILETYPE_IMG);
+-		$imgFile = realpath('tmp') . '/' . $imgName;
+ 
+-		exec("java -jar bin/pathvisio_convert.jar $gpmlFile $imgFile 2>&1", $output, $status);
++		$basePath = dirname(realpath(__FILE__));
++		$imgFile = $basePath . '/tmp/' . $imgName;
++		$cmd = "java -jar $basePath/bin/pathvisio_convert.jar $gpmlFile $imgFile 2>&1";
++		wfDebug($cmd);
++		exec($cmd, $output, $status);
+ 		
+ 		foreach ($output as $line) {
+ 			$msg .= $line . "\n";
+@@ -419,21 +424,26 @@
+ 
+ 	public function delete() {
+ 		global $wgLoadBalancer;
++		wfDebug("Deleting pathway" . $this->getTitleObject()->getFullText() . "\n");
+ 		$reason = 'Deleted pathway';
+ 		$title = $this->getTitleObject();
+ 		Pathway::deleteArticle($title, $reason);
+ 		//Clean up GPML and SVG pages
+ 		$title = $this->getFileTitle(FILETYPE_GPML);
+ 		Pathway::deleteArticle($title, $reason);
+-		$this->clearCache();
++		$this->clearCache(null, true);
++		$wgLoadBalancer->commitAll();
++	}
+ 
++	private function deleteImagePage($reason) {
++		global $wgLoadBalancer;
+ 		$title = $this->getFileTitle(FILETYPE_IMG);
+ 		Pathway::deleteArticle($title, $reason);
+ 		$img = new Image($title);
+ 		$img->delete($reason);
+ 		$wgLoadBalancer->commitAll();
+ 	}
+-	
++
+ 	public static function deleteArticle($title, $reason='not specified') {
+ 		global $wgUser, $wgLoadBalancer;
+ 		
+@@ -525,9 +535,10 @@
+ 		}
+ 	}
+ 	
+-	public function clearCache($fileType = null) {
+-		if($fileType == FILETYPE_IMG) return; //Never delete the image file!
+-
++	public function clearCache($fileType = null, $forceImagePage=false) {
++		if($forceImagePage) { //Only delete the image file when explicitly asked for!
++			$this->deleteImagePage("Clearing cache");
++		}
+ 		if(!$fileType) { //Update all
+ 			$this->clearCache(FILETYPE_PNG);
+ 			$this->clearCache(FILETYPE_GPML);
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1048)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1049)
+@@ -197,6 +197,7 @@
+ require_once('wpi/extensions/BrowsePathwaysPage/BrowsePathwaysPage.php');
+ require_once('wpi/extensions/editApplet.php');
+ require_once('wpi/extensions/listPathways.php');
++require_once('wpi/extensions/movePathway.php');
+ 
+ /* Biblio extension
+ Isbndb account: thomas.kelder@bigcat.unimaas.nl / BigC0w~wiki
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php	(revision 1048)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php	(revision 1049)
+@@ -60,22 +60,23 @@
+  *		}
+  */
+               //Remove edit tab on all pages except User(2), User_talk(3), and Pathway_talk(101)
+-//AP20070423 Don't remove edit buttons for sysops (sysops can protect)
+-//MAY20070502 Also remove move button for now on pathway pages
++//AP20070423 Don't remove edit buttons for sysops (sysops can protect)
++		$ns = $wgTitle->getNameSpace();
+ 		if(!array_search('sysop', $wgUser->getGroups())) {
+-			if($wgTitle->getNameSpace() != NS_USER
+-				&& $wgTitle->getNameSpace() != NS_USER_TALK
+-				&&  $wgTitle->getNameSpace() != NS_PATHWAY_TALK) {
++			if($ns != NS_USER && $ns != NS_USER_TALK &&  $ns != NS_PATHWAY_TALK) {
+ 	                        $actions = $this->data['content_actions'];
+ 	                        unset($actions['edit']);
+ 	                        $this->data['content_actions'] = $actions;
+-			}
++			}
++			//If not sysop, remove move button on pathway/gpml/image pages
++			if($ns == NS_PATHWAY || $ns == NS_GPML || $ns == NS_IMAGE || $ns == NS_PATHWAY_TALK) {
++				unset($actions['move']);
++			}
+ 		}
+-			if($wgTitle->getNameSpace() == NS_PATHWAY || NS_PATHWAY_TALK || NS_IMAGE) {
+-				$actions = $this->data['content_actions'];
+-				unset($actions['move']);
+-				$this->data['content_actions'] = $actions;
+-			}
++		if($wgTitle->getNameSpace() == NS_PATHWAY || NS_PATHWAY_TALK || NS_IMAGE) {
++			$actions = $this->data['content_actions'];
++			$this->data['content_actions'] = $actions;
++		}
+ ?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+ <html xmlns="<?php $this->text('xhtmldefaultnamespace') ?>" <?php 
+ 	foreach($this->data['xhtmlnamespaces'] as $tag => $ns) {

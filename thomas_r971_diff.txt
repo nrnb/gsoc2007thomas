@@ -1,0 +1,48 @@
+Index: trunk/src/core/org/pathvisio/view/GraphicsShape.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 970)
++++ trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 971)
+@@ -18,6 +18,7 @@
+ 
+ import java.awt.Polygon;
+ import java.awt.Shape;
++import java.awt.geom.Area;
+ import java.awt.geom.Rectangle2D;
+ import java.util.HashSet;
+ import java.util.Set;
+@@ -458,7 +459,10 @@
+ 	 */
+ 	protected Shape getVOutline()
+ 	{
+-		return defaultStroke.createStrokedShape(getFillShape());
++		Shape fill = getFillShape();
++		Area outline = new Area(fill);
++		outline.add(new Area(defaultStroke.createStrokedShape(fill)));
++		return outline;
+ 	}
+ 	
+ 	private Shape getFillShape() {
+Index: trunk/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Handle.java	(revision 970)
++++ trunk/src/core/org/pathvisio/view/Handle.java	(revision 971)
+@@ -22,6 +22,7 @@
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.Stroke;
++import java.awt.geom.Area;
+ import java.awt.geom.Ellipse2D;
+ import java.awt.geom.Rectangle2D;
+ 
+@@ -211,7 +212,10 @@
+ 	}
+ 			
+ 	public Shape getVOutline() {
+-		return defaultStroke.createStrokedShape(getFillShape());
++		Shape fill = getFillShape();
++		Area outline = new Area(fill);
++		outline.add(new Area(defaultStroke.createStrokedShape(fill)));
++		return outline;
+ 	}
+ 	
+ 	private Shape getFillShape() {

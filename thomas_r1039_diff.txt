@@ -1,0 +1,40 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1038)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1039)
+@@ -15,6 +15,7 @@
+ }
+ 
+ function createApplet( &$parser, $idClick = 'appletButton', $idReplace = 'pwThumb', $new = '', $pwTitle = '' ) {
++	$parser->disableCache();
+ 	try {
+ 		if(!$pwTitle) {
+ 			$pathway = Pathway::newFromTitle($parser->mTitle);
+@@ -45,7 +46,6 @@
+ 
+ function makeAppletFunctionCall($pathway, $idReplace, $idClick, $new) {
+ 	global $wgUser;
+-
+ 	if($new) {
+ 		$pwUrl = $pathway->getTitleObject()->getFullURL();
+ 	} else {
+@@ -59,7 +59,7 @@
+ 		'pwUrl' => $pwUrl
+ 	);
+ 	if($wgUser && $wgUser->isLoggedIn()) {
+-		$args = array_merge($args, array('user', $wgUser->getRealName()));
++		$args = array_merge($args, array('user' => $wgUser->getRealName()));
+ 	}
+ 	if($new) {
+ 		$args = array_merge($args, array('new' => true));
+@@ -70,8 +70,8 @@
+ 	return scriptTag(
+ 		"var elm = document.getElementById('{$idClick}');" . 
+ 		"var listener = function() { replaceWithApplet('{$idReplace}', 'applet', {$keys}, {$values}); };" .
+-		"if(elm.attachEvent) elm.attachEvent('onclick',listener);" .
+-		"else elm.addEventListener('click',listener, false);"
++		"if(elm.attachEvent) { elm.attachEvent('onclick',listener); }" .
++		"else { elm.addEventListener('click',listener, false); }"
+ 	);
+ }
+ ?>

@@ -1,0 +1,13 @@
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1118)
++++ trunk/build.xml	(revision 1119)
+@@ -260,7 +260,7 @@
+ 		</exec>
+ 	</target>
+ 
+-	<target name="wikipathways-swt" depends="prepare-webstart" description="Create resources for the wikipathways swt editor">
++	<target name="wikipathways-swt" depends="prepare-webstart, jar-wikipathways" description="Create resources for the wikipathways swt editor">
+ 		<signjar jar="wikipathways-swt.jar" lazy="true" 
+ 			alias="PV" storepass="PathVisio" keystore="${lib.dir}/visioKeyStore"/>
+ 		<copy toDir="${wikipathways.webstart.dir}" file="wikipathways-swt.jar"/>

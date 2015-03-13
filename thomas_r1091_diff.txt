@@ -1,0 +1,288 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1090)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1091)
+@@ -89,14 +89,7 @@
+ 			// TODO Auto-generated catch block
+ 			e.printStackTrace();
+ 		}
+-		System.out.println("INIT ENDED....");
+-		Logger.log.trace("INIT ENDED....");
+-	}
+ 		
+-	public void start() {
+-		System.out.println("START CALLED....");
+-		Logger.log.trace("START CALLED....");
+-		
+ 		final RunnableWithProgress r = new RunnableWithProgress() {
+ 			public Object excecuteCode() {				
+ 				GuiInit.init();
+@@ -127,7 +120,15 @@
+ 		} catch (Exception e) {
+ 			Logger.log.error("Unable to start applet", e);
+ 		}
+-				
++		
++		System.out.println("INIT ENDED....");
++		Logger.log.trace("INIT ENDED....");
++	}
++		
++	public void start() {
++		System.out.println("START CALLED....");
++		Logger.log.trace("START CALLED....");
++						
+ 		System.out.println("START ENDED....");
+ 		Logger.log.trace("START ENDED....");
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1090)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1091)
+@@ -32,7 +32,7 @@
+ 	VPathwayElement element;
+ 	
+ 	public PropertiesAction(VPathwayElement e) {
+-		super("properties");
++		super("Properties");
+ 		putValue(AbstractAction.SHORT_DESCRIPTION, "View this element's properties");
+ 		element = e;
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java	(revision 1090)
++++ trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java	(revision 1091)
+@@ -16,8 +16,6 @@
+ //
+ package org.pathvisio.gui.swing;
+ 
+-import java.util.Vector;
+-
+ import javax.swing.JEditorPane;
+ 
+ import org.pathvisio.ApplicationEvent;
+@@ -34,9 +32,8 @@
+ 
+ public class BackpagePane extends JEditorPane implements SelectionListener, ApplicationEventListener {
+ 	PathwayElement input;
+-	int maxThreads = 5;
+-	ThreadGroup threads;
+-	Vector<Thread> runningThreads = new Vector<Thread>();
++	final static int maxThreads = 5;
++	volatile ThreadGroup threads;
+ 	volatile PathwayElement lastSelected;
+ 	
+ 	public BackpagePane() {
+@@ -48,57 +45,38 @@
+ 		VPathway vp = Engine.getCurrent().getActiveVPathway();
+ 		if(vp != null) vp.addSelectionListener(this);
+ 		
+-		threads = new ThreadGroup("backpage-queries");
+-		
++		threads = new ThreadGroup("backpage-queries");		
+ 	}
+ 
+ 	public void setInput(final PathwayElement e) {
+-		if(e == null) {
++		//System.err.println("===== SetInput Called ==== " + e);
++		if(e == null || e.getObjectType() != ObjectType.DATANODE) {
+ 			setText(Gdb.getBackpageHTML(null, null, null));
+ 		} else if(input != e) {
+-			System.err.println("Setting input " + e);
++			//System.err.println("\tSetting input " + e + " using " + threads);
+ 			//First check if the number of running threads is not too high
+ 			//(may happen when many SelectionEvent follow very fast)
+-			if(runningThreads.size() < maxThreads) {
+-				System.err.println("Query in thread " + e);
+-				input = e;
+-				if(e.getObjectType() == ObjectType.DATANODE) {
+-					Thread t = new Thread() {
+-						public void run() {
+-							System.err.println("++++++++++++++");
+-							System.err.println("Adding thread " + this);
+-							runningThreads.add(this);
+-							setText(Gdb.getBackpageHTML(
+-									e.getGeneID(), 
+-									e.getSystemCode(), 
+-									e.getBackpageHead()));
+-							System.err.println("Removing thread " + this);
+-							System.err.println("++++++++++++++");
+-							runningThreads.remove(this);
+-							check();
+-						}
+-					};
+-					t.setPriority(Thread.MIN_PRIORITY);
+-					t.start();
+-					lastSelected = null;
+-				}				
++			//System.err.println("\tNr of threads: " + threads.activeCount());
++			if(threads.activeCount() < maxThreads) {
++					input = e;
++					QueryThread qt = new QueryThread(e);
++					qt.start();
++					lastSelected = null;		
+ 			} else {
+-				System.err.println("Queue lastSelected " + e);
++				//System.err.println("\tQueue lastSelected " + e);
+ 				//When we're on our maximum, remember this element
+ 				//and ignore it when a new one is selected
+ 				lastSelected = e;
+ 			}
+-			System.err.println("--------------");
+ 		}
+ 	}
+ 
+ 	private void check() {
+-		System.err.println("=====CHECK===");
++		//System.err.println("===== Check Called === " + lastSelected);
+ 		if(lastSelected != null) {
+-			System.err.println("From checked " + lastSelected);
++			//System.err.println("From checked " + lastSelected);
+ 			setInput(lastSelected);
+ 		}
+-		System.err.println("==============");
+ 	}
+ 	
+ 	public void selectionEvent(SelectionEvent e) {
+@@ -125,4 +103,21 @@
+ 			((VPathway)e.source).addSelectionListener(this);
+ 		}
+ 	}
++	
++	class QueryThread extends Thread {
++		PathwayElement e;
++		QueryThread(PathwayElement e) {
++			super(threads, e.getGeneID() + e.hashCode());
++			this.e = e;
++		}
++		public void run() {
++			//System.err.println("+++++ Thread " + this + " started +++++");
++			setText(Gdb.getBackpageHTML(
++					e.getGeneID(), 
++					e.getSystemCode(), 
++					e.getBackpageHead()));
++			check();
++			//System.err.println("+++++ Thread " + this + " ended +++++");
++		}
++	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1090)
++++ trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1091)
+@@ -1,17 +1,13 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.Component;
+-import java.util.ArrayList;
+-import java.util.List;
+ 
+-import javax.swing.Action;
++import javax.swing.JMenu;
++import javax.swing.JPopupMenu;
+ 
+ import org.pathvisio.gui.swing.actions.PropertiesAction;
+-import org.pathvisio.gui.swing.menus.PathwayElementMenu;
+-import org.pathvisio.view.Group;
+ import org.pathvisio.view.Handle;
+ import org.pathvisio.view.MouseEvent;
+-import org.pathvisio.view.SelectionBox;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayElement;
+ import org.pathvisio.view.VPathwayEvent;
+@@ -20,20 +16,23 @@
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class PathwayElementMenuListener implements VPathwayListener {    
+-	private static PathwayElementMenu getMenuInstance(VPathwayElement e) {
++	private static JPopupMenu getMenuInstance(VPathwayElement e) {
+ 		if(e instanceof Handle) e = ((Handle)e).getParent();
+ 		VPathway vp = e.getDrawing();
+-		List<Action> actions = new ArrayList<Action>();
++		
++		JPopupMenu menu = new JPopupMenu();
+ 		ViewActions vActions = vp.getViewActions();
+-		actions.add(new PropertiesAction(e));
+-		actions.add(vActions.delete);
+-		actions.add(vActions.selectAll);
+-		actions.add(vActions.selectDataNodes);
++		menu.add(vActions.delete);
+ 		
+-		if(e instanceof SelectionBox) {
+-		} else if (e instanceof Group) {
+-		}
+-		return new PathwayElementMenu(e, actions);
++		JMenu selectMenu = new JMenu("Select");
++		selectMenu.add(vActions.selectAll);
++		selectMenu.add(vActions.selectDataNodes);
++		menu.add(selectMenu);
++		menu.addSeparator();
++		menu.add(new PropertiesAction(e));
++
++		
++		return menu;
+ 	}
+ 	
+ 	public void vPathwayEvent(VPathwayEvent e) {
+@@ -46,7 +45,7 @@
+ 			if(e.getMouseEvent().isPopupTrigger()) {
+ 				Component invoker = (VPathwaySwing)e.getVPathway().getWrapper();
+ 				MouseEvent me = e.getMouseEvent();
+-				PathwayElementMenu m = getMenuInstance(e.getAffectedElement());
++				JPopupMenu m = getMenuInstance(e.getAffectedElement());
+ 				m.show(invoker, me.getX(), me.getY());
+ 			}
+ 			break;
+Index: trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1090)
++++ trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1091)
+@@ -1,49 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.gui.swing.menus;
+-
+-import java.util.Collection;
+-import java.util.Collections;
+-
+-import javax.swing.Action;
+-import javax.swing.JPopupMenu;
+-
+-import org.pathvisio.gui.swing.actions.PropertiesAction;
+-import org.pathvisio.view.VPathwayElement;
+-
+-public class PathwayElementMenu extends JPopupMenu {		
+-	VPathwayElement element;
+-	
+-	public PathwayElementMenu(VPathwayElement e) {
+-		this(e, new Action[] { new PropertiesAction(e) });
+-	}
+-	
+-	public PathwayElementMenu(VPathwayElement e, Action[] actions) {
+-		element = e;
+-		for(Action a : actions) {
+-			if(a != null) {
+-				add(a);
+-			} else {
+-				addSeparator();
+-			}
+-		}
+-	}
+-	
+-	public PathwayElementMenu(VPathwayElement e, Collection<Action> actions) {
+-		this(e, actions.toArray(new Action[actions.size()]));
+-	}
+-}

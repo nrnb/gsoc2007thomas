@@ -1,0 +1,784 @@
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 931)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 932)
+@@ -22,6 +22,10 @@
+ import java.awt.Image;
+ import java.awt.Rectangle;
+ import java.awt.Toolkit;
++import java.awt.image.BufferedImage;
++import java.awt.image.FilteredImageSource;
++import java.awt.image.ImageProducer;
++import java.awt.image.RGBImageFilter;
+ import java.io.File;
+ import java.io.IOException;
+ import java.io.InputStream;
+@@ -31,6 +35,9 @@
+ import java.util.Arrays;
+ import java.util.List;
+ 
++import javax.imageio.ImageIO;
++import javax.swing.ImageIcon;
++
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.jface.viewers.ArrayContentProvider;
+ import org.eclipse.jface.viewers.ISelectionChangedListener;
+@@ -46,7 +53,6 @@
+ import org.eclipse.swt.events.SelectionAdapter;
+ import org.eclipse.swt.events.SelectionEvent;
+ import org.eclipse.swt.graphics.ImageData;
+-import org.eclipse.swt.graphics.PaletteData;
+ import org.eclipse.swt.graphics.Point;
+ import org.eclipse.swt.graphics.RGB;
+ import org.eclipse.swt.layout.FillLayout;
+@@ -129,20 +135,18 @@
+ 	void drawImage(ImageSample is, Color rgb, Rectangle area, Graphics2D g2d) {
+ 		Image img = is.getImage(rgb);
+ 		if(img != null) {
++			drawBackground(area, g2d);
++			
+ 			Dimension scaleTo = is.getScaleSize(new Dimension(area.width, area.height));
+-
+-			drawBackground(area, gc, e);
+-
+-			Rectangle ib = image.getBounds();
++			Image simg = img.getScaledInstance(scaleTo.width, scaleTo.height, Image.SCALE_SMOOTH);
++									
+ 			int xs = area.width - scaleTo.width;
+ 			int ys = area.height - scaleTo.height;
+-			g2d.drawImage(image, ib.x, ib.y, ib.width, ib.height, 
+-					area.x + xs / 2, area.y + ys / 2, scaleTo.height, scaleTo.width);
++			g2d.drawImage(simg, area.x + xs / 2, area.y + ys / 2, null);
+ 		}
+ 	}
+ 		
+ 	void drawNoDataFound(ConfiguredSample s, Rectangle area, Graphics2D g2d) {
+-		Color c = new Color(e.display, s.getColorSet().getColor(ColorSet.ID_COLOR_NO_DATA_FOUND));
+ 		g2d.setColor(s.getColorSet().getColor(ColorSet.ID_COLOR_NO_DATA_FOUND));
+ 		g2d.fill(area);
+ 	}
+@@ -337,16 +341,16 @@
+ 		
+ 		void changeColorLabel() {
+ 			ColorDialog cd = new ColorDialog(getShell());
+-			cd.setRGB(getInput().getReplaceColor());
++			cd.setRGB(SwtUtils.color2rgb(getInput().getReplaceColor()));
+ 			RGB rgb = cd.open();
+ 			if(rgb != null) {
+-				getInput().setReplaceColor(rgb);
++				getInput().setReplaceColor(SwtUtils.rgb2color(rgb));
+ 				setColorLabel();
+ 			}
+ 		}
+ 		
+ 		void setColorLabel() {
+-			RGB rgb = getInput().getReplaceColor();
++			RGB rgb = SwtUtils.color2rgb(getInput().getReplaceColor());
+ 			replaceColor = SwtUtils.changeColor(replaceColor, rgb, getDisplay());
+ 			colorLabel.setBackground(replaceColor);
+ 			refreshImage();
+@@ -412,7 +416,7 @@
+ 	}
+ 	
+ 	protected class ImageSample extends ConfiguredSample {
+-		Image cacheImage;
++		BufferedImage cacheImage;
+ 		URL imageURL;
+ 		Color replaceColor = DEFAULT_TRANSPARENT;
+ 		int tolerance; //range 0 - 255;
+@@ -456,92 +460,80 @@
+ 		}
+ 		public int getTolerance() { return tolerance; }
+ 		
+-		public ImageData getImageData() {
++		public BufferedImage getImage() {
+ 			if(imageURL == null) return null;
+ 			if(cacheImage == null) {
+-				InputStream in = getInputStream(imageURL);
+-				cacheImage = Toolkit.getDefaultToolkit().getImage(imageURL);
++				try {
++					cacheImage = ImageIO.read(imageURL);
++				} catch(IOException e) {
++					Engine.log.error("Unable to load image", e);
++					return null;
++				}
+ 			}
+-			return cacheImage.clone();
++			return cacheImage.getSubimage(0, 0, cacheImage.getWidth(), cacheImage.getHeight());
+ 		}
+ 		
+-		public ImageData getImageData(Point size) {
+-			return getImageData(size, null);
++		public Image getImage(Dimension size) {
++			return getImage(size, null);
+ 		}
+ 		
+-		public ImageData getImageData(RGB replaceWith) {
+-			ImageData img = getImageData();
++		public Image getImage(Color replaceWith) {
++			Image img = getImage();
+ 			if(img == null) return null;
+-			if(replaceWith != null) img = doReplaceColor(img, replaceWith);
++			if(replaceWith != null) img = doReplaceColor(img, replaceColor, replaceWith, tolerance);
+ 			return img;
+ 		}
+ 		
+ 		public ImageData getImageData(Point size, RGB replaceWith) {
+-			ImageData img = getImageData();
++			Dimension dsize = new Dimension(size.x, size.y);
++			BufferedImage img = toBufferedImage(getImage(dsize, SwtUtils.rgb2color(replaceWith)));
++			return SwtUtils.convertImageToSWT(img);
++		}
++		
++		public Image getImage(Dimension size, Color replaceWith) {
++			Image img = getImage();
+ 			if(img == null) return null;
+ 			
+-			img = getImageData(replaceWith);
++			img = getImage(replaceWith);
+ 			
+ 			size = getScaleSize(size);
+ 			
+-			img = img.scaledTo(size.x, size.y);
++			img = img.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
+ 			return img;
+ 		}
+ 		
+-		public Point getScaleSize(Point target) {
++		public Dimension getScaleSize(Dimension target) {
+ 			if(aspectRatio) {
+-				ImageData img = getImageData();
+-				double r = (double)img.height / img.width;
+-				int min = Math.min(target.x, target.y);
+-				if(min == target.x) target.y = (int)(min * r);
+-				else target.x = (int)(min * r);
++				BufferedImage img = getImage();
++				double r = (double)img.getHeight() / img.getWidth();
++				int min = (int)Math.min(target.getWidth(), target.getHeight());
++				if(min == target.getWidth()) target.height = (int)(min * r);
++				else target.width = (int)(min * r);
+ 			}
+ 			return target;
+ 		}
+ 		
+-		ImageData doReplaceColor(ImageData img, RGB replaceWith) {
+-			PaletteData pd = img.palette;
+-			if(pd.isDirect) 
+-				replaceDirect(img, getReplaceColor(), replaceWith, getTolerance());
+-			else 
+-				replaceIndexed(img, getReplaceColor(), replaceWith, getTolerance());
+-			return img;
+-		}
+-		
+-		void replaceDirect(ImageData imgd, RGB tr, RGB rp, int tol) {
+-			PaletteData pd = imgd.palette;
+-			int rpvalue = pd.getPixel(rp);
+-			int[] line = new int[imgd.width];
+-			for (int y = 0; y < imgd.height; y++) {
+-				imgd.getPixels(0, y, imgd.width, line, 0);
+-				for (int x = 0; x < line.length; x++) {
+-					if(compareRGB(tr, pd.getRGB(line[x]), tol)) {
+-						imgd.setPixel(x, y, rpvalue);
++		Image doReplaceColor(Image img, final Color oldColor, final Color newColor, final int tol) {
++			RGBImageFilter f = new RGBImageFilter() {
++				public int filterRGB(int x, int y, int rgb) {
++					Color thisColor = new Color(rgb);
++					if(compareColor(oldColor, thisColor, tol)) {
++						return newColor.getRGB();
+ 					}
++					return rgb;
+ 				}
+ 			};
++			ImageProducer pr = new FilteredImageSource(img.getSource(), f);
++			return Toolkit.getDefaultToolkit().createImage(pr);
+ 		}
+-
+-		void replaceIndexed(ImageData imgd, RGB tr, RGB rp, int tol) {
+-			RGB[] rgbs = imgd.palette.getRGBs();
+-			RGB[] newRgbs = new RGB[rgbs.length];
+-			for(int i = 0; i < rgbs.length; i++) {
+-				RGB rgb = rgbs[i];
+-				if( compareRGB(tr, rgbs[i], tol)) {
+-					rgb = rp;
+-				}
+-				newRgbs[i] = rgb;
+-			}
+-			imgd.palette = new PaletteData(newRgbs);
+-		}
+ 		
+-		boolean compareRGB(RGB rgb1, RGB rgb2, int tolerance) {
+-			return 	rgb2.red >= rgb1.red - tolerance &&
+-					rgb2.red <= rgb1.red + tolerance &&
+-					rgb2.green >= rgb1.green - tolerance &&
+-					rgb2.green <= rgb1.green + tolerance &&
+-					rgb2.blue >= rgb1.blue - tolerance &&
+-					rgb2.blue <= rgb1.blue + tolerance;
++		boolean compareColor(Color rgb1, Color rgb2, int tolerance) {
++			return 	rgb2.getRed() >= rgb1.getRed() - tolerance &&
++					rgb2.getRed() <= rgb1.getRed() + tolerance &&
++					rgb2.getGreen() >= rgb1.getGreen() - tolerance &&
++					rgb2.getGreen() <= rgb1.getGreen() + tolerance &&
++					rgb2.getBlue() >= rgb1.getBlue() - tolerance &&
++					rgb2.getBlue() <= rgb1.getBlue() + tolerance;
+ 		}
+ 		
+ 		InputStream getInputStream(URL url) {
+@@ -577,5 +569,30 @@
+ 		
+ 	}
+ 	
++    // This method returns a buffered image with the contents of an image
++	public static BufferedImage toBufferedImage(Image image) {
++		if (image instanceof BufferedImage) {
++			return (BufferedImage)image;
++		}
++
++		// This code ensures that all the pixels in the image are loaded
++		image = new ImageIcon(image).getImage();
++
++
++		// Create a buffered image with a format that's compatible with the screen
++		int type = BufferedImage.TYPE_INT_ARGB;
++		System.out.println(image.getWidth(null));
++		BufferedImage bimage = new BufferedImage(image.getWidth(null), image.getHeight(null), type);
++
++		// Copy image to buffered image
++		Graphics2D g = bimage.createGraphics();
++
++		// Paint the image onto the buffered image
++		g.drawImage(image, 0, 0, null);
++        g.dispose();
++    
++        return bimage;
++    }
++    
+ 	public Composite visualizeOnToolTip(Composite parent, Graphics g) { return null; }
+ }
+Index: branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 931)
++++ branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 932)
+@@ -252,7 +252,7 @@
+ 				if(dbName == null) return;
+ 				
+ 				Gdb.connect(dbName);
+-				setStatus("Using Gene Database: '" + SwtPreference.SWT_DIR_GDB.getValue() + "'");
++				setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
+ 				cacheExpressionData();
+ 			} catch(Exception e) {
+ 				String msg = "Failed to open Gene Database; " + e.getMessage();
+@@ -1029,7 +1029,7 @@
+ 		rightPanel.getTabFolder().setSelection(0); //select backpage browser tab
+ 		rightPanel.hideTab("Legend"); //hide legend on startup
+ 		
+-		setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB + "'");
++		setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
+ 				
+ 		return parent;
+ 		
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 932)
+@@ -18,11 +18,11 @@
+ 
+ import java.io.File;
+ import java.io.IOException;
++import java.util.Collection;
+ 
+ import org.eclipse.jface.preference.PreferenceStore;
+ import org.eclipse.jface.util.IPropertyChangeListener;
+ import org.eclipse.jface.util.PropertyChangeEvent;
+-import org.eclipse.swt.graphics.RGB;
+ import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.Preference;
+@@ -55,13 +55,30 @@
+ 		return p;
+ 	}
+ 	
+-	public void save() throws IOException {
+-		for(Preference p : SwtPreference.values()) {
+-			setValue(p.name(), p.getValue());
++	protected void toEnums(Preference[] enumPrefs) {
++		for(Preference p : enumPrefs) {
++			p.setValue(getString(p.name()));
+ 		}
+-		for(Preference p : GlobalPreference.values()) {
++	}
++	
++	protected void toEnums() {
++		toEnums(SwtPreference.values());
++		toEnums(GlobalPreference.values());
++	}
++	
++	protected void fromEnums(Preference[] enumPrefs) {
++		for(Preference p : enumPrefs) {
+ 			setValue(p.name(), p.getValue());
+ 		}
++	}
++	
++	protected void fromEnums() {
++		fromEnums(SwtPreference.values());
++		fromEnums(GlobalPreference.values());
++	}
++	
++	public void save() throws IOException {
++		fromEnums();
+ 		super.save();
+ 	}
+ 	
+@@ -83,9 +100,11 @@
+ 		try {
+ 			load();
+ 		} catch(Exception e) { 
+-			try { save(); } catch(Exception ex) { } 
++			Engine.log.error("Unable to load preferences", e);
+ 		}
+-
++		
++		toEnums();
++		
+ 		createDataDirectories();
+ 		
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/Visualization.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/Visualization.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/Visualization.java	(revision 932)
+@@ -19,6 +19,7 @@
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
++import java.awt.geom.Area;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
+@@ -195,7 +196,7 @@
+ 	 * @return A {@link Shape} object that contains the area in which the
+ 	 * VisualizationPlugin can draw its visualization
+ 	 */
+-	public Shape provideDrawArea(VisualizationPlugin p, Graphics g) {
++	public Area provideDrawArea(VisualizationPlugin p, Graphics g) {
+ 		if(!p.isUseProvidedArea()) 
+ 			throw new IllegalArgumentException("useProvidedArea set to false for this plug-in");
+ 		
+@@ -207,9 +208,9 @@
+ 			nrRes += (pr.getDrawingPlugin().isActive() && pr.getDrawingPlugin().isUseProvidedArea()) ? 1 : 0;
+ 		}
+ 		
+-		Shape shape = g.createVisualizationRegion();
++		Area area = g.createVisualizationRegion();
+ 		//Distribute space over plugins
+-		Rectangle bounds = shape.getBounds();
++		Rectangle bounds = area.getBounds();
+ 		
+ 		//Adjust width so we can divide into equal rectangles
+ 		bounds.width += bounds.width % nrRes;
+@@ -217,9 +218,10 @@
+ 		bounds.x += w * index;
+ 		bounds.width = w;
+ 		
++		Area barea = new Area(bounds);
++		area.intersect(barea);
+ 		
+-		shape.intersects(bounds);
+-		return shape;
++		return area;
+ 	}
+ 	
+ 	/**
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/plugins/PluginManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/plugins/PluginManager.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/plugins/PluginManager.java	(revision 932)
+@@ -256,11 +256,11 @@
+             for (File file : files)
+             	processFile(file, base);
+ 		} else {
+-			if(f.toString().endsWith(".class")) {
+-				String cn = f.toString().substring(base.length() + 1);
+-				cn = cn.replace('/', '.').replace('$', '.');
+-				System.out.println(cn);
+-				addPlugin(Class.forName(removeClassExt(cn)));
++			String fn = f.toString();
++			if(fn.endsWith(".class") && !fn.contains("$")) { //Ignore inner classes for now
++				String cn = fn.substring(base.length() + 1);
++				cn = removeClassExt(cn.replace('/', '.'));
++				addPlugin(Class.forName(cn, false, Engine.class.getClassLoader()));
+ 			}
+ 		}
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java	(revision 932)
+@@ -93,6 +93,9 @@
+ 		Engine.log.setLogLevel(true, true, true, true, true, true);//Modify this to adjust log level
+ 		Pathway.setLogger(Engine.log);
+ 		
++		//load the preferences
++		loadPreferences();
++		
+ 		//initiate Gene database (to load previously used gdb)
+ 		Gdb.init();
+ 		
+@@ -155,6 +158,10 @@
+ 		VisualizationManager.loadGeneric();
+ 	}
+ 	
++	static void loadPreferences() {
++		Engine.getPreferences();
++	}
++	
+ 	/**
+ 	 * Loads images used throughout the applications into an {@link ImageRegistry}
+ 	 */
+Index: branches/g2d-branch/src/core/org/pathvisio/data/Gdb.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/Gdb.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/data/Gdb.java	(revision 932)
+@@ -83,7 +83,7 @@
+ 			try {
+ 				connect(null);
+ 			} catch(Exception e) {
+-				setCurrentGdb(SwtPreference.SWT_CURR_GDB.getValue());
++				setCurrentGdb(SwtPreference.SWT_CURR_GDB.getDefault());
+ 			}
+ 		}
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Graphics.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Graphics.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Graphics.java	(revision 932)
+@@ -18,7 +18,7 @@
+ 
+ import java.awt.Color;
+ import java.awt.Font;
+-import java.awt.Shape;
++import java.awt.geom.Area;
+ 
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.model.PathwayElement;
+@@ -72,8 +72,8 @@
+ 		if(listen) markDirty(); // mark everything dirty
+ 	}
+ 	
+-	public Shape createVisualizationRegion() {
+-		return getVBounds();
++	public Area createVisualizationRegion() {
++		return new Area(getVBounds());
+ 	}
+ 	
+ 	
+@@ -127,11 +127,11 @@
+ 		int style = Font.PLAIN;
+ 		if(gdata.getFontName() != null) {
+ 			if(gdata.isBold()) {
+-				style &= Font.BOLD;
++				style |= Font.BOLD;
+ 			}
+ 			if(gdata.isItalic()) {
+-				style &= Font.ITALIC;
+-			}//TODO: underline / strikethrough
++				style |= Font.ITALIC;
++			}
+ 		}
+ 		return style;
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 932)
+@@ -473,26 +473,6 @@
+ 	 */
+ 	public void draw (Graphics2D g2d, Rectangle area)
+ 	{		
+-//		Image image = (Image)getData("double-buffer-image");
+-//		// create an image for double-buffering, if it doesn't exist 
+-//		// or the component has been resized
+-//		if(image == null
+-//				|| image.getBounds().width != getSize().x
+-//				|| image.getBounds().height != getSize().y)
+-//		{
+-//			Engine.log.trace("Creating image of size " + getSize().x + ", " + getSize().y);
+-//			image = new Image(getDisplay(), getSize().x, getSize().y);
+-//			setData("double-buffer-image", image);
+-//		}
+-//
+-//		GC buffer = new GC(image);
+-//		buffer.setBackground(e.display.getSystemColor(SWT.COLOR_WHITE));
+-//		buffer.fillRectangle(e.x, e.y, e.width, e.height);
+-//		
+-//		buffer.setAntialias(SWT.ON);
+-//		
+-//		Rectangle2D.Double r = new Rectangle.Double(e.x, e.y, e.width, e.height);
+-
+ 		if(area == null) {
+ 			area = g2d.getClipBounds();
+ 		}
+@@ -514,21 +494,17 @@
+ 					o.draw (g2d);
+ 				}
+ 				
+-//				if(v != null && o instanceof Graphics) {
+-//						try {
+-//							v.visualizeDrawing((Graphics) o, g2d);
+-//						} catch(Exception ex) {
+-//							Engine.log.error(
+-//									"Unable to apply visualization " + v + " on " + o, ex);
+-//							ex.printStackTrace();
+-//						}
+-//				}
+-				//if(o instanceof GeneProduct) ((GeneProduct)o).drawHighlight(g2d);
++				if(v != null && o instanceof Graphics) {
++						try {
++							v.visualizeDrawing((Graphics) o, g2d);
++						} catch(Exception ex) {
++							Engine.log.error(
++									"Unable to apply visualization " + v + " on " + o, ex);
++							ex.printStackTrace();
++						}
++				}
+ 			}
+ 		}
+-		
+-//		e.gc.drawImage(image, 0, 0);
+-//		buffer.dispose();
+ 	}
+ 
+ 	boolean checkDrawAllowed(VPathwayElement o) {
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Label.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Label.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Label.java	(revision 932)
+@@ -122,11 +122,10 @@
+ //		textComposite.pack();
+ //	}
+ 	
+-	Dimension mComputeTextSize(Graphics2D g) {
++	Dimension computeTextSize(Graphics2D g) {
+ 		Rectangle2D tb = null;
+ 		if(g != null) {
+-			TextLayout tl = new TextLayout(gdata.getTextLabel(), g.getFont(), g.getFontRenderContext());
+-			tb = tl.getBounds();
++			 tb = g.getFontMetrics().getStringBounds(getVAttributedString().getIterator(), 0, gdata.getTextLabel().length(), g);
+ 		} else { //No graphics context, we can only guess...
+ 			tb = new Rectangle2D.Double(0, 0, getVWidthDouble(), getVHeightDouble()); 
+ 		}
+@@ -146,10 +145,31 @@
+ 		return vFromM(gdata.getMFontSize());
+ 	}
+ 	
++	Font getVFont() {
++		String name = gdata.getFontName();
++		int style = getVFontStyle();
++		int size = (int)getVFontSize();
++		return new Font(name, style, size);
++	}
++	
++	AttributedString getVAttributedString() {
++		AttributedString ats = new AttributedString(gdata.getTextLabel());
++		if(gdata.isStrikethru()) {
++			ats.addAttribute(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
++		}
++		if(gdata.isUnderline()) {
++			ats.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
++		}
++		
++		ats.addAttribute(TextAttribute.FONT, getVFont());
++		return ats;
++	}
++	
+ 	Graphics2D g2d = null; //last Graphics2D for determining text size
+ 	public void doDraw(Graphics2D g)
+ 	{		
+-		g2d = g;
++		if(g2d != null) g2d.dispose();
++		g2d = (Graphics2D)g.create();
+ 		
+ 		if(isSelected()) {
+ 			g.setColor(selectColor);
+@@ -157,22 +177,16 @@
+ 			g.setColor(gdata.getColor());
+ 		}
+ 						
+-		g.setFont(new Font(gdata.getFontName(), getVFontStyle(), (int)getVFontSize()));
++		Font f = getVFont();
++		g.setFont(f);
+ 		
+ 		Rectangle area = getVOutline().getBounds();
+ 		
+ 		String label = gdata.getTextLabel();
+-		AttributedString ats = new AttributedString(label);
+-		if(gdata.isStrikethru()) {
+-			ats.addAttribute(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
+-		}
+-		if(gdata.isUnderline()) {
+-			ats.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
+-		}
++		AttributedString ats = getVAttributedString();
+ 		
+-		TextLayout tl = new TextLayout(ats.getIterator(), g.getFontRenderContext());
+-		Rectangle2D tb = tl.getBounds();
+-		tl.draw(g, 	area.x + (int)(area.width / 2) - (int)(tb.getWidth() / 2), 
++		Rectangle2D tb = g.getFontMetrics().getStringBounds(ats.getIterator(), 0, label.length(), g);
++		g.drawString(ats.getIterator(), area.x + (int)(area.width / 2) - (int)(tb.getWidth() / 2), 
+ 					area.y + (int)(area.height / 2) + (int)(tb.getHeight() / 2));		
+ 	}
+ 		
+@@ -191,28 +205,14 @@
+ 	 */
+ 	protected Shape getVOutline()
+ 	{
+-		int[] vx = new int[4];
+-		int[] vy = new int[4];
++		Rectangle bounds = super.getVOutline().getBounds();
++		Dimension mq = computeTextSize(g2d);
++		double vqx = mq.getWidth();
++		double vqy = mq.getHeight();
+ 		
+-		int[] p = getVHandleLocation(handleNE).asIntArray();
+-		vx[0] = p[0]; vy[0] = p[1];
+-		p = getVHandleLocation(handleSE).asIntArray();
+-		vx[1] = p[0]; vy[1] = p[1];
+-		p = getVHandleLocation(handleSW).asIntArray();
+-		vx[2] = p[0]; vy[2] = p[1];
+-		p = getVHandleLocation(handleNW).asIntArray();
+-		vx[3] = p[0]; vy[3] = p[1];
+-		
+-		Polygon pol = new Polygon(vx, vy, 4);		
+-		Rectangle bounds = pol.getBounds();
+-		
+-		Dimension mq = mComputeTextSize(g2d);
+-		double vqx = vFromM(mq.getWidth());
+-		double vqy = vFromM(mq.getHeight());
+-		
+ 		LinAlg.Point c = getVCenter();
+-		bounds.add(new Rectangle2D.Double(c.x - vqx / 2, c.y - vqy / 2, vqx, vqy)); 
+-		
++		bounds.add(new Rectangle2D.Double(c.x - vqx / 2, c.y - vqy / 2, vqx, vqy));
++
+ 		return bounds;
+ 	}
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/SWTGraphics2DRenderer.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/SWTGraphics2DRenderer.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/SWTGraphics2DRenderer.java	(revision 932)
+@@ -40,7 +40,7 @@
+    */
+   public void prepareRendering(int clipX, int clipY, int clipW, int clipH) {
+     // check that the offscreen images are initialized and large enough
+-    checkOffScreenImages(clipW, clipH);
++    checkOffScreenImages(clipX, clipY, clipW, clipH);
+     // fill the region in the AWT image with the transparent color
+     java.awt.Graphics awtGraphics = awtImage.getGraphics();
+     awtGraphics.setColor(new java.awt.Color(TRANSPARENT_COLOR));
+@@ -103,7 +103,8 @@
+    * Ensure that the offscreen images are initialized and are at least
+    * as large as the size given as parameter.
+    */
+-  private void checkOffScreenImages(int width, int height) {
++  private void checkOffScreenImages(int x, int y, int width, int height) {
++	System.out.println("width: " + width + "| height: " + height);
+     int currentImageWidth = 0;
+     int currentImageHeight = 0;
+     if (swtImage != null) {
+@@ -112,10 +113,10 @@
+     }
+ 
+     // if the offscreen images are too small, recreate them
+-    if (width > currentImageWidth || height > currentImageHeight) {
++    if ((x + width) > currentImageWidth || (y + height) > currentImageHeight) {
+       dispose();
+-      width = Math.max(width, currentImageWidth);
+-      height = Math.max(height, currentImageHeight);
++      width = Math.max(width, x + width);
++      height = Math.max(height, y + height);
+       awtImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+       swtImageData = new ImageData(width, height, 24, PALETTE_DATA);
+       swtImageData.transparentPixel = TRANSPARENT_COLOR;
+Index: branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 931)
++++ branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 932)
+@@ -16,6 +16,10 @@
+ //
+ package org.pathvisio.util;
+ 
++import java.awt.image.BufferedImage;
++import java.awt.image.DirectColorModel;
++import java.awt.image.IndexColorModel;
++import java.awt.image.WritableRaster;
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
+ 
+@@ -33,6 +37,7 @@
+ import org.eclipse.swt.graphics.GC;
+ import org.eclipse.swt.graphics.Image;
+ import org.eclipse.swt.graphics.ImageData;
++import org.eclipse.swt.graphics.PaletteData;
+ import org.eclipse.swt.graphics.Point;
+ import org.eclipse.swt.graphics.RGB;
+ import org.eclipse.swt.graphics.Transform;
+@@ -124,6 +129,59 @@
+ 		return iNew != null ? new Image(display, iNew) : null;
+ 	}
+ 	
++	  public static ImageData convertImageToSWT(BufferedImage bufferedImage) {
++		    if (bufferedImage.getColorModel() instanceof DirectColorModel) {
++		      DirectColorModel colorModel = (DirectColorModel) bufferedImage
++		          .getColorModel();
++		      PaletteData palette = new PaletteData(colorModel.getRedMask(),
++		          colorModel.getGreenMask(), colorModel.getBlueMask());
++		      ImageData data = new ImageData(bufferedImage.getWidth(),
++		          bufferedImage.getHeight(), colorModel.getPixelSize(),
++		          palette);
++		      WritableRaster raster = bufferedImage.getRaster();
++		      int[] pixelArray = new int[4];
++		      for (int y = 0; y < data.height; y++) {
++		        for (int x = 0; x < data.width; x++) {
++		          raster.getPixel(x, y, pixelArray);
++		          int pixel = palette.getPixel(new RGB(pixelArray[0],
++		              pixelArray[1], pixelArray[2]));
++		          data.setPixel(x, y, pixel);
++		        }
++		      }
++		      return data;
++		    } else if (bufferedImage.getColorModel() instanceof IndexColorModel) {
++		      IndexColorModel colorModel = (IndexColorModel) bufferedImage
++		          .getColorModel();
++		      int size = colorModel.getMapSize();
++		      byte[] reds = new byte[size];
++		      byte[] greens = new byte[size];
++		      byte[] blues = new byte[size];
++		      colorModel.getReds(reds);
++		      colorModel.getGreens(greens);
++		      colorModel.getBlues(blues);
++		      RGB[] rgbs = new RGB[size];
++		      for (int i = 0; i < rgbs.length; i++) {
++		        rgbs[i] = new RGB(reds[i] & 0xFF, greens[i] & 0xFF,
++		            blues[i] & 0xFF);
++		      }
++		      PaletteData palette = new PaletteData(rgbs);
++		      ImageData data = new ImageData(bufferedImage.getWidth(),
++		          bufferedImage.getHeight(), colorModel.getPixelSize(),
++		          palette);
++		      data.transparentPixel = colorModel.getTransparentPixel();
++		      WritableRaster raster = bufferedImage.getRaster();
++		      int[] pixelArray = new int[1];
++		      for (int y = 0; y < data.height; y++) {
++		        for (int x = 0; x < data.width; x++) {
++		          raster.getPixel(x, y, pixelArray);
++		          data.setPixel(x, y, pixelArray[0]);
++		        }
++		      }
++		      return data;
++		    }
++		    return null;
++		  }
++	  
+ 	public static void setCompositeAndChildrenEnabled(Composite comp, boolean enable) {
+ 		comp.setEnabled(enable);
+ 		for(Control c : comp.getChildren()) {

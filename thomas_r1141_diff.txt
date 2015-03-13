@@ -1,0 +1,127 @@
+Index: trunk/wikipathways/wpi/extensions/editApplet.php
+===================================================================
+--- trunk/wikipathways/wpi/extensions/editApplet.php	(revision 1140)
++++ trunk/wikipathways/wpi/extensions/editApplet.php	(revision 1141)
+@@ -44,6 +44,15 @@
+ 	return substr($jsa, 0, strlen($jsa) - 2) . ')';
+ }
+ 
++function increase_version($old) {
++	//echo("increasing version: $old\n");
++	$numbers = explode('.', $old);
++	$last = hexdec($numbers[count($numbers) - 1]);
++	$numbers[count($numbers) - 1] = dechex(++$last);
++	//echo("increased to: " . implode('.', $numbers));
++	return implode('.', $numbers);
++}
++
+ function makeAppletFunctionCall($pathway, $idReplace, $idClick, $new) {
+ 	global $wgUser;
+ 	if($new) {
+@@ -52,12 +61,52 @@
+ 		$pwUrl = $pathway->getFileURL(FILETYPE_GPML);
+ 	}
+ 
++	//Read cache jars and update version
++	$jardir = '/var/www/wikipathways/wpi/applet';
++	$cache_archive = explode(' ', file_get_contents("$jardir/cache_archive"));
++	$version_file = explode("\n", file_get_contents('/var/www/wikipathways/wpi/applet/cache_version'));
++	$cache_version = array();
++	if($version_file) {
++		foreach($version_file as $ver) {
++			$jarver = explode("|", $ver);
++			if($jarver && count($jarver) == 3) {
++				$cache_version[$jarver[0]] = array('ver'=>$jarver[1], 'mod'=>$jarver[2]);
++			}
++		}
++	}
++	foreach($cache_archive as $jar) {
++		$mod = filemtime("$jardir/$jar");
++		if($ver = $cache_version[$jar]) {
++			if($ver['mod'] < $mod) {
++				$realversion = increase_version($ver['ver']);
++			} else {
++				$realversion = $ver['ver'];
++			}
++		} else {
++			$realversion = '0.0.0.0';
++		}
++		$cache_version[$jar] = array('ver'=>$realversion, 'mod'=>$mod);
++		$archive_string .= $jar . ', ';
++		$version_string .= $realversion . ', ';
++	}
++	$version_string = substr($version_string, 0, -2);
++	$archive_string = substr($archive_string, 0, -2);
++
++	//Write new cache version file
++	foreach(array_keys($cache_version) as $jar) {
++		$out .= $jar . '|' . $cache_version[$jar]['ver'] . '|' . $cache_version[$jar]['mod'] . "\n";
++	}
++	writefile("$jardir/cache_version", $out);
++
+ 	$args = array(
+ 		'rpcUrl' => "http://" . $_SERVER['HTTP_HOST'] . "/wpi/wpi_rpc.php",
+ 		'pwName' =>     $pathway->name(),
+ 		'pwSpecies' => $pathway->species(),
+-		'pwUrl' => $pwUrl
++		'pwUrl' => $pwUrl,
++		'cache_archive' => $archive_string,
++		'cache_version' => $version_string
+ 	);
++
+ 	if($wgUser && $wgUser->isLoggedIn()) {
+ 		$args = array_merge($args, array('user' => $wgUser->getRealName()));
+ 	}
+Index: trunk/wikipathways/wpi/sitemap/runSiteMap.sh
+===================================================================
+--- trunk/wikipathways/wpi/sitemap/runSiteMap.sh	(revision 1140)
++++ trunk/wikipathways/wpi/sitemap/runSiteMap.sh	(revision 1141)
+@@ -12,7 +12,7 @@
+ 
+ # Set the correct permissions for sitemap.xml
+ echo "Setting permissions of sitemap.xml to 777"
+-chmod 777 /var/www/wikipathwayssitemap.xml
++chmod 777 /var/www/wikipathways/sitemap.xml
+ 
+ # Restore permissions
+ echo "Restoring permissions of createSiteMap.php"
+Index: trunk/wikipathways/wpi/js/editapplet.js
+===================================================================
+--- trunk/wikipathways/wpi/js/editapplet.js	(revision 1140)
++++ trunk/wikipathways/wpi/js/editapplet.js	(revision 1141)
+@@ -12,12 +12,12 @@
+ 	image.style.height = initial_applet_width;
+ 	//Clear all existing content
+ 	image.innerHTML = '';
+-	image.setAttribute('class', 'thumbinner');
++	setClass(image, 'thumbinner');
+ 
+ 	//First create a new div for the applet and add it to the idImg
+ 	appletDiv = document.createElement('div');
+ 	appletDiv.id = idApplet;
+-	appletDiv.setAttribute('class', 'internal');
++	setClass(appletDiv, 'internal');
+ 	appletDiv.style.width = '100%';
+ 	appletDiv.style.height = '95%';
+ 	appletDiv.style.clear = 'both';
+@@ -31,7 +31,7 @@
+ 
+ 	//Create resize hint
+ 	resize = document.createElement('div');
+-	resize.innerHTML = '<img src="/skins/common/images/resize.png';
++	resize.innerHTML = '<img src="/skins/common/images/resize.png"/>';
+ 	resize.style.position = 'absolute';
+ 	resize.style.bottom = '0';
+ 	resize.style.right = '0';
+@@ -55,6 +55,11 @@
+ 	ao.load( idApplet );
+ }
+ 
++function setClass(elm, cname) {
++	elm.setAttribute('class', cname);
++	elm.setAttribute('className', cname);
++}
++
+ //Manually (doesn't work well, applet is started twice on firefox
+ function replaceWithApplet(idImg, idApplet, keys, values) {
+ 	var image = document.getElementById(idImg);

@@ -1,0 +1,24 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/DynamicPageList2.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/DynamicPageList2.php	(revision 1001)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/DynamicPageList2.php	(revision 1002)
+@@ -1019,7 +1019,18 @@
+ 		if ($bShowNamespace)
+ 			//Adapted from Title::getPrefixedText()
+             $sTitleText = str_replace( '_', ' ', $title->prefix($sTitleText) );
+-		$articleLink = $sk->makeKnownLinkObj( $title, htmlspecialchars( $wgContLang->convert( $sTitleText ) ) );
++		//AP20070710
++		$titleText = $wgContLang->convert( $sTitleText);
++		$pick = $_GET["browse"];
++		if(preg_match('/\:/', $titleText) && $pick != 'All Species'){
++			$parts = explode(':', $titleText);
++			if(count($parts) < 1){
++				throw new Exception("Invalid pathway article title: $titleText");
++                	}
++			$titleSpecies = array_shift($parts); 
++                	$titleText = array_shift($parts);
++		}
++		$articleLink = $sk->makeKnownLinkObj( $title, htmlspecialchars( $titleText)); // $wgContLang->convert( $sTitleText ) ) );
+ 		$dplArticle->mLink = $articleLink;
+ 		
+ 		//get first char used for category-style output

@@ -1,0 +1,2145 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1083)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ package org.pathvisio.gui.wikipathways;
+ 
+ import java.awt.event.ActionEvent;
+Index: trunk/src/wikipathways/de/bezier/js/preloading/Preloading.java
+===================================================================
+--- trunk/src/wikipathways/de/bezier/js/preloading/Preloading.java	(revision 1083)
++++ trunk/src/wikipathways/de/bezier/js/preloading/Preloading.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ /*
+  *	this file is part of appletobject.js,
+  *	please see:
+Index: trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 1083)
++++ trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 1084)
+@@ -1,332 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.gui.swing;
+-
+-import java.awt.Component;
+-import java.awt.event.ActionEvent;
+-import java.awt.event.KeyEvent;
+-import java.io.File;
+-import java.net.URL;
+-
+-import javax.swing.AbstractAction;
+-import javax.swing.Action;
+-import javax.swing.ImageIcon;
+-import javax.swing.JFileChooser;
+-import javax.swing.KeyStroke;
+-import javax.swing.filechooser.FileFilter;
+-
+-import org.pathvisio.Engine;
+-import org.pathvisio.model.ConverterException;
+-import org.pathvisio.model.PathwayImporter;
+-import org.pathvisio.view.AlignType;
+-import org.pathvisio.view.StackType;
+-import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.VPathwayEvent;
+-import org.pathvisio.view.VPathwayListener;
+-
+-public abstract class CommonActions {
+-	private static URL IMG_SAVE = Engine.getCurrent().getResourceURL("icons/save.gif");
+-	private static URL IMG_SAVEAS = Engine.getCurrent().getResourceURL("icons/saveas.gif");
+-	private static URL IMG_IMPORT = Engine.getCurrent().getResourceURL("icons/import.gif");
+-	private static URL IMG_EXPORT = Engine.getCurrent().getResourceURL("icons/export.gif");
+-	private static URL IMG_COPY= Engine.getCurrent().getResourceURL("icons/copy.gif");
+-	private static URL IMG_PASTE = Engine.getCurrent().getResourceURL("icons/paste.gif");
+-	
+-	static class ZoomAction extends AbstractAction {
+-		Component parent;
+-		double zoomFactor;
+-		
+-		public ZoomAction(double zf) {
+-			zoomFactor = zf;
+-			String descr = "Set zoom to " + (int)zf + "%";
+-			putValue(Action.NAME, toString());
+-			putValue(Action.SHORT_DESCRIPTION, descr);
+-			putValue(Action.LONG_DESCRIPTION, descr);
+-		}
+-		
+-		public void actionPerformed(ActionEvent e) {
+-			VPathway vPathway = Engine.getCurrent().getActiveVPathway();
+-			if(vPathway != null) {
+-				vPathway.setPctZoom(zoomFactor);
+-			}
+-		}
+-		
+-		public String toString() {
+-			if(zoomFactor == VPathway.ZOOM_TO_FIT) {
+-				return "Fit to window";
+-			}
+-			return (int)zoomFactor + "%";
+-		}
+-	}
+-	
+-	static class SaveAsAction extends AbstractAction {
+-		public SaveAsAction() {
+-			super("Save as", new ImageIcon(IMG_SAVEAS));
+-			putValue(Action.SHORT_DESCRIPTION, "Save a local copy of the pathway");
+-			putValue(Action.LONG_DESCRIPTION, "Save a local copy of the pathway");
+-		}
+-
+-		public void actionPerformed(ActionEvent e) {
+-			SwingEngine.getCurrent().savePathwayAs();
+-		}
+-	}
+-	
+-	static class SaveAction extends AbstractAction {
+-		public SaveAction() {
+-			super("Save", new ImageIcon(IMG_SAVE));
+-			putValue(Action.SHORT_DESCRIPTION, "Save a local copy of the pathway");
+-			putValue(Action.LONG_DESCRIPTION, "Save a local copy of the pathway");
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
+-		}
+-
+-		public void actionPerformed(ActionEvent e) {
+-			SwingEngine.getCurrent().savePathway();
+-		}
+-	}
+-	
+-	static class ImportAction extends AbstractAction {
+-		MainPanel mainPanel;
+-		
+-		public ImportAction(MainPanel parent) {
+-			super("Import", new ImageIcon(IMG_IMPORT));
+-			mainPanel = parent;
+-			putValue(Action.SHORT_DESCRIPTION, "Import pathway");
+-			putValue(Action.LONG_DESCRIPTION, "Import a pathway from various file formats");
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_M, ActionEvent.CTRL_MASK));
+-		}
+-		
+-		public void actionPerformed(ActionEvent e) {
+-				final Component component = (Component)e.getSource();
+-				//Open file dialog
+-				JFileChooser jfc = new JFileChooser();
+-				jfc.setAcceptAllFileFilterUsed(false);
+-				jfc.setDialogTitle("Import pathway");
+-				jfc.setDialogType(JFileChooser.OPEN_DIALOG);
+-				
+-				for(final PathwayImporter imp : Engine.getCurrent().getPathwayImporters().values()) {
+-					FileFilter ff = new FileFilter() {
+-						public boolean accept(File f) {
+-							if(f.isDirectory()) return true;
+-							
+-							String fn = f.toString();
+-							int i = fn.lastIndexOf('.');
+-							if(i > 0) {
+-								String ext = fn.substring(i + 1);
+-								for(String impExt : imp.getExtensions()) {
+-									if(impExt.equalsIgnoreCase(ext)) {
+-										return true;
+-									}
+-								}
+-							}
+-							return false;
+-						}
+-
+-						public String getDescription() {
+-							StringBuilder exts = new StringBuilder();
+-							for(String e : imp.getExtensions()) {
+-								exts.append(".");
+-								exts.append(e);
+-								exts.append(", ");
+-							}
+-							String str = exts.substring(0, exts.length() - 2);
+-							return imp.getName() + " (" + str + ")";
+-						}
+-					};
+-					jfc.addChoosableFileFilter(ff);
+-				}
+-
+-				int status = jfc.showDialog(component, "Import");
+-				if(status == JFileChooser.APPROVE_OPTION) {
+-					boolean editMode = Engine.getCurrent().hasVPathway() ? 
+-					Engine.getCurrent().getActiveVPathway().isEditMode() : false;
+-					SwingEngine.getCurrent().importPathway(jfc.getSelectedFile());
+-					Engine.getCurrent().getActiveVPathway().setEditMode(editMode);
+-				}
+-		}
+-	}
+-	
+-	static class ExportAction extends AbstractAction {
+-		public ExportAction() {
+-			super("Export", new ImageIcon(IMG_EXPORT));
+-			putValue(Action.SHORT_DESCRIPTION, "Export pathway");
+-			putValue(Action.LONG_DESCRIPTION, "Export the pathway to various file formats");
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_E, ActionEvent.CTRL_MASK));
+-		}
+-		
+-		public void actionPerformed(ActionEvent e) {
+-			//TODO
+-		}
+-	}
+-	
+-	static class CopyAction extends AbstractAction {
+-		public CopyAction() {
+-			super("Copy", new ImageIcon(IMG_COPY));
+-			String descr = "Copy selected pathway objects to clipboard";
+-			putValue(Action.SHORT_DESCRIPTION, descr);
+-			putValue(Action.LONG_DESCRIPTION, descr);
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_C, ActionEvent.CTRL_MASK));
+-		}
+-
+-		public void actionPerformed(ActionEvent e) {
+-			Engine.getCurrent().getActiveVPathway().copyToClipboard();
+-		}		
+-	}
+-	
+-	static class PasteAction extends AbstractAction {
+-		public PasteAction() {
+-			super("Paste", new ImageIcon(IMG_PASTE));
+-			String descr = "Paste pathway elements from clipboard";
+-			putValue(Action.SHORT_DESCRIPTION, descr);
+-			putValue(Action.LONG_DESCRIPTION, descr);
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_V, ActionEvent.CTRL_MASK));
+-		}
+-
+-		public void actionPerformed(ActionEvent e) {
+-			Engine.getCurrent().getActiveVPathway().pasteFromClipboad();
+-		}
+-	}
+-		
+-	static class NewElementAction extends AbstractAction implements VPathwayListener {
+-		int element;
+-		public NewElementAction(int type) {
+-			super();
+-			element = type;
+-			
+-			String descr = "";
+-			URL imageURL = null;
+-			switch(element) {
+-			case VPathway.NEWLINE: 
+-				descr = "Draw new line";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newline.gif");
+-				break;
+-			case VPathway.NEWLINEARROW:
+-				descr = "Draw new arrow";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newarrow.gif");
+-				break;
+-			case VPathway.NEWLINEDASHED:
+-				descr = "Draw new dashed line";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newdashedline.gif");
+-				break;
+-			case VPathway.NEWLINEDASHEDARROW:
+-				descr = "Draw new dashed arrow";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newdashedarrow.gif");
+-				break;
+-			case VPathway.NEWLABEL:
+-				descr = "Draw new label";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newlabel.gif");
+-				break;
+-			case VPathway.NEWARC:
+-				descr = "Draw new arc";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newarc.gif");
+-				break;
+-			case VPathway.NEWBRACE:
+-				descr = "Draw new brace";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newbrace.gif");
+-				break;
+-			case VPathway.NEWGENEPRODUCT:
+-				descr = "Draw new data node";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newgeneproduct.gif");
+-				break;
+-			case VPathway.NEWRECTANGLE:
+-				descr = "Draw new rectangle";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newrectangle.gif");
+-				break;
+-			case VPathway.NEWOVAL:
+-				descr = "Draw new oval";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newoval.gif");
+-				break;
+-			case VPathway.NEWTBAR:
+-				descr = "Draw new TBar";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newtbar.gif");
+-				break;
+-			case VPathway.NEWRECEPTORROUND:
+-				descr = "Draw new round receptor";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newreceptorround.gif");
+-				break;
+-			case VPathway.NEWRECEPTORSQUARE:
+-				descr = "Draw new square receptor";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newreceptorsquare.gif");
+-				break;
+-			case VPathway.NEWLIGANDROUND:
+-				descr = "Draw new round ligand";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newligandround.gif");
+-				break;
+-			case VPathway.NEWLIGANDSQUARE:
+-				descr = "Draw new square ligand";
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newligandsquare.gif");
+-				break;
+-			case VPathway.NEWLINEMENU:
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newlinemenu.gif");
+-				descr = "Draw new line or arrow";
+-				break;
+-			case VPathway.NEWLINESHAPEMENU:
+-				imageURL = Engine.getCurrent().getResourceURL("icons/newlineshapemenu.gif");
+-				descr = "Draw new ligand or receptor";
+-				break;
+-			}
+-			putValue(Action.SHORT_DESCRIPTION, descr);
+-			putValue(Action.LONG_DESCRIPTION, descr);
+-			if(imageURL != null) {
+-				putValue(Action.SMALL_ICON, new ImageIcon(imageURL));
+-			}
+-		}
+-		
+-		public void actionPerformed(ActionEvent e) {
+-			VPathway vp = Engine.getCurrent().getActiveVPathway();
+-			if(vp != null) {
+-				vp.addVPathwayListener(this);
+-				vp.setNewGraphics(element);
+-			}
+-		}
+-
+-		public void vPathwayEvent(VPathwayEvent e) {
+-			if(e.getType() == VPathwayEvent.ELEMENT_ADDED) {
+-				e.getVPathway().setNewGraphics(VPathway.NEWNONE);	
+-			}
+-		}
+-	}
+-	
+-	static class StackAction extends AbstractAction {
+-		StackType type;
+-		
+-		public StackAction(StackType t) {
+-			super(t.getLabel(), new ImageIcon(Engine.getCurrent().getResourceURL(t.getIcon())));
+-			putValue(Action.SHORT_DESCRIPTION, t.getDescription());
+-			type = t;
+-		}
+-		
+-		public void actionPerformed(ActionEvent e) {
+-			VPathway vp = Engine.getCurrent().getActiveVPathway();
+-			if(vp != null) vp.stackSelected(type);
+-		}
+-	}
+-	
+-	static class AlignAction extends AbstractAction {
+-		AlignType type;
+-
+-		public AlignAction(AlignType t) {
+-			super(t.getLabel(), new ImageIcon(Engine.getCurrent().getResourceURL(t.getIcon())));
+-			putValue(Action.SHORT_DESCRIPTION, t.getDescription());
+-			type = t;
+-		}
+-
+-		public void actionPerformed(ActionEvent e) {
+-			VPathway vp = Engine.getCurrent().getActiveVPathway();
+-			if(vp != null) vp.alignSelected(type);
+-		}
+-	}	
+-}
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java	(revision 1084)
+@@ -0,0 +1,333 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swing.actions;
++
++import java.awt.Component;
++import java.awt.event.ActionEvent;
++import java.awt.event.KeyEvent;
++import java.io.File;
++import java.net.URL;
++
++import javax.swing.AbstractAction;
++import javax.swing.Action;
++import javax.swing.ImageIcon;
++import javax.swing.JFileChooser;
++import javax.swing.KeyStroke;
++import javax.swing.filechooser.FileFilter;
++
++import org.pathvisio.Engine;
++import org.pathvisio.gui.swing.MainPanel;
++import org.pathvisio.gui.swing.SwingEngine;
++import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.view.AlignType;
++import org.pathvisio.view.StackType;
++import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
++
++public abstract class CommonActions {
++	private static URL IMG_SAVE = Engine.getCurrent().getResourceURL("icons/save.gif");
++	private static URL IMG_SAVEAS = Engine.getCurrent().getResourceURL("icons/saveas.gif");
++	private static URL IMG_IMPORT = Engine.getCurrent().getResourceURL("icons/import.gif");
++	private static URL IMG_EXPORT = Engine.getCurrent().getResourceURL("icons/export.gif");
++	private static URL IMG_COPY= Engine.getCurrent().getResourceURL("icons/copy.gif");
++	private static URL IMG_PASTE = Engine.getCurrent().getResourceURL("icons/paste.gif");
++	
++	public static class ZoomAction extends AbstractAction {
++		Component parent;
++		double zoomFactor;
++		
++		public ZoomAction(double zf) {
++			zoomFactor = zf;
++			String descr = "Set zoom to " + (int)zf + "%";
++			putValue(Action.NAME, toString());
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			VPathway vPathway = Engine.getCurrent().getActiveVPathway();
++			if(vPathway != null) {
++				vPathway.setPctZoom(zoomFactor);
++			}
++		}
++		
++		public String toString() {
++			if(zoomFactor == VPathway.ZOOM_TO_FIT) {
++				return "Fit to window";
++			}
++			return (int)zoomFactor + "%";
++		}
++	}
++	
++	public static class SaveAsAction extends AbstractAction {
++		public SaveAsAction() {
++			super("Save as", new ImageIcon(IMG_SAVEAS));
++			putValue(Action.SHORT_DESCRIPTION, "Save a local copy of the pathway");
++			putValue(Action.LONG_DESCRIPTION, "Save a local copy of the pathway");
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			SwingEngine.getCurrent().savePathwayAs();
++		}
++	}
++	
++	public static class SaveAction extends AbstractAction {
++		public SaveAction() {
++			super("Save", new ImageIcon(IMG_SAVE));
++			putValue(Action.SHORT_DESCRIPTION, "Save a local copy of the pathway");
++			putValue(Action.LONG_DESCRIPTION, "Save a local copy of the pathway");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			SwingEngine.getCurrent().savePathway();
++		}
++	}
++	
++	public static class ImportAction extends AbstractAction {
++		MainPanel mainPanel;
++		
++		public ImportAction(MainPanel parent) {
++			super("Import", new ImageIcon(IMG_IMPORT));
++			mainPanel = parent;
++			putValue(Action.SHORT_DESCRIPTION, "Import pathway");
++			putValue(Action.LONG_DESCRIPTION, "Import a pathway from various file formats");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_M, ActionEvent.CTRL_MASK));
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++				final Component component = (Component)e.getSource();
++				//Open file dialog
++				JFileChooser jfc = new JFileChooser();
++				jfc.setAcceptAllFileFilterUsed(false);
++				jfc.setDialogTitle("Import pathway");
++				jfc.setDialogType(JFileChooser.OPEN_DIALOG);
++				
++				for(final PathwayImporter imp : Engine.getCurrent().getPathwayImporters().values()) {
++					FileFilter ff = new FileFilter() {
++						public boolean accept(File f) {
++							if(f.isDirectory()) return true;
++							
++							String fn = f.toString();
++							int i = fn.lastIndexOf('.');
++							if(i > 0) {
++								String ext = fn.substring(i + 1);
++								for(String impExt : imp.getExtensions()) {
++									if(impExt.equalsIgnoreCase(ext)) {
++										return true;
++									}
++								}
++							}
++							return false;
++						}
++
++						public String getDescription() {
++							StringBuilder exts = new StringBuilder();
++							for(String e : imp.getExtensions()) {
++								exts.append(".");
++								exts.append(e);
++								exts.append(", ");
++							}
++							String str = exts.substring(0, exts.length() - 2);
++							return imp.getName() + " (" + str + ")";
++						}
++					};
++					jfc.addChoosableFileFilter(ff);
++				}
++
++				int status = jfc.showDialog(component, "Import");
++				if(status == JFileChooser.APPROVE_OPTION) {
++					boolean editMode = Engine.getCurrent().hasVPathway() ? 
++					Engine.getCurrent().getActiveVPathway().isEditMode() : false;
++					SwingEngine.getCurrent().importPathway(jfc.getSelectedFile());
++					Engine.getCurrent().getActiveVPathway().setEditMode(editMode);
++				}
++		}
++	}
++	
++	public static class ExportAction extends AbstractAction {
++		public ExportAction() {
++			super("Export", new ImageIcon(IMG_EXPORT));
++			putValue(Action.SHORT_DESCRIPTION, "Export pathway");
++			putValue(Action.LONG_DESCRIPTION, "Export the pathway to various file formats");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_E, ActionEvent.CTRL_MASK));
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			//TODO
++		}
++	}
++	
++	public static class CopyAction extends AbstractAction {
++		public CopyAction() {
++			super("Copy", new ImageIcon(IMG_COPY));
++			String descr = "Copy selected pathway objects to clipboard";
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_C, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			Engine.getCurrent().getActiveVPathway().copyToClipboard();
++		}		
++	}
++	
++	public static class PasteAction extends AbstractAction {
++		public PasteAction() {
++			super("Paste", new ImageIcon(IMG_PASTE));
++			String descr = "Paste pathway elements from clipboard";
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_V, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			Engine.getCurrent().getActiveVPathway().pasteFromClipboad();
++		}
++	}
++		
++	public static class NewElementAction extends AbstractAction implements VPathwayListener {
++		int element;
++		public NewElementAction(int type) {
++			super();
++			element = type;
++			
++			String descr = "";
++			URL imageURL = null;
++			switch(element) {
++			case VPathway.NEWLINE: 
++				descr = "Draw new line";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newline.gif");
++				break;
++			case VPathway.NEWLINEARROW:
++				descr = "Draw new arrow";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newarrow.gif");
++				break;
++			case VPathway.NEWLINEDASHED:
++				descr = "Draw new dashed line";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newdashedline.gif");
++				break;
++			case VPathway.NEWLINEDASHEDARROW:
++				descr = "Draw new dashed arrow";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newdashedarrow.gif");
++				break;
++			case VPathway.NEWLABEL:
++				descr = "Draw new label";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newlabel.gif");
++				break;
++			case VPathway.NEWARC:
++				descr = "Draw new arc";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newarc.gif");
++				break;
++			case VPathway.NEWBRACE:
++				descr = "Draw new brace";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newbrace.gif");
++				break;
++			case VPathway.NEWGENEPRODUCT:
++				descr = "Draw new data node";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newgeneproduct.gif");
++				break;
++			case VPathway.NEWRECTANGLE:
++				descr = "Draw new rectangle";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newrectangle.gif");
++				break;
++			case VPathway.NEWOVAL:
++				descr = "Draw new oval";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newoval.gif");
++				break;
++			case VPathway.NEWTBAR:
++				descr = "Draw new TBar";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newtbar.gif");
++				break;
++			case VPathway.NEWRECEPTORROUND:
++				descr = "Draw new round receptor";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newreceptorround.gif");
++				break;
++			case VPathway.NEWRECEPTORSQUARE:
++				descr = "Draw new square receptor";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newreceptorsquare.gif");
++				break;
++			case VPathway.NEWLIGANDROUND:
++				descr = "Draw new round ligand";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newligandround.gif");
++				break;
++			case VPathway.NEWLIGANDSQUARE:
++				descr = "Draw new square ligand";
++				imageURL = Engine.getCurrent().getResourceURL("icons/newligandsquare.gif");
++				break;
++			case VPathway.NEWLINEMENU:
++				imageURL = Engine.getCurrent().getResourceURL("icons/newlinemenu.gif");
++				descr = "Draw new line or arrow";
++				break;
++			case VPathway.NEWLINESHAPEMENU:
++				imageURL = Engine.getCurrent().getResourceURL("icons/newlineshapemenu.gif");
++				descr = "Draw new ligand or receptor";
++				break;
++			}
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++			if(imageURL != null) {
++				putValue(Action.SMALL_ICON, new ImageIcon(imageURL));
++			}
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			VPathway vp = Engine.getCurrent().getActiveVPathway();
++			if(vp != null) {
++				vp.addVPathwayListener(this);
++				vp.setNewGraphics(element);
++			}
++		}
++
++		public void vPathwayEvent(VPathwayEvent e) {
++			if(e.getType() == VPathwayEvent.ELEMENT_ADDED) {
++				e.getVPathway().setNewGraphics(VPathway.NEWNONE);	
++			}
++		}
++	}
++	
++	public static class StackAction extends AbstractAction {
++		StackType type;
++		
++		public StackAction(StackType t) {
++			super(t.getLabel(), new ImageIcon(Engine.getCurrent().getResourceURL(t.getIcon())));
++			putValue(Action.SHORT_DESCRIPTION, t.getDescription());
++			type = t;
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			VPathway vp = Engine.getCurrent().getActiveVPathway();
++			if(vp != null) vp.stackSelected(type);
++		}
++	}
++	
++	public static class AlignAction extends AbstractAction {
++		AlignType type;
++
++		public AlignAction(AlignType t) {
++			super(t.getLabel(), new ImageIcon(Engine.getCurrent().getResourceURL(t.getIcon())));
++			putValue(Action.SHORT_DESCRIPTION, t.getDescription());
++			type = t;
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			VPathway vp = Engine.getCurrent().getActiveVPathway();
++			if(vp != null) vp.alignSelected(type);
++		}
++	}	
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1084)
+@@ -0,0 +1,52 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swing.actions;
++
++import java.awt.event.ActionEvent;
++
++import javax.swing.AbstractAction;
++import javax.swing.JOptionPane;
++
++import org.pathvisio.gui.swing.dialogs.DataNodeDialog;
++import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
++import org.pathvisio.model.ObjectType;
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.view.Graphics;
++import org.pathvisio.view.VPathwayElement;
++
++public class PropertiesAction extends AbstractAction {
++	VPathwayElement element;
++	
++	public PropertiesAction(VPathwayElement e) {
++		super("properties");
++		putValue(AbstractAction.SHORT_DESCRIPTION, "View this element's properties");
++		element = e;
++	}
++	
++	public void actionPerformed(ActionEvent e) {
++		if(element instanceof Graphics) {
++			PathwayElement p = ((Graphics)element).getGmmlData();
++			PathwayElementDialog pd = null;
++			switch(p.getObjectType()) {
++			case ObjectType.DATANODE:
++				pd = new DataNodeDialog(p, null, null);
++			}
++			if(pd != null) pd.setVisible(true);
++		}
++	}
++
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 1083)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 1084)
+@@ -17,12 +17,14 @@
+ package org.pathvisio.gui.swing.dialogs;
+ 
+ import java.awt.Component;
+-import java.awt.Container;
+ import java.awt.Frame;
+-import java.awt.GridLayout;
++import java.awt.GridBagConstraints;
++import java.awt.GridBagLayout;
+ 
+ import javax.swing.JComboBox;
+ import javax.swing.JLabel;
++import javax.swing.JPanel;
++import javax.swing.JTabbedPane;
+ import javax.swing.JTextField;
+ import javax.swing.event.DocumentEvent;
+ import javax.swing.event.DocumentListener;
+@@ -46,8 +48,9 @@
+ 		pack();
+ 	}
+ 	
+-	protected void createDialogContents(Container parent) {
+-		parent.setLayout(new GridLayout(3, 2));
++	protected void addCustomTabs(JTabbedPane parent) {
++		JPanel panel = new JPanel();
++		panel.setLayout(new GridBagLayout());
+ 		JLabel symLabel = new JLabel("Symbol");
+ 		JLabel idLabel = new JLabel("Identifier");
+ 		JLabel dbLabel = new JLabel("Database");
+@@ -55,10 +58,23 @@
+ 		idText = new JTextField();
+ 		dbCombo = new JComboBox(DataSources.dataSources);
+ 		
+-		parent.add(symLabel);	parent.add(symText);
+-		parent.add(idLabel);	parent.add(idText);
+-		parent.add(dbLabel);	parent.add(dbCombo);
+-		
++		GridBagConstraints c = new GridBagConstraints();
++		c.ipadx = c.ipady = 5;
++		c.anchor = GridBagConstraints.FIRST_LINE_START;
++		panel.add(symLabel, c);
++		c.gridy = 1;
++		panel.add(idLabel, c);
++		c.gridy = 2;
++		panel.add(dbLabel, c);
++		c.gridx = 1;
++		c.gridy = 0;
++		c.fill = GridBagConstraints.HORIZONTAL;
++		panel.add(symText, c);
++		c.gridy = 1;
++		panel.add(idText, c);
++		c.gridy = 2;
++		panel.add(dbCombo, c);
++
+ 		symText.getDocument().addDocumentListener(new DocumentListener() {
+ 			public void changedUpdate(DocumentEvent e) { setText();	}
+ 			public void insertUpdate(DocumentEvent e) {	setText(); }
+@@ -67,5 +83,8 @@
+ 				getInput().setTextLabel(symText.getText());
+ 			}
+ 		});
++		
++		parent.add("Annotation", panel);
++		parent.setSelectedComponent(panel);
+ 	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1083)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1084)
+@@ -23,7 +23,9 @@
+ import java.awt.Frame;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
++import java.util.ArrayList;
+ import java.util.HashMap;
++import java.util.List;
+ 
+ import javax.swing.BorderFactory;
+ import javax.swing.Box;
+@@ -31,34 +33,39 @@
+ import javax.swing.JButton;
+ import javax.swing.JDialog;
+ import javax.swing.JPanel;
++import javax.swing.JTabbedPane;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.gui.swing.panels.CommentPanel;
++import org.pathvisio.gui.swing.panels.PathwayElementPanel;
++import org.pathvisio.model.ObjectType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PropertyType;
+ import org.pathvisio.view.VPathway;
+ 
+-public abstract class PathwayElementDialog extends JDialog implements ActionListener {
++public class PathwayElementDialog extends JDialog implements ActionListener {
+ 	static final String OK = "Ok";
+ 	static final String CANCEL = "Cancel";
+ 	
+-	PathwayElement input;
+-	JPanel dialogPane;
+-	
+-	protected PathwayElement getInput() {
+-		return input;
++	public static PathwayElementDialog getInstance(PathwayElement e, Frame frame, Component locationComp) {
++		switch(e.getObjectType()) {
++		case ObjectType.DATANODE:
++			return new DataNodeDialog(e, frame, locationComp);
++		default:
++			return new PathwayElementDialog(e, frame, "Properties", locationComp);
++		}
+ 	}
+ 	
+-	public void setInput(PathwayElement e) {
+-		input = e;
+-		storeState();
+-		refresh();
+-	}
+-	
+-	protected abstract void refresh();
+-	
++	PathwayElement input;
++	JTabbedPane dialogPane;
++	private List<PathwayElementPanel> panels;
++	private HashMap<PropertyType, Object> state = new HashMap<PropertyType, Object>();
++		
+ 	public PathwayElementDialog(PathwayElement e, Frame frame, String title, Component locationComp) {
+ 		super(frame, "DataNode properties", true);
+-
++		
++		panels = new ArrayList<PathwayElementPanel>();
++		
+ 		JButton cancelButton = new JButton(CANCEL);
+ 		cancelButton.addActionListener(this);
+ 
+@@ -67,8 +74,8 @@
+ 		setButton.addActionListener(this);
+ 		getRootPane().setDefaultButton(setButton);
+ 		
+-		dialogPane = new JPanel();
+-		createDialogContents(dialogPane);
++		dialogPane = new JTabbedPane();
++		createTabs(dialogPane);
+ 		
+ 		JPanel buttonPane = new JPanel();
+ 		buttonPane.setLayout(new BoxLayout(buttonPane, BoxLayout.LINE_AXIS));
+@@ -87,8 +94,23 @@
+ 		setInput(e);
+ 		}
+ 
+-	private HashMap<PropertyType, Object> state = new HashMap<PropertyType, Object>();
++	protected PathwayElement getInput() {
++		return input;
++	}
+ 	
++	public void setInput(PathwayElement e) {
++		input = e;
++		storeState();
++		refresh();
++	}
++	
++	protected void refresh() {
++		for(PathwayElementPanel p : panels) {
++			p.setInput(input);
++		}
++	}
++	
++	
+ 	protected void storeState() {
+ 		PathwayElement e = getInput();
+ 		for(PropertyType t : e.getAttributes()) {
+@@ -103,8 +125,20 @@
+ 		}
+ 	}
+ 	
+-	protected abstract void createDialogContents(Container parent);
++	private void createTabs(JTabbedPane parent) {
++		addPathwayElementPanel(parent, new CommentPanel());
++		addCustomTabs(parent);
++	}
++		
++	protected void addPathwayElementPanel(JTabbedPane parent, PathwayElementPanel p) {
++		parent.add("Comments", p);
++		panels.add(p);
++	}
+ 	
++	protected void addCustomTabs(JTabbedPane parent) {
++		//To be implemented by subclasses
++	}
++	
+ 	protected void okPressed() {
+ 		VPathway p = Engine.getCurrent().getActiveVPathway();
+ 		if(p != null) p.redraw();
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java	(revision 1084)
+@@ -0,0 +1,129 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swing.panels;
++
++import java.awt.BorderLayout;
++import java.awt.Dimension;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.util.ArrayList;
++import java.util.List;
++
++import javax.swing.BorderFactory;
++import javax.swing.Box;
++import javax.swing.BoxLayout;
++import javax.swing.JButton;
++import javax.swing.JPanel;
++import javax.swing.JScrollPane;
++import javax.swing.JTable;
++import javax.swing.table.AbstractTableModel;
++import javax.swing.table.JTableHeader;
++
++import org.pathvisio.model.PathwayElement.Comment;
++
++public class CommentPanel extends PathwayElementPanel implements ActionListener {
++	protected static final String ADD = "Add comment";
++	protected static final String REMOVE = "Remove comment";
++	
++	CommentsTableModel tableModel;
++	JTable commentsTable;
++	
++	public CommentPanel() {
++		setLayout(new BorderLayout(5, 5));
++		
++		commentsTable = new JTable();
++		commentsTable.setMinimumSize(new Dimension(40, 40));
++		commentsTable.setBorder(BorderFactory.createCompoundBorder());
++		commentsTable.setRowHeight(20);
++		JPanel buttonPanel = new JPanel();
++		JButton add = new JButton(ADD);
++		add.setActionCommand(ADD);
++		add.addActionListener(this);
++		JButton remove = new JButton(REMOVE);
++		remove.setActionCommand(REMOVE);
++		remove.addActionListener(this);
++		
++		buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
++		buttonPanel.add(Box.createHorizontalGlue());
++		buttonPanel.add(add);
++		buttonPanel.add(Box.createRigidArea(new Dimension(10, 0)));
++		buttonPanel.add(remove);
++		
++		JScrollPane contentPane = new JScrollPane(commentsTable);
++		add(contentPane, BorderLayout.CENTER);
++		add(buttonPanel, BorderLayout.PAGE_END);
++		
++		tableModel = new CommentsTableModel();
++		commentsTable.setModel(tableModel);
++	}
++
++	public void actionPerformed(ActionEvent e) {
++		if(e.getActionCommand().equals(ADD)) {
++			input.addComment("Type you comment here", "");
++		} else if(e.getActionCommand().equals(REMOVE)) {
++			int row = commentsTable.getSelectedRow();
++			if(row > -1) input.removeComment(tableModel.comments.get(row));
++		}
++		refresh();
++	}
++	
++	public void refresh() {
++		tableModel.setComments(input.getComments());	
++	}
++	
++	class CommentsTableModel extends AbstractTableModel {
++		List<Comment> comments = new ArrayList<Comment>();
++		void setComments(List<Comment> input) {
++			if(input == null) input = new ArrayList<Comment>();
++			this.comments = input;
++			fireTableDataChanged();
++		}
++		
++		public int getColumnCount() {
++			return 2;
++		}
++		
++		public int getRowCount() {
++			return comments.size();
++		}
++
++		public Object getValueAt(int rowIndex, int columnIndex) {
++			Comment c = comments.get(rowIndex);
++			String value = null;
++			if(c != null) {
++				if(columnIndex == 0) value = c.getSource();
++				else value = c.getComment();
++			}
++			return value;
++		}
++		
++		public String getColumnName(int column) {
++			return column == 0 ? "Source" : "Comment";
++		}
++		
++		public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
++			String value = (String)aValue;
++			Comment c = comments.get(rowIndex);
++			if(columnIndex == 0) c.setSource(value);
++			else c.setComment(value);
++		}
++		
++		public boolean isCellEditable(int rowIndex, int columnIndex) {
++			return true;
++		}
++	}
++}
+\ No newline at end of file
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/PathwayElementPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/PathwayElementPanel.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/PathwayElementPanel.java	(revision 1084)
+@@ -0,0 +1,38 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swing.panels;
++
++import javax.swing.JPanel;
++import javax.swing.JTabbedPane;
++
++import org.pathvisio.model.PathwayElement;
++
++public abstract class PathwayElementPanel extends JPanel {
++	PathwayElement input;
++	JTabbedPane dialogPane;
++	
++	protected PathwayElement getInput() {
++		return input;
++	}
++	
++	public void setInput(PathwayElement e) {
++		input = e;
++		refresh();
++	}
++	
++	public abstract void refresh();
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1083)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1084)
+@@ -20,6 +20,7 @@
+ import java.awt.Component;
+ import java.awt.Container;
+ import java.awt.Frame;
++import java.awt.Point;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+ import java.util.ArrayList;
+@@ -34,37 +35,43 @@
+ import javax.swing.JMenu;
+ import javax.swing.JMenuBar;
+ import javax.swing.JMenuItem;
++import javax.swing.JOptionPane;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
+ import javax.swing.JSplitPane;
+ import javax.swing.JTabbedPane;
+ import javax.swing.JTable;
+ import javax.swing.JToolBar;
++import javax.swing.SwingUtilities;
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
+ import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Engine.ApplicationEventListener;
+-import org.pathvisio.gui.swing.CommonActions.CopyAction;
+-import org.pathvisio.gui.swing.CommonActions.ExportAction;
+-import org.pathvisio.gui.swing.CommonActions.ImportAction;
+-import org.pathvisio.gui.swing.CommonActions.NewElementAction;
+-import org.pathvisio.gui.swing.CommonActions.PasteAction;
+-import org.pathvisio.gui.swing.CommonActions.SaveAction;
+-import org.pathvisio.gui.swing.CommonActions.SaveAsAction;
+-import org.pathvisio.gui.swing.CommonActions.ZoomAction;
++import org.pathvisio.gui.swing.actions.CommonActions.AlignAction;
++import org.pathvisio.gui.swing.actions.CommonActions.CopyAction;
++import org.pathvisio.gui.swing.actions.CommonActions.ImportAction;
++import org.pathvisio.gui.swing.actions.CommonActions.NewElementAction;
++import org.pathvisio.gui.swing.actions.CommonActions.PasteAction;
++import org.pathvisio.gui.swing.actions.CommonActions.SaveAction;
++import org.pathvisio.gui.swing.actions.CommonActions.SaveAsAction;
++import org.pathvisio.gui.swing.actions.CommonActions.StackAction;
++import org.pathvisio.gui.swing.actions.CommonActions.ZoomAction;
+ import org.pathvisio.gui.swing.dialogs.DataNodeDialog;
+ import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
++import org.pathvisio.gui.swing.menus.PathwayElementMenu;
+ import org.pathvisio.gui.swing.propertypanel.PathwayTableModel;
+ import org.pathvisio.model.ObjectType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.Graphics;
++import org.pathvisio.view.MouseEvent;
+ import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
++import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ import com.mammothsoftware.frwk.ddb.DropDownButton;
+ 
+@@ -143,19 +150,19 @@
+ 		JMenu alignMenu = new JMenu("Align");
+ 		JMenu stackMenu = new JMenu("Stack");
+ 		
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.CENTERX));
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.CENTERY));
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.LEFT));
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.RIGHT));
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.TOP));
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.WIDTH));
+-		alignMenu.add(new CommonActions.AlignAction(AlignType.HEIGHT));
+-		stackMenu.add(new CommonActions.StackAction(StackType.CENTERX));
+-		stackMenu.add(new CommonActions.StackAction(StackType.CENTERY));
+-		stackMenu.add(new CommonActions.StackAction(StackType.LEFT));
+-		stackMenu.add(new CommonActions.StackAction(StackType.RIGHT));
+-		stackMenu.add(new CommonActions.StackAction(StackType.TOP));
+-		stackMenu.add(new CommonActions.StackAction(StackType.BOTTOM));
++		alignMenu.add(new AlignAction(AlignType.CENTERX));
++		alignMenu.add(new AlignAction(AlignType.CENTERY));
++		alignMenu.add(new AlignAction(AlignType.LEFT));
++		alignMenu.add(new AlignAction(AlignType.RIGHT));
++		alignMenu.add(new AlignAction(AlignType.TOP));
++		alignMenu.add(new AlignAction(AlignType.WIDTH));
++		alignMenu.add(new AlignAction(AlignType.HEIGHT));
++		stackMenu.add(new StackAction(StackType.CENTERX));
++		stackMenu.add(new StackAction(StackType.CENTERY));
++		stackMenu.add(new StackAction(StackType.LEFT));
++		stackMenu.add(new StackAction(StackType.RIGHT));
++		stackMenu.add(new StackAction(StackType.TOP));
++		stackMenu.add(new StackAction(StackType.BOTTOM));
+ 		
+ 		selectionMenu.add(alignMenu);
+ 		selectionMenu.add(stackMenu);
+@@ -259,19 +266,19 @@
+ 		
+ 		tb.addSeparator();
+ 		
+-		addToToolbar(new CommonActions.AlignAction(AlignType.CENTERX), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.AlignAction(AlignType.CENTERY), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.AlignAction(AlignType.LEFT), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.AlignAction(AlignType.RIGHT), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.AlignAction(AlignType.TOP), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.AlignAction(AlignType.WIDTH), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.AlignAction(AlignType.HEIGHT), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.StackAction(StackType.CENTERX), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.StackAction(StackType.CENTERY), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.StackAction(StackType.LEFT), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.StackAction(StackType.RIGHT), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.StackAction(StackType.TOP), TB_GROUP_HIDE_ON_EDIT);
+-		addToToolbar(new CommonActions.StackAction(StackType.BOTTOM), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.CENTERX), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.CENTERY), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.LEFT), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.RIGHT), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.TOP), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.WIDTH), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new AlignAction(AlignType.HEIGHT), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new StackAction(StackType.CENTERX), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new StackAction(StackType.CENTERY), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new StackAction(StackType.LEFT), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new StackAction(StackType.RIGHT), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new StackAction(StackType.TOP), TB_GROUP_HIDE_ON_EDIT);
++		addToToolbar(new StackAction(StackType.BOTTOM), TB_GROUP_HIDE_ON_EDIT);
+ 	}
+ 
+ 	public static final String TB_GROUP_HIDE_ON_EDIT = "edit";
+@@ -334,29 +341,26 @@
+ 		return backpagePane;
+ 	}
+ 	
+-	private Frame findParentFrame() {
+-		Container c = this;
+-		while (c != null) {
+-			if (c instanceof Frame)
+-				return (Frame) c;
+-			c = c.getParent();
+-		}
+-		return (Frame) null;
+-	}
+-
+ 	public void vPathwayEvent(VPathwayEvent e) {
+ 		switch(e.getType()) {
+ 		case VPathwayEvent.ELEMENT_DOUBLE_CLICKED:
+ 			if(e.getAffectedElement() instanceof Graphics) {
+ 				PathwayElement p = ((Graphics)e.getAffectedElement()).getGmmlData();
+-				PathwayElementDialog pd = null;
+-				switch(p.getObjectType()) {
+-				case ObjectType.DATANODE:
+-					pd = new DataNodeDialog(p, findParentFrame(), this);
++				if(p != null) {
++					PathwayElementDialog.getInstance(p, 
++							JOptionPane.getFrameForComponent(this), this).setVisible(true);
+ 				}
+-				if(pd != null) pd.setVisible(true);
+ 			}
+ 			break;
++		case VPathwayEvent.ELEMENT_RIGHT_CLICKED:
++//			PathwayElementMenu m = PathwayElementMenu.getInstance(e.getAffectedElement());
++//			MouseEvent me = e.getMouseEvent();
++//			VPathwaySwing vps = (VPathwaySwing)e.getAffectedElement().getDrawing().getWrapper();
++//			Point location = me.getLocation();
++//			SwingUtilities.convertPointToScreen(location, vps);
++//			m.setLocation(location);
++//			m.setVisible(true);
++//			break;
+ 		case VPathwayEvent.EDIT_MODE_ON:
+ 			for(Component b : getToolbarGroup(TB_GROUP_HIDE_ON_EDIT)) {
+ 				b.setEnabled(true);
+Index: trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1084)
+@@ -0,0 +1,40 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swing.menus;
++
++import java.awt.Rectangle;
++
++import javax.swing.JPopupMenu;
++
++import org.pathvisio.gui.swing.actions.PropertiesAction;
++import org.pathvisio.view.Handle;
++import org.pathvisio.view.VPathwayElement;
++
++public class PathwayElementMenu extends JPopupMenu {
++	VPathwayElement element;
++	
++	private PathwayElementMenu(VPathwayElement e) {
++		element = e;
++		add(new PropertiesAction(e));
++		Rectangle b = e.getVBounds();
++	}
++	
++	public static PathwayElementMenu getInstance(VPathwayElement e) {
++		if(e instanceof Handle) e = ((Handle)e).getParent();
++		return new PathwayElementMenu(e);
++	}
++}
+Index: trunk/src/swing/com/mammothsoftware/frwk/ddb/RolloverButton.java
+===================================================================
+--- trunk/src/swing/com/mammothsoftware/frwk/ddb/RolloverButton.java	(revision 1083)
++++ trunk/src/swing/com/mammothsoftware/frwk/ddb/RolloverButton.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ // Copyright (C) 2005 Mammoth Software LLC
+ //
+ // This library is free software; you can redistribute it and/or
+Index: trunk/src/swing/com/mammothsoftware/frwk/ddb/DropDownButton.java
+===================================================================
+--- trunk/src/swing/com/mammothsoftware/frwk/ddb/DropDownButton.java	(revision 1083)
++++ trunk/src/swing/com/mammothsoftware/frwk/ddb/DropDownButton.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ // Copyright (C) 2005 Mammoth Software LLC
+ //
+ // This library is free software; you can redistribute it and/or
+Index: trunk/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1084)
+@@ -342,8 +342,8 @@
+ 				for (PathwayElement.Comment c : o.getComments())
+ 				{
+ 					Element f = new Element ("Comment", ns);
+-					f.setText (c.comment);
+-					setAttribute("Comment", "Source", f, c.source);
++					f.setText (c.getComment());
++					setAttribute("Comment", "Source", f, c.getSource());
+ 					root.addContent(f);
+ 				}				
+ 				
+@@ -575,8 +575,8 @@
+ 			for (PathwayElement.Comment c : o.getComments())
+ 			{
+ 				Element f = new Element ("Comment", e.getNamespace());
+-				f.setText (c.comment);
+-				setAttribute("Comment", "Source", f, c.source);
++				f.setText (c.getComment());
++				setAttribute("Comment", "Source", f, c.getSource());
+ 				e.addContent(f);
+ 			}
+ 		}
+Index: trunk/src/core/org/pathvisio/model/PropertyClass.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/PropertyClass.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/model/PropertyClass.java	(revision 1084)
+@@ -40,4 +40,5 @@
+ 	DB_ID,
+ 	DB_SYMBOL,
+ 	BIOPAXREF,
++	COMMENTS,
+ }
+Index: trunk/src/core/org/pathvisio/model/PropertyType.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/PropertyType.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/model/PropertyType.java	(revision 1084)
+@@ -34,8 +34,7 @@
+ public enum PropertyType 
+ {
+ 	// all
+-	NOTES ("Notes", "Notes", PropertyClass.STRING),
+-	COMMENT ("Comment", "Comment", PropertyClass.STRING),
++	COMMENTS ("Comments", "Comments", PropertyClass.COMMENTS),
+ 
+ 	// line, shape, brace, geneproduct, label
+ 	COLOR ("Color", "Color", PropertyClass.COLOR),
+@@ -135,12 +134,10 @@
+ 
+ 	public boolean isHidden()
+ 	{
+-		System.out.println("Is hidden? " + this + ", " + hidden);
+ 		return hidden;
+ 	}
+ 
+ 	public void setHidden(boolean hide) {
+-		System.out.println("hiding " + this);
+ 		hidden = hide;
+ 	}
+ 	
+Index: trunk/src/core/org/pathvisio/model/PathwayElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/PathwayElement.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/model/PathwayElement.java	(revision 1084)
+@@ -59,9 +59,33 @@
+ 			return super.clone();
+ 		}
+ 
+-		public String source;
+-
+-		public String comment;
++		private String source;
++		private String comment;
++		
++		public String getSource() { return source; }
++		public String getComment() { return comment; }
++		
++		public void setSource(String s) {
++			if(s != null && !source.equals(s)) {
++				source = s;
++				changed();
++			}
++		}
++		
++		public void setComment(String c) {
++			if(c != null && !comment.equals(c)) {
++				comment = c;
++				changed();
++			}
++		}
++		
++		private void changed() {
++			fireObjectModifiedEvent(new PathwayEvent(PathwayElement.this, PathwayEvent.MODIFIED_GENERAL));
++		}
++		
++		public String toString() {
++			return comment + " (" + source + ")";
++		}
+ 	}
+ 
+ 	public class MPoint implements Cloneable, GraphIdContainer,
+@@ -330,13 +354,10 @@
+ 	public List<PropertyType> getAttributes(boolean fAdvanced)
+ 	{
+ 		List<PropertyType> result = new ArrayList<PropertyType>();
+-		result.add(PropertyType.NOTES);
+-		result.add(PropertyType.COMMENT);
+ 		switch (getObjectType())
+ 		{
+ 		case ObjectType.MAPPINFO:
+-			result.add(PropertyType.NOTES);
+-			result.add(PropertyType.COMMENT);
++			result.add(PropertyType.COMMENTS);
+ 			result.add(PropertyType.MAPINFONAME);
+ 			result.add(PropertyType.ORGANISM);
+ 			result.add(PropertyType.DATA_SOURCE);
+@@ -358,8 +379,7 @@
+ 			}
+ 			break;
+ 		case ObjectType.DATANODE:
+-			result.add(PropertyType.NOTES);
+-			result.add(PropertyType.COMMENT);
++			result.add(PropertyType.COMMENTS);
+ 			result.add(PropertyType.CENTERX);
+ 			result.add(PropertyType.CENTERY);
+ 			result.add(PropertyType.WIDTH);
+@@ -379,8 +399,7 @@
+ 			}
+ 			break;
+ 		case ObjectType.SHAPE:
+-			result.add(PropertyType.NOTES);
+-			result.add(PropertyType.COMMENT);
++			result.add(PropertyType.COMMENTS);
+ 			result.add(PropertyType.CENTERX);
+ 			result.add(PropertyType.CENTERY);
+ 			result.add(PropertyType.WIDTH);
+@@ -398,8 +417,7 @@
+ 			}
+ 			break;
+ 		case ObjectType.LINE:
+-			result.add(PropertyType.NOTES);
+-			result.add(PropertyType.COMMENT);
++			result.add(PropertyType.COMMENTS);
+ 			result.add(PropertyType.COLOR);
+ 			result.add(PropertyType.STARTX);
+ 			result.add(PropertyType.STARTY);
+@@ -417,8 +435,7 @@
+ 			}
+ 			break;
+ 		case ObjectType.LABEL:
+-			result.add(PropertyType.NOTES);
+-			result.add(PropertyType.COMMENT);
++			result.add(PropertyType.COMMENTS);
+ 			result.add(PropertyType.XREF);
+ 			result.add(PropertyType.CENTERX);
+ 			result.add(PropertyType.CENTERY);
+@@ -463,8 +480,8 @@
+ 	{
+ 		switch (key)
+ 		{
+-		case COMMENT:
+-			setComment((String) value);
++		case COMMENTS:
++			setComments((List<Comment>) value);
+ 			break;
+ 		case COLOR:
+ 			setColor((Color) value);
+@@ -618,8 +635,8 @@
+ 		Object result = null;
+ 		switch (x)
+ 		{
+-		case COMMENT:
+-			result = getComment();
++		case COMMENTS:
++			result = getComments();
+ 			break;
+ 		case COLOR:
+ 			result = getColor();
+@@ -1065,6 +1082,11 @@
+ 		fireObjectModifiedEvent(new PathwayEvent(this,
+ 				PathwayEvent.MODIFIED_GENERAL));
+ 	}
++	
++	public void removeComment(Comment comment) {
++		comments.remove(comment);
++		fireObjectModifiedEvent(new PathwayEvent(this, PathwayEvent.MODIFIED_GENERAL));
++	}
+ 
+ 	/**
+ 	 * Finds the first comment with a specific source
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1084)
+@@ -572,6 +572,9 @@
+ 			redrawDirtyRect();
+ 		}
+ 		isDragging = false;
++		if(e.getButton() == MouseEvent.BUTTON3 && pressedObject != null) {
++			fireVPathwayEvent(new VPathwayEvent(this, pressedObject, e, VPathwayEvent.ELEMENT_RIGHT_CLICKED));
++		}
+ 	}
+ 	
+ 	/**
+Index: trunk/src/core/org/pathvisio/view/VPathwayEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 1084)
+@@ -26,10 +26,12 @@
+ 	public static final int MODEL_LOADED = 3;
+ 	public static final int ELEMENT_DOUBLE_CLICKED = 4;
+ 	public static final int ELEMENT_DRAWN = 5;
++	public static final int ELEMENT_RIGHT_CLICKED = 6;
+ 	
+ 	int type;
+ 	VPathwayElement affectedElement;
+ 	Graphics2D g2d;
++	MouseEvent mouseEvent;
+ 	
+ 	public VPathwayEvent(VPathway source, int type) {
+ 		super(source);
+@@ -42,11 +44,19 @@
+ 	}
+ 	
+ 	public VPathwayEvent(VPathway source, VPathwayElement affectedElement, Graphics2D g2d, int type) {
+-		this(source, type);
+-		this.affectedElement = affectedElement;
++		this(source, affectedElement, type);
+ 		this.g2d = g2d;
+ 	}
+ 	
++	public VPathwayEvent(VPathway source, VPathwayElement affectedElement, MouseEvent e, int type) {
++		this(source, affectedElement, type);
++		mouseEvent = e;
++	}
++	
++	public MouseEvent getMouseEvent() {
++		return mouseEvent;
++	}
++	
+ 	public VPathwayElement getAffectedElement() {
+ 		return affectedElement;
+ 	}
+Index: trunk/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Handle.java	(revision 1083)
++++ trunk/src/core/org/pathvisio/view/Handle.java	(revision 1084)
+@@ -30,7 +30,7 @@
+  * objects on the drawing which are used to 
+  * resize them or change their location.
+  */
+-class Handle extends VPathwayElement
++public class Handle extends VPathwayElement
+ {
+ 	private static final long serialVersionUID = 1L;
+ 	
+@@ -75,6 +75,10 @@
+ 		this.parent = parent;
+ 	}
+ 
++	public VPathwayElement getParent() {
++		return parent;
++	}
++	
+ 	public int getDrawingOrder() {
+ 		return VPathway.DRAW_ORDER_HANDLE;
+ 	}
+Index: trunk/src/swt/org/pathvisio/gui/swt/dialogs/CommentsDialog.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/dialogs/CommentsDialog.java	(revision 0)
++++ trunk/src/swt/org/pathvisio/gui/swt/dialogs/CommentsDialog.java	(revision 1084)
+@@ -0,0 +1,164 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swt.dialogs;
++
++import java.util.Iterator;
++
++import org.eclipse.jface.viewers.ArrayContentProvider;
++import org.eclipse.jface.viewers.CellEditor;
++import org.eclipse.jface.viewers.ICellModifier;
++import org.eclipse.jface.viewers.ILabelProviderListener;
++import org.eclipse.jface.viewers.IStructuredSelection;
++import org.eclipse.jface.viewers.ITableLabelProvider;
++import org.eclipse.jface.viewers.TableViewer;
++import org.eclipse.jface.viewers.TextCellEditor;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.SelectionAdapter;
++import org.eclipse.swt.events.SelectionEvent;
++import org.eclipse.swt.graphics.Image;
++import org.eclipse.swt.layout.FillLayout;
++import org.eclipse.swt.layout.GridData;
++import org.eclipse.swt.layout.GridLayout;
++import org.eclipse.swt.widgets.Button;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Shell;
++import org.eclipse.swt.widgets.Table;
++import org.eclipse.swt.widgets.TableColumn;
++import org.eclipse.swt.widgets.TableItem;
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.model.PathwayElement.Comment;
++import org.pathvisio.util.swt.TableColumnResizer;
++
++public class CommentsDialog extends PathwayElementDialog {
++	static final String[] tableHeaders = new String[] { "Source", "Comment" };
++	
++	TableViewer tableViewer;
++		
++	public CommentsDialog(Shell parent, PathwayElement e) {
++		super(parent, e);
++	}
++	
++	protected Control createDialogArea(Composite parent) {
++		Composite comp  = (Composite)super.createDialogArea(parent);
++		comp.setLayout(new GridLayout(2, false));
++		Composite tableComp = new Composite(comp, SWT.NONE);
++		tableComp.setLayout(new FillLayout());
++		GridData g = new GridData(GridData.FILL_BOTH);
++		g.horizontalSpan = 2;
++		g.widthHint = 300;
++		g.heightHint = 200;
++		tableComp.setLayoutData(g);
++		
++		Table t = new Table(tableComp, SWT.BORDER | SWT.MULTI | SWT.WRAP);
++		t.setHeaderVisible(true);
++		TableColumn tc1 = new TableColumn(t, SWT.NONE);
++		TableColumn tc2 = new TableColumn(t, SWT.NONE);
++		tc1.setText(tableHeaders[0]);
++		tc2.setText(tableHeaders[1]);
++		tc1.setWidth(50);
++		tc2.setWidth(80);
++				
++		new TableColumnResizer(t, tableComp, new int[] { 30, 70 });
++		
++		tableViewer = new TableViewer(t);
++		tableViewer.setCellModifier(cellModifier);
++		tableViewer.setLabelProvider(labelProvider);
++		tableViewer.setColumnProperties(tableHeaders);
++		tableViewer.setContentProvider(new ArrayContentProvider());
++		tableViewer.setCellEditors(new CellEditor[] { new TextCellEditor(t), new TextCellEditor(t) });
++		Button add = new Button(comp, SWT.PUSH);
++		add.setText("Add comment");
++		add.setLayoutData(new GridData(GridData.HORIZONTAL_ALIGN_END));
++		Button remove = new Button(comp, SWT.PUSH);
++		remove.setText("Remove comment");
++		add.setLayoutData(new GridData(GridData.HORIZONTAL_ALIGN_END));
++		
++		add.addSelectionListener(new SelectionAdapter() {
++			public void widgetSelected(SelectionEvent e) {
++				addPressed();
++			}
++		});
++		remove.addSelectionListener(new SelectionAdapter() {
++			public void widgetSelected(SelectionEvent e) {
++				removePressed();
++			}
++		});
++		tableViewer.setInput(input.getComments());
++		
++		return comp;
++	}
++	
++	protected void addPressed() {
++		input.addComment("Type your comment here", "");
++		refresh();
++	}
++	
++	protected void removePressed() {
++		Iterator it = ((IStructuredSelection)tableViewer.getSelection()).iterator();
++		while(it.hasNext()) {
++			Comment c = (Comment)it.next();
++			input.removeComment(c);
++		}
++		refresh();
++	}
++	
++	ICellModifier cellModifier = new ICellModifier() {
++		public boolean canModify(Object element, String property) {
++			return true;
++		}
++		public Object getValue(Object element, String property) {
++			Comment c = (Comment)element;
++			String value = property.equals(tableHeaders[0]) ? c.getSource() : c.getComment();
++			return value == null ? "" : value;
++		}
++		public void modify(Object element, String property, Object value) {
++			if(value == null) return;
++			
++			Comment c = (Comment)((TableItem)element).getData();
++			if(property.equals(tableHeaders[0])) {
++				c.setSource((String)value);
++			} else {
++				c.setComment((String)value);
++			}
++			refresh();
++		}
++	};
++	
++	ITableLabelProvider labelProvider = new ITableLabelProvider() {
++		public Image getColumnImage(Object element, int columnIndex) {
++			return null;
++		}
++		public String getColumnText(Object element, int columnIndex) {
++			Comment c = (Comment)element;
++			return columnIndex == 0 ? c.getSource() : c.getComment();
++		}
++		public void addListener(ILabelProviderListener listener) {
++		}
++		public void dispose() {
++		}
++		public boolean isLabelProperty(Object element, String property) {
++			return false;
++		}
++		public void removeListener(ILabelProviderListener listener) {
++		}
++	};
++
++	protected void refresh() {
++		tableViewer.refresh();
++	}
++}
+Index: trunk/src/swt/org/pathvisio/gui/swt/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/dialogs/PathwayElementDialog.java	(revision 0)
++++ trunk/src/swt/org/pathvisio/gui/swt/dialogs/PathwayElementDialog.java	(revision 1084)
+@@ -0,0 +1,44 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swt.dialogs;
++
++import org.eclipse.jface.dialogs.Dialog;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.model.PathwayElement;
++
++public abstract class PathwayElementDialog extends Dialog {
++	PathwayElement input;
++	
++	public PathwayElementDialog(Shell parent, PathwayElement e) {
++		super(parent);
++		setShellStyle(SWT.DIALOG_TRIM | SWT.RESIZE);
++		input = e;
++	}
++	
++	protected final PathwayElement getInput() {
++		return input;
++	}
++	
++	
++	protected void createButtonsForButtonBar(Composite parent) {
++		createButton(parent, Dialog.OK, "Ok", true);
++	}
++	
++	protected abstract void refresh();
++}
+Index: trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java	(revision 1083)
++++ trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java	(revision 1084)
+@@ -24,10 +24,12 @@
+ import java.util.List;
+ import java.util.Set;
+ 
++import org.eclipse.jface.dialogs.Dialog;
+ import org.eclipse.jface.viewers.ArrayContentProvider;
+ import org.eclipse.jface.viewers.CellEditor;
+ import org.eclipse.jface.viewers.ColorCellEditor;
+ import org.eclipse.jface.viewers.ComboBoxCellEditor;
++import org.eclipse.jface.viewers.DialogCellEditor;
+ import org.eclipse.jface.viewers.ICellModifier;
+ import org.eclipse.jface.viewers.ILabelProviderListener;
+ import org.eclipse.jface.viewers.IStructuredContentProvider;
+@@ -39,6 +41,8 @@
+ import org.eclipse.swt.graphics.RGB;
+ import org.eclipse.swt.layout.FillLayout;
+ import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Table;
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+@@ -47,10 +51,10 @@
+ import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.biopax.gui.BiopaxCellEditor;
+ import org.pathvisio.data.DataSources;
++import org.pathvisio.gui.swt.dialogs.CommentsDialog;
+ import org.pathvisio.model.DataNodeType;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+-import org.pathvisio.model.MappFormat;
+ import org.pathvisio.model.ObjectType;
+ import org.pathvisio.model.Organism;
+ import org.pathvisio.model.OrientationType;
+@@ -60,6 +64,7 @@
+ import org.pathvisio.model.PropertyClass;
+ import org.pathvisio.model.PropertyType;
+ import org.pathvisio.model.ShapeType;
++import org.pathvisio.model.PathwayElement.Comment;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.util.swt.SuggestCellEditor;
+ import org.pathvisio.util.swt.SwtUtils;
+@@ -82,6 +87,7 @@
+ 	SuggestCellEditor identifierSuggestEditor;
+ 	SuggestCellEditor symbolSuggestEditor;
+ 	BiopaxCellEditor biopaxEditor;
++	DialogCellEditor commentsEditor;
+ 	
+ 	private List<PathwayElement> dataObjects;
+ 	
+@@ -231,6 +237,18 @@
+ 		identifierSuggestEditor = new GdbCellEditor(tableViewer.getTable(), GdbCellEditor.TYPE_IDENTIFIER);
+ 		symbolSuggestEditor = new GdbCellEditor(tableViewer.getTable(), GdbCellEditor.TYPE_SYMBOL);
+ 		biopaxEditor = new BiopaxCellEditor(tableViewer.getTable(), "...");
++		//Temporary table editor for comments, will be removed when right-click menu is implemented
++		commentsEditor = new DialogCellEditor(tableViewer.getTable()) {
++			protected Object openDialogBox(Control cellEditorWindow) {
++				if(dataObjects.size() == 1) {
++					PathwayElement e = dataObjects.get(0);
++					CommentsDialog d = new CommentsDialog(cellEditorWindow.getShell(), e);
++					d.open();
++					return e.getComments();
++				}
++				return getValue();
++			}
++		};
+ 		
+ 		tableViewer.setCellEditors(cellEditors);
+ 		tableViewer.setColumnProperties(colNames);
+@@ -302,7 +320,8 @@
+ 				return textEditor;
+ 			case BIOPAXREF:
+ 				return biopaxEditor;
+-				
++			case COMMENTS:
++				return commentsEditor;
+ 		}
+ 		return textEditor;
+ 	}
+@@ -383,6 +402,7 @@
+ 					if(value instanceof PropertyPanel.AutoFillData) 
+ 						return ((PropertyPanel.AutoFillData)value).getMainValue();
+ 				case BIOPAXREF:
++				case COMMENTS:
+ 					return value;
+ 					
+ 			}
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1083)
++++ trunk/build.xml	(revision 1084)
+@@ -77,7 +77,7 @@
+ 	</target>
+ 	
+ 	<target name="compile-v1" depends="prepare,resources-jar" description="Compile all sources">
+-		<javac srcdir="." debug="true"
++		<javac srcdir="."
+ 			includes="src/v1/**,src/core/**,src/swt/**"
+ 			destdir="${build.v1.dir}">
+ 			<classpath refid="project.v1.class.path"/>
+Index: trunk/tools/gpmldiff/src/org/pathvisio/gpmldiff/GpmlDiffWindow.java
+===================================================================
+--- trunk/tools/gpmldiff/src/org/pathvisio/gpmldiff/GpmlDiffWindow.java	(revision 1083)
++++ trunk/tools/gpmldiff/src/org/pathvisio/gpmldiff/GpmlDiffWindow.java	(revision 1084)
+@@ -32,7 +32,7 @@
+ import javax.swing.JOptionPane;
+ import javax.swing.JScrollPane;
+ import org.pathvisio.debug.Logger;
+-import org.pathvisio.gui.swing.CommonActions;
++import org.pathvisio.gui.swing.actions.CommonActions;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.view.VPathway;
+Index: trunk/tools/ComponentTest/src/TestPanel.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestPanel.java	(revision 1083)
++++ trunk/tools/ComponentTest/src/TestPanel.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ import java.awt.Color;
+ import java.awt.Component;
+ import java.awt.Graphics;
+Index: trunk/tools/ComponentTest/src/TestComponent.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestComponent.java	(revision 1083)
++++ trunk/tools/ComponentTest/src/TestComponent.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ import java.awt.AWTEvent;
+ import java.awt.Color;
+ import java.awt.Component;
+Index: trunk/tools/ComponentTest/src/TestGui.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestGui.java	(revision 1083)
++++ trunk/tools/ComponentTest/src/TestGui.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ import java.awt.BorderLayout;
+ import java.awt.Container;
+ 
+Index: trunk/tools/ComponentTest/src/TestMain.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestMain.java	(revision 1083)
++++ trunk/tools/ComponentTest/src/TestMain.java	(revision 1084)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ import java.awt.Color;
+ import java.awt.Dimension;
+ import java.io.FileWriter;
+Index: trunk/add_license_header.sh
+===================================================================
+--- trunk/add_license_header.sh	(revision 0)
++++ trunk/add_license_header.sh	(revision 1084)
+@@ -0,0 +1,12 @@
++#!/usr/bin/sh
++
++# extract the license header from a file that has it:
++head -n 16 src/core/org/pathvisio/Engine.java > license.txt
++# create a list of files missing the license header
++find . -name "*.java" ! -name "Revision.java" -exec \
++  grep -L "Apache License, Version 2.0" '{}' \; > license_check.txt
++# add contents of license.txt at the beginning of those files.
++for i in $( cat license_check.txt ); do
++  cp $i $i.bak;
++  cat license.txt $i.bak > $i;
++done
+\ No newline at end of file
+
+Property changes on: trunk/add_license_header.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+

@@ -1,0 +1,130 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1065)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1066)
+@@ -13,10 +13,10 @@
+ //To be called directly
+ if(realpath($_SERVER['SCRIPT_FILENAME']) == realpath(__FILE__)) {
+ 	$species = $_GET['species'];
+-	$fileType = $_GET['filetype'];
++	$fileType = $_GET['fileType'];
+ 
+ 	if($species) {
+-		batchDownload($species, $fileType ? $fileType : FILETYPE_GPML);
++		batchDownload($species, $fileType);
+ 	}
+ }
+ 
+@@ -72,7 +72,7 @@
+ 
+ function doDownload($pathways, $fileType) {
+ 	ob_start();
+-	$zip = new zipfile();
++/*	$zip = new zipfile();
+ 	
+ 	//Fill zip file
+ 	foreach($pathways as $pw) {
+@@ -80,17 +80,29 @@
+ 		$zip->addFile(file_get_contents($file), basename($file));
+ 	}
+ 	$zipData = $zip->file();
++*/	
++	$zipFile = tempnam(WPI_TMP_PATH, 'batchDownload') . '.zip';
++	foreach($pathways as $pw) {
++		$files .= $pw->getFileLocation($fileType) . ' ';
++	}
++	$cmd = "zip -j $zipFile $files 2>&1";
++	exec($cmd, $output, $status);
++	foreach($output as $line) {
++		$msg .= $line . "\n";
++	}
+ 	
+-	//$zipFile = tempnam(WPI_TMP_PATH, 'batchDownload') . '.zip';
+-	//writeFile($zipFile, $zipData);
+ 	//header("Location: " . WPI_TMP_URL . '/' . basename($zipFile));
++	// Can't get this to work under windows, corrupt zip file
+ 	$time = time();
+ 	ob_clean();
+-	header("Content-disposition: attachment; filename=wikipathways_$time.zip");
+-	header('Content-type: application/zip');
+-	//readfile($zipFile);
+-	echo $zipData;
+-	exit;
++	header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
++	header("Cache-Control: private", false);
++	header("Content-Disposition: attachment; filename=wikipathways_$time.zip");
++	header('Content-Type: application/octet-stream');
++	header("Content-Transfer-Encoding: binary");
++	header("Content-Length: ".filesize($zipFile));
++	set_time_limit(0); //In case reading file takes a long time
++	@readfile($zipFile);
+ }
+ 
+ ?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/MostEditedPathwaysPage/MostEditedPathwaysPage_body.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/MostEditedPathwaysPage/MostEditedPathwaysPage_body.php	(revision 1065)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/MostEditedPathwaysPage/MostEditedPathwaysPage_body.php	(revision 1066)
+@@ -18,13 +18,13 @@
+ 				
+ 				//Most revisioned pathway images
+ 				$wgOut->addWikiText("== Pathways Changed  ==");
+-				$ppp = new PathwayQueryPage(102);
++				$ppp = new PathwayQueryPage(NS_GPML);
+ 
+ 				$ppp->doQuery( $offset, $limit );
+ 				
+ 				//Most edited pathway articles
+ 				$wgOut->addWikiText("== Descriptions & Bibliographies Changed ==");
+-				$ppp = new PathwayQueryPage(100);
++				$ppp = new PathwayQueryPage(NS_PATHWAY);
+ 
+ 				$ppp->doQuery( $offset, $limit );
+ 							
+@@ -76,6 +76,7 @@
+ 			JOIN $page ON page_id = rev_page
+ 			WHERE page_namespace = " . $this->namespace . "
+ 			AND page_title NOT LIKE '%Sandbox%'
++			AND page_is_redirect = 0
+ 			GROUP BY 1,2,3
+ 			HAVING COUNT(*) > 1
+ 			";
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1065)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1066)
+@@ -119,7 +119,6 @@
+ </body>
+ </html>
+ JS;
+-		echo $script;
+ 		exit;
+ 	}
+ 	sendWebstart($webstart, $pathway->name());//This exits script
+@@ -156,12 +155,9 @@
+ }
+ 
+ function downloadFile($fileType, $pwTitle) {
+-	ob_start();
+ 	$pathway = Pathway::newFromTitle($pwTitle);
+-	$file = $pathway->	getFileLocation($fileType);
++	$file = $pathway->getFileLocation($fileType);
+ 	$fn = $pathway->getFileName($fileType);	
+-	
+-	ob_clean();
+ 	switch($fileType) {
+ 		case FILETYPE_GPML:
+ 			header("Content-type: text/xml");
+@@ -173,9 +169,11 @@
+ 			header("Content-type: image/png");
+ 			break;
+ 	}
++	header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+ 	header("Content-Disposition: attachment; filename=\"$fn\"");
+ 	header("Content-Length: " . filesize($file));
+-	readfile($file);
++	ob_clean();
++	echo(file_get_contents($file));
+ 	exit;
+ }
+ 

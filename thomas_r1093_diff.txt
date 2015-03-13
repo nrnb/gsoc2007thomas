@@ -1,0 +1,541 @@
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1092)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1093)
+@@ -19,8 +19,10 @@
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
++import java.util.HashMap;
+ import java.util.HashSet;
+ import java.util.List;
++import java.util.Set;
+ 
+ import javax.swing.DefaultCellEditor;
+ import javax.swing.JTextField;
+@@ -47,132 +49,102 @@
+ 	TableCellEditor defaultEditor = new DefaultCellEditor(new JTextField());
+ 	
+ 	Collection<PathwayElement> input;
+-	List<TypedProperty> properties;
++	HashMap<PropertyType, TypedProperty> propertyValues;
++	List<TypedProperty> shownProperties;
+ 	
+ 	public PathwayTableModel() {
+ 		input = new HashSet<PathwayElement>();
+-		properties = new ArrayList<TypedProperty>();
++		propertyValues = new HashMap<PropertyType, TypedProperty>();
++		shownProperties = new ArrayList<TypedProperty>();
+ 		
+ 		Engine.getCurrent().addApplicationEventListener(this);
+ 		VPathway vp = Engine.getCurrent().getActiveVPathway();
+ 		if(vp != null) vp.addSelectionListener(this);
+ 	}
+ 	
+-	private void clearInput() {
++	private void reset() {
+ 		for(PathwayElement e : input) {
++			//System.err.println("Removed " + e);
+ 			e.removeListener(this);
+ 		}
++		propertyValues.clear();
++		shownProperties.clear();
+ 		input.clear();
+ 		refresh(true);
+ 	}
+ 	
+ 	private void removeInput(PathwayElement pwElm) {
++		//System.err.println("Input removed");
+ 		input.remove(pwElm);
++		updatePropertyCounts(pwElm, true);
+ 		pwElm.removeListener(this);
+ 		refresh(true);
+ 	}
+ 	
+ 	private void addInput(PathwayElement pwElm) {
++		//System.err.println("Input added");
+ 		input.add(pwElm);
++		updatePropertyCounts(pwElm, false);
+ 		pwElm.addListener(this);
+ 		refresh(true);
+ 	}
+ 	
+-	protected void refresh(boolean recreate) {
+-		if(recreate) {
+-			properties = generateProperties(input);
+-		} else {
+-			refreshPropertyValues();
++	protected void refresh() { refresh(false); }
++	
++	protected void refresh(boolean propertyCount) {
++		if(propertyCount) {
++			updateShownProperties();
+ 		}
++		refreshPropertyValues();
+ 		fireTableDataChanged();
+ 	}
+-	
+-	protected void refresh() {
+-		refresh(false);
+-	}
+-	
+-	protected void refreshPropertyValues() {
+-		for(TypedProperty p : properties) {
+-			Object value = getAggregateValue(p.getType(), input);
+-			if(value instanceof TypedProperty) {
+-				p.setHasDifferentValues(true);
++		
++	protected void updatePropertyCounts(PathwayElement e, boolean remove) {
++		boolean advanced = GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES);
++		for(PropertyType p : e.getAttributes(advanced)) {
++			if(p.isHidden()) continue;
++			
++			TypedProperty tp = propertyValues.get(p);
++			if(tp == null) {
++				propertyValues.put(p, tp = new TypedProperty(p));
++			}
++			if(remove) {
++				tp.removeElement(e);
+ 			} else {
+-				p.setValue(value, false);
++				tp.addElement(e);
+ 			}
+ 		}
+ 	}
+ 	
+-	protected List<TypedProperty> generateProperties(Collection<PathwayElement> elements) {
+-		List<TypedProperty> properties = new ArrayList<TypedProperty>();
+-		List<PropertyType> propTypes = getProperties(elements);
+-		for(PropertyType pt : propTypes) {
+-			TypedProperty value = getAggregateProperty(pt, elements);
+-			properties.add(value);
+-		}
+-		Collections.sort(properties);
+-		return properties;
+-	}
+-	
+-	protected List<PropertyType> getProperties(Collection<PathwayElement> elements) {
+-		ArrayList<PropertyType> properties = null;
+-		ArrayList<PropertyType> remove = new ArrayList<PropertyType>();
+-		for(PathwayElement e : elements) {
+-			if(properties == null) {
+-				properties = new ArrayList<PropertyType>();
+-				List<PropertyType> attr = e.getAttributes(GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES));
+-				properties.addAll(attr);
++	protected void updateShownProperties() {
++		for(TypedProperty tp : propertyValues.values()) {
++			boolean shown = shownProperties.contains(tp);
++			if(tp.elementCount() == input.size()) {
++				//System.err.println("\tadding " + tp + " from shown");
++				if(!shown) shownProperties.add(tp);
++			} else {
++				//System.err.println("\tremoveing " + tp + " from shown");
++				shownProperties.remove(tp);
+ 			}
+-			remove.clear();
+-			List<PropertyType> attributes = e.getAttributes(
+-					GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES));
+-			for(PropertyType p : properties) {
+-				if(!attributes.contains(p) || p.isHidden()) {
+-					remove.add(p);
+-				}
+-			}
+-			properties.removeAll(remove);
+ 		}
+-		if(properties == null) properties = new ArrayList<PropertyType>();
+-		return properties;
+ 	}
+ 	
+-	/**
+-	 * Gets the aggregated value of the property of the given pathway element.
+-	 * If te values are different, this method returns an object of class TypedProperty
+-	 * @param key
+-	 * @param elements
+-	 * @return
+-	 */
+-	Object getAggregateValue(PropertyType key, Collection<PathwayElement> elements) {
+-		Object value = null;
+-		boolean first = true;
+-		for(PathwayElement e : elements) {
+-			Object o = e.getProperty(key);
+-			if(!first && (o == null || !o.equals(value))) {
+-				return new TypedProperty(elements, key);
+-			}
+-			value = o;
+-			first = false;
++	protected void refreshPropertyValues() {
++		for(TypedProperty p : shownProperties) {
++			p.refreshValue();
+ 		}
+-		return value;
+ 	}
+-	
+-	TypedProperty getAggregateProperty(PropertyType key, Collection<PathwayElement> elements) {
+-		Object value = getAggregateValue(key, elements);
+-		if(value instanceof TypedProperty) return (TypedProperty)value;
+-		return new TypedProperty(elements, value, key);
+-	}
+ 		
+ 	public int getColumnCount() {
+ 		return 2;
+ 	}
+ 
+ 	public int getRowCount() {
+-		return properties.size();
++		return shownProperties.size();
+ 	}
+ 
+ 	public TypedProperty getPropertyAt(int row) {
+-		return properties.get(row);
++		return shownProperties.get(row);
+ 	}
+ 	
+ 	public Object getValueAt(int rowIndex, int columnIndex) {
+@@ -203,15 +175,18 @@
+ 	public void selectionEvent(SelectionEvent e) {
+ 		switch(e.type) {
+ 		case SelectionEvent.OBJECT_ADDED:
++			//System.err.println("OBJECT ADDED");
+ 			if(e.affectedObject instanceof Graphics)
+ 				addInput(((Graphics)e.affectedObject).getGmmlData());
+ 			break;
+ 		case SelectionEvent.OBJECT_REMOVED:
++			//System.err.println("OBJECT REMOVED");
+ 			if(e.affectedObject instanceof Graphics)
+ 				removeInput(((Graphics)e.affectedObject).getGmmlData());
+ 			break;
+ 		case SelectionEvent.SELECTION_CLEARED:
+-			 clearInput();
++			//System.err.println("CLEARED");
++			 reset();
+ 			break;
+ 		}		
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1092)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1093)
+@@ -24,7 +24,7 @@
+ import java.awt.event.ActionListener;
+ import java.util.Collection;
+ import java.util.HashMap;
+-import java.util.Iterator;
++import java.util.HashSet;
+ 
+ import javax.swing.AbstractCellEditor;
+ import javax.swing.BorderFactory;
+@@ -58,21 +58,38 @@
+ 	PropertyType type;
+ 	boolean different;
+ 
+-	public TypedProperty(Collection<PathwayElement> elements, PropertyType type) {
+-		this(elements, null, type, true);
++	public TypedProperty(PropertyType type) {
++		this.type = type;
++		elements = new HashSet<PathwayElement>();
+ 	}
+ 	
+-	public TypedProperty(Collection<PathwayElement> elements, Object value, PropertyType type) {
+-		this(elements, value, type, false);
++	public void addElement(PathwayElement e) {
++		boolean added = elements.add(e);
++		refreshValue();
++		//System.err.println("\t\tadding....." + added);
+ 	}
+ 	
+-	private TypedProperty(Collection<PathwayElement> elements, Object value, PropertyType type, boolean different) {
+-		this.elements = elements;
+-		this.value = value;
+-		this.type = type;
+-		this.different = different;
++	public void removeElement(PathwayElement e) {
++		boolean removed = elements.remove(e);
++		refreshValue();
++		//System.err.println("\t\removing....." + removed);
+ 	}
+-
++	
++	public void refreshValue() {
++		boolean first = true;
++		for(PathwayElement e : elements) {
++			Object o = e.getProperty(type);
++			if(!first && (o == null || !o.equals(value))) {
++				setHasDifferentValues(true);
++				return;
++			}
++			value = o;
++			first = false;
++		}
++	}
++	
++	public int elementCount() { return elements.size(); }
++	
+ 	public int compareTo(Object o) {
+ 		return type.compareTo(((TypedProperty)o).getType());
+ 	}
+@@ -426,7 +443,7 @@
+ 
+ 		public Component getTableCellRendererComponent(
+ 				JTable table, Object color, boolean isSelected, boolean hasFocus, int row, int column) {
+-			Color newColor = (Color)color;
++			Color newColor = color != null ? (Color)color : Color.WHITE;
+ 			setBackground(newColor);
+ 			if (isBordered) {
+ 				if (isSelected) {
+Index: trunk/src/core/org/pathvisio/model/PathwayElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/PathwayElement.java	(revision 1092)
++++ trunk/src/core/org/pathvisio/model/PathwayElement.java	(revision 1093)
+@@ -1960,7 +1960,7 @@
+ 
+ 	public void addListener(PathwayListener v)
+ 	{
+-		listeners.add(v);
++		if(!listeners.contains(v)) listeners.add(v);
+ 	}
+ 
+ 	public void removeListener(PathwayListener v)
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1092)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1093)
+@@ -52,8 +52,6 @@
+ import org.pathvisio.model.PathwayElement.MPoint;
+ import org.pathvisio.view.SelectionBox.SelectionListener;
+ 
+-import com.hp.hpl.jena.iri.impl.GroupAction;
+-
+ /**
+  * This class implements and handles a drawing. Graphics objects are stored in
+  * the drawing and can be visualized. The class also provides methods for mouse
+@@ -117,7 +115,7 @@
+ 		return data;
+ 	}
+ 	
+-	SelectionBox s; 
++	SelectionBox selection; 
+ 			
+ 	private boolean editMode;
+ 	/**
+@@ -142,7 +140,7 @@
+ 		
+ 		drawingObjects	= new ArrayList<VPathwayElement>();
+ 		
+-		s = new SelectionBox(this);
++		selection = new SelectionBox(this);
+ 		
+ 		registerKeyboardActions();
+ 	}
+@@ -546,8 +544,7 @@
+ 	public void selectObject(VPathwayElement o)
+ 	{
+ 		clearSelection();
+-		lastAdded.select();
+-		s.addToSelection(lastAdded);
++		selection.addToSelection(lastAdded);
+ 	}
+ 	
+ 	/**
+@@ -583,9 +580,9 @@
+ 		if(isDragging)
+ 		{
+ 			resetHighlight();
+-			if (s.isSelecting())
++			if (selection.isSelecting())
+ 			{ // If we were selecting, stop it
+-				s.stopSelecting();
++				selection.stopSelecting();
+ 			}
+ 			// check if we placed a new object by clicking or dragging
+ 			// if it was a click, give object the initial size.
+@@ -684,18 +681,25 @@
+ 		if (isEditMode())
+ 			return true;
+ 		else
+-			return !(o instanceof Handle || (o == s && !isDragging));
++			return !(o instanceof Handle || (o == selection && !isDragging));
+ 	}
+ 
+ 	/**
+-	 * deselect all elements on the drawing
++	 * deselect all elements on the drawing and resets the selectionbox.
++	 * Equivalent to {@link #clearSelection(0, 0)}
+ 	 */
+-	private void clearSelection()
+-	{
+-		for (VPathwayElement o : drawingObjects)
+-			o.deselect(); // Deselect all objects
+-		s.reset();
++	private void clearSelection() {
++		clearSelection(0, 0);
+ 	}
++	
++	/**
++	 * deselect all elements on the drawing and resets the selectionbox to the given coordinates
++	 * Equivalent to {@link SelectionBox#reset(double, double))}
++	 */
++	private void clearSelection(double x, double y) {
++		for(VPathwayElement e : drawingObjects) e.deselect();
++		selection.reset(x, y);
++	}
+ 
+ 	/**
+ 	 * Handles event when on mouseDown in case the drawing is in view mode (does
+@@ -731,10 +735,9 @@
+ 		vPreviousY = (int)vp.getY();
+ 		isDragging = true;
+ 		
+-		clearSelection();
+-		s.reset(vp.getX(), vp.getY());
+-		s.startSelecting();
+-		pressedObject = s.getCornerHandle();
++		clearSelection(vp.getX(), vp.getY());
++		selection.startSelecting();
++		pressedObject = selection.getCornerHandle();
+ 	}
+ 		
+ 	/**
+@@ -841,14 +844,14 @@
+ 			if (pressedObject instanceof SelectionBox)
+ 			{
+ 				//Object inside selectionbox clicked, pass to selectionbox
+-				s.objectClicked(p2d);
++				selection.objectClicked(p2d);
+ 			} else if (pressedObject.isSelected())
+ 			{ // Already in selection:
+ 				// remove
+-				s.removeFromSelection(pressedObject);
++				selection.removeFromSelection(pressedObject);
+ 			} else
+ 			{
+-				s.addToSelection(pressedObject); //Not in selection: add
++				selection.addToSelection(pressedObject); //Not in selection: add
+ 			}
+ 			pressedObject = null; //Disable dragging
+ 		} else
+@@ -859,10 +862,10 @@
+ 			if(!(pressedObject instanceof SelectionBox))
+ 			{
+ 				clearSelection();
+-				s.addToSelection(pressedObject);
++				selection.addToSelection(pressedObject);
+ 			} else
+ 			{ // Check if clicked object inside selectionbox
+-				if (s.getChild(p2d) == null)
++				if (selection.getChild(p2d) == null)
+ 					clearSelection();
+ 			}
+ 		}
+@@ -1190,7 +1193,7 @@
+ 		clearSelection();
+ 		for(VPathwayElement vpe : getDrawingObjects()) {
+ 			if(c.isInstance(vpe)) {
+-				s.addToSelection(vpe);
++				selection.addToSelection(vpe);
+ 			}
+ 		}
+ 		redrawDirtyRect();
+@@ -1209,7 +1212,7 @@
+ 		clearSelection();
+ 		for (VPathwayElement o : getDrawingObjects())
+ 		{
+-			s.addToSelection(o);
++			selection.addToSelection(o);
+ 		}
+ 		redrawDirtyRect();
+ 	}
+@@ -1217,7 +1220,7 @@
+ 	private void insertPressed()
+ 	{
+ 		Set<VPathwayElement> objects = new HashSet<VPathwayElement>();
+-		objects.addAll(s.getSelection());
++		objects.addAll(selection.getSelection());
+ 		for (VPathwayElement o : objects)
+ 		{
+ 			if (o instanceof Line)
+@@ -1240,7 +1243,7 @@
+ 				l1.getEnd().link(l2.getStart());
+ 			}
+ 		}
+-		s.addToSelection(lastAdded);
++		selection.addToSelection(lastAdded);
+ 	}
+ 	
+ 	public void toggleGroup(List<Graphics> selection)
+@@ -1436,13 +1439,13 @@
+ 			removeDrawingObject(o);
+ 			
+ 		}
+-		s.fitToSelection();
++		selection.fitToSelection();
+ 	}
+ 	
+ 	public void removeDrawingObject(VPathwayElement toRemove)
+ 	{
+ 		toRemove.destroy(); //Object will remove itself from the drawing
+-		s.removeFromSelection(toRemove); //Remove from selection
++		selection.removeFromSelection(toRemove); //Remove from selection
+ 	}
+ 
+ 	Graphics lastAdded = null;
+@@ -1867,7 +1870,7 @@
+ 				
+ 				data.add (p); // causes lastAdded to be set
+ 				lastAdded.select();
+-				s.addToSelection(lastAdded);
++				selection.addToSelection(lastAdded);
+ 			}
+ 		}
+ 	}
+@@ -1891,7 +1894,7 @@
+ 	 * @param l The SelectionListener to add
+ 	 */
+ 	public void addSelectionListener(SelectionListener l) {
+-		s.addListener(l);
++		selection.addListener(l);
+ 	}
+ 	
+ 	/**
+@@ -1899,7 +1902,7 @@
+ 	 * @param l The SelectionListener to remove
+ 	 */
+ 	public void removeSelectionListener(SelectionListener l) {
+-		s.removeListener(l);
++		selection.removeListener(l);
+ 	}
+ 	
+ 	private void cleanupListeners()
+Index: trunk/src/core/org/pathvisio/view/ViewActions.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/ViewActions.java	(revision 1092)
++++ trunk/src/core/org/pathvisio/view/ViewActions.java	(revision 1093)
+@@ -100,7 +100,7 @@
+ 			ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
+ 			for(VPathwayElement o : vPathway.getDrawingObjects())
+ 			{
+-				if (!o.isSelected() || o == vPathway.s || o == vPathway.infoBox)
++				if (!o.isSelected() || o == vPathway.selection || o == vPathway.infoBox)
+ 					continue; // Object not selected, skip
+ 				toRemove.add(o);
+ 			}
+Index: trunk/src/core/org/pathvisio/view/SelectionBox.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/SelectionBox.java	(revision 1092)
++++ trunk/src/core/org/pathvisio/view/SelectionBox.java	(revision 1093)
+@@ -204,11 +204,14 @@
+ 	}
+ 	
+ 	private void reset(double vStartX, double vStartY, boolean clearSelection) {
+-		for(VPathwayElement o : selection) o.deselect();
+ 		if(clearSelection) {
++			for(VPathwayElement o : selection) o.deselect();
++			boolean hadObjects = selection.size() > 0;
+ 			selection.clear();
+-			fireSelectionEvent(
++			if(hadObjects) {
++				fireSelectionEvent(
+ 					new SelectionEvent(this, SelectionEvent.SELECTION_CLEARED));
++			}
+ 		}
+ 		
+ 		vLeft = vStartX;

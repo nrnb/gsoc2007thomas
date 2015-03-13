@@ -1,0 +1,170 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 0)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1054)
+@@ -0,0 +1,94 @@
++<?php
++require_once('includes/zip.lib.php');
++require_once('wpi.php');
++
++//As mediawiki extension
++$wgExtensionFunctions[] = "wfBatchDownload";
++
++function wfBatchDownload() {
++    global $wgParser;
++    $wgParser->setHook( "batchDownload", "createDownloadLinks" );
++}
++
++//To be called directly
++if(realpath($_SERVER['SCRIPT_FILENAME']) == realpath(__FILE__)) {
++	$species = $_GET['species'];
++	$fileType = $_GET['filetype'];
++
++	if($species) {
++		batchDownload($species, $fileType ? $fileType : FILETYPE_GPML);
++	}
++}
++
++function createDownloadLinks($input, $argv, &$parser) {
++	$fileType = $argv['filetype'];
++	foreach(Pathway::getAvailableSpecies() as $species) {
++		$html .= tag('li', 
++					tag('a',$species,array('href'=> WPI_URL . '/' . "batchDownload.php?species=$species&fileType=$fileType", 'target'=>'_new')));
++	}
++	$html = tag('ul', $html);
++	return $html;
++}
++
++function batchDownload($species, $fileType) {
++	if(!(
++		$fileType == FILETYPE_GPML ||
++		$fileType == FILETYPE_IMG ||
++		$fileType == FILETYPE_PNG)) {
++		throw new Exception("Invalid file type: $fileType");
++	}
++	$pathways = getPathways(array(
++		"page_title LIKE '$species%'"		
++	));
++	doDownload($pathways, $fileType); //Exits script
++}
++
++function getPathways($conditions = array()) {
++	$conditions = array_merge($conditions,
++		array(
++			'page_namespace' => NS_PATHWAY,
++			'page_is_redirect' => 0,
++			"page_title != 'Human:Sandbox'"
++		)
++	);
++	$dbr =& wfGetDB( DB_SLAVE );
++	$res = $dbr->select( 'page',
++		array( 'page_namespace', 'page_title', 'page_is_redirect' ),
++		$conditions
++	);
++
++	$pathways = array();
++	while($s = $dbr->fetchObject( $res ) ) {
++			$t = Title::makeTitle( $s->page_namespace, $s->page_title );
++			try {
++				$pw = Pathway::newFromTitle($t);
++				array_unshift($pathways, $pw);
++			} catch(Exception $e) {
++				wfDebug("Unable to create pathway object", $e);
++			}
++	}
++	return $pathways;
++}
++
++function doDownload($pathways, $fileType) {
++	$zip = new zipfile();
++	
++	//Fill zip file
++	foreach($pathways as $pw) {
++		$file = $pw->getFileLocation($fileType);
++		$zip->addFile(file_get_contents($file), basename($file));
++	}
++	$zipData = $zip->file();
++	
++	$zipFile = tempnam(WPI_TMP_PATH, 'batchDownload') . '.zip';
++	writeFile($zipFile, $zipData);
++	//header("Location: " . WPI_TMP_URL . '/' . basename($zipFile));
++	ob_clean();
++	header('Content-disposition: attachment; filename=wikipathways.mpg');
++	header('Content-type: application/zip');
++	header('Content-size: ' . $filesize($zipFile));
++	readfile($zipFile);
++	exit;
++}
++
++?>
+
+Property changes on: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1053)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1054)
+@@ -126,6 +126,7 @@
+ }
+ 
+ function sendWebstart($webstart, $tmpname) {
++	ob_clean();
+ 	$os = getClientOs();
+ 	if($os == 'linux') { //return shell script that sets MOZILLA_FIVE_HOME and opens webstart
+ 		header("Content-type: application/x-shellscript");
+@@ -647,8 +648,12 @@
+ 	if(!$handle) {
+ 		throw new Exception ("Couldn't open file $filename");
+ 	}
+-	fwrite($handle, $data);
+-	fclose($handle);
++	if(fwrite($handle, $data) === FALSE) {
++		throw new Exception ("Couldn't write file $filename");
++	}
++	if(fclose($handle) === FALSE) {
++		throw new Exception ("Couln't close file $filename");
++	}
+ }
+ 
+ function tag($name, $text, $attributes = array()) {
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php	(revision 1053)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php	(revision 1054)
+@@ -10,9 +10,21 @@
+ $wpiScriptPath = 'wpi';
+ $wpiScriptFile = 'wpi.php';
+ $wpiScript = "$wpiScriptPath/$wpiScriptFile"; 
++$wpiTmpPath = "$wpiScriptPath/tmp";
+ $wpiScriptURL =  "http://" . $_SERVER['HTTP_HOST'] . '/' . $wpiScript; //TODO: use these variables
++$wpiTmpURL = "http://" . $_SERVER['HTTP_HOST'] . '/' . $wpiTmpPath;
+ 
++$wpiScript = 'wpi.php'; //name of the wpi script
++$wpiPath = 'wpi'; //path containing wpi script relative to url
++$wpiTmpPath = 'tmp'; //temp path, relative to wpi path
+ 
++define("WPI_SCRIPT_PATH", realpath('.'));
++define("WPI_SCRIPT", realpath($wpiScriptFile));
++define("WPI_TMP_PATH", realpath($wpiTmpPath));
++define("WPI_URL",  "http://" . $_SERVER['HTTP_HOST'] . '/' . $wpiPath);
++define("WPI_SCRIPT_URL", WPI_URL . '/' . $wpiScriptFile);
++define("WPI_TMP_URL", WPI_URL . '/' . $wpiPath . '/' . $wpiTmpPath);
++
+ //JS info
+ define("JS_SRC_EDITAPPLET", "/wpi/js/editapplet.js");
+ define("JS_SRC_RESIZE", "/wpi/js/resize.js");
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1053)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1054)
+@@ -198,6 +198,7 @@
+ require_once('wpi/extensions/editApplet.php');
+ require_once('wpi/extensions/listPathways.php');
+ require_once('wpi/extensions/movePathway.php');
++require_once('wpi/batchDownload.php');
+ 
+ /* Biblio extension
+ Isbndb account: thomas.kelder@bigcat.unimaas.nl / BigC0w~wiki

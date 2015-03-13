@@ -1,0 +1,162 @@
+Index: branches/g2d-branch/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- branches/g2d-branch/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 955)
++++ branches/g2d-branch/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 956)
+@@ -11,6 +11,7 @@
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
++import org.pathvisio.Engine;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
+ import org.pathvisio.model.PathwayListener;
+@@ -125,6 +126,7 @@
+ 			TypedProperty p = getPropertyAt(rowIndex);
+ 			p.setValue(aValue);
+ 		}
++		Engine.getActiveVPathway().redrawDirtyRect();
+ 	}
+ 	
+ 	public String getColumnName(int column) {
+@@ -155,6 +157,7 @@
+ 	public TableCellRenderer getCellRenderer(int row, int column) {
+ 		if(column != 0) {
+ 			TypedProperty tp = getPropertyAt(row);
++			System.out.println("Getting cell renderer" + tp);
+ 			if(tp != null) return tp.getCellRenderer();
+ 		}
+ 		return null;
+Index: branches/g2d-branch/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- branches/g2d-branch/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 955)
++++ branches/g2d-branch/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 956)
+@@ -4,6 +4,7 @@
+ import java.awt.Component;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
++import java.text.NumberFormat;
+ import java.util.Collection;
+ import java.util.HashMap;
+ 
+@@ -53,7 +54,6 @@
+ 	}
+ 
+ 	public void setValue(Object value) {
+-		//TODO: validate
+ 		this.value = value;
+ 		if(value != null) {
+ 			for(PathwayElement e : elements) {
+@@ -92,8 +92,10 @@
+ 			return organismRenderer;
+ 		case ANGLE:
+ 			return angleRenderer;
++		case DOUBLE:
++			return doubleRenderer;
+ 		case FONT:
+-		case GENETYPE:
++		case GENETYPE: //TODO
+ 		}
+ 		return null;
+ 	}
+@@ -116,11 +118,29 @@
+ 			return organismEditor;
+ 		case ANGLE:
+ 			return angleEditor;
++		case DOUBLE:
++			return doubleEditor;
+ 		default:
+ 			return null;
+ 		}
+ 	}
+ 	
++	private static class DoubleEditor extends DefaultCellEditor {
++		public DoubleEditor() {
++			super(new JTextField());
++		}
++		public Object getCellEditorValue() {
++			String value = ((JTextField)getComponent()).getText();
++			Double d = new Double(0);
++			try {
++				d = Double.parseDouble(value);
++			} catch(Exception e) {
++				//ignore
++			}
++			return d;
++		}
++	}
++	
+ 	private static class AngleEditor extends DefaultCellEditor {
+ 		public AngleEditor() {
+ 			super(new JTextField());
+@@ -240,15 +260,23 @@
+ 	private static ComboEditor orientationEditor = new ComboEditor(OrientationType.getNames(), true);
+ 	private static ComboEditor organismEditor = new ComboEditor(MappFormat.organism_latin_name, false);
+ 	private static AngleEditor angleEditor = new AngleEditor();
++	private static DoubleEditor doubleEditor = new DoubleEditor();
+ 	
+-	private DefaultTableCellRenderer angleRenderer = new DefaultTableCellRenderer() {
++	private static DefaultTableCellRenderer angleRenderer = new DefaultTableCellRenderer() {
+ 		protected void setValue(Object value) {
+ 			super.setValue( (Double)(value) * 180.0 / Math.PI );
+ 		}
+ 	};
+ 	
+-	private DefaultTableCellRenderer differentRenderer = new DefaultTableCellRenderer() {
++	private static DefaultTableCellRenderer doubleRenderer = new DefaultTableCellRenderer() {
+ 		protected void setValue(Object value) {
++			double d = (Double)value;
++			super.setValue(d);
++		}
++	};
++	
++	private static DefaultTableCellRenderer differentRenderer = new DefaultTableCellRenderer() {
++		protected void setValue(Object value) {
+ 			value = "Different values";
+ 			super.setValue(value);
+ 		}
+Index: branches/g2d-branch/src/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 955)
++++ branches/g2d-branch/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 956)
+@@ -270,14 +270,12 @@
+ 			VPathway vp = Engine.getActiveVPathway();
+ 			vp.addVPathwayListener(this);
+ 			if(vp != null) {
+-				setEnabled(true);
+ 				vp.setNewGraphics(element);
+ 			}
+ 		}
+ 
+ 		public void vPathwayEvent(VPathwayEvent e) {
+ 			if(e.getType() == VPathwayEvent.NEW_ELEMENT_ADDED) {
+-				setEnabled(false);
+ 				e.getVPathway().setNewGraphics(VPathway.NEWNONE);
+ 				e.getVPathway().removeVPathwayListener(this);	
+ 			}
+Index: branches/g2d-branch/src/swing/org/pathvisio/gui/swing/AppletMain.java
+===================================================================
+--- branches/g2d-branch/src/swing/org/pathvisio/gui/swing/AppletMain.java	(revision 0)
++++ branches/g2d-branch/src/swing/org/pathvisio/gui/swing/AppletMain.java	(revision 956)
+@@ -0,0 +1,22 @@
++package org.pathvisio.gui.swing;
++
++import javax.swing.JApplet;
++
++public class AppletMain extends JApplet {
++	public void init() {
++		super.init();
++		GuiInit.init();
++		MainPanel mainPanel = SwingEngine.getApplicationPanel();
++		add(mainPanel);
++	}
++	
++	public void start() {
++		// TODO Auto-generated method stub
++		super.start();
++	}
++	
++	public void stop() {
++		// TODO Auto-generated method stub
++		super.stop();
++	}
++}

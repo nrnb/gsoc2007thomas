@@ -1,0 +1,11 @@
+Index: trunk/wikipathways/google84168caee492934d.html
+===================================================================
+--- trunk/wikipathways/google84168caee492934d.html	(revision 0)
++++ trunk/wikipathways/google84168caee492934d.html	(revision 1115)
+@@ -0,0 +1,6 @@
++<html>
++<body>
++google verification page for webmaster tools
++</body>
++</html>
++

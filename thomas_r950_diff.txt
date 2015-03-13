@@ -1,0 +1,466 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 949)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 950)
+@@ -52,7 +52,6 @@
+ 		//menuBar will be added by container (JFrame or JApplet)
+ 		
+ 		pathwayScrollPane = new JScrollPane();
+-		sidebarScrollPane = new JScrollPane();
+ 		
+ 		final PathwayTableModel model = new PathwayTableModel();
+ 		propertyTable = new JTable(model) {
+@@ -66,7 +65,7 @@
+ 			}
+ 		};
+ 		
+-		sidebarScrollPane.setViewportView(propertyTable);
++		sidebarScrollPane = new JScrollPane(propertyTable);
+ 		
+ 		splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, pathwayScrollPane, sidebarScrollPane);
+ 		splitPane.setResizeWeight(1);
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 949)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 950)
+@@ -94,12 +94,12 @@
+ 		for(PathwayElement e : elements) {
+ 			Object o = e.getProperty(key);
+ 			if(!first && (o == null || !o.equals(value))) {
+-				return TypedProperty.getInstance(elements, key);
++				return new TypedProperty(elements, key);
+ 			}
+ 			value = o;
+ 			first = false;
+ 		}
+-		return TypedProperty.getInstance(elements, value, key);
++		return new TypedProperty(elements, value, key);
+ 	}
+ 		
+ 	public int getColumnCount() {
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 949)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 950)
+@@ -5,10 +5,13 @@
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+ import java.util.Collection;
++import java.util.HashMap;
+ 
+ import javax.swing.AbstractCellEditor;
+ import javax.swing.BorderFactory;
++import javax.swing.DefaultCellEditor;
+ import javax.swing.JButton;
++import javax.swing.JCheckBox;
+ import javax.swing.JColorChooser;
+ import javax.swing.JComboBox;
+ import javax.swing.JDialog;
+@@ -20,25 +23,36 @@
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
++import org.pathvisio.data.DataSources;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
++import org.pathvisio.model.MappFormat;
++import org.pathvisio.model.OrientationType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PropertyType;
+ 
+-public class TypedProperty<T> {	
++public class TypedProperty {	
+ 	Collection<PathwayElement> elements;
+-	T value;
++	Object value;
+ 	PropertyType type;
+ 	boolean different;
+ 
+-	private TypedProperty(Collection<PathwayElement> elements, T value, PropertyType type, boolean different) {
++	public TypedProperty(Collection<PathwayElement> elements, PropertyType type) {
++		this(elements, null, type, true);
++	}
++	
++	public TypedProperty(Collection<PathwayElement> elements, Object value, PropertyType type) {
++		this(elements, value, type, false);
++	}
++	
++	private TypedProperty(Collection<PathwayElement> elements, Object value, PropertyType type, boolean different) {
+ 		this.elements = elements;
+ 		this.value = value;
+ 		this.type = type;
+ 		this.different = different;
+ 	}
+ 
+-	public void setValue(T value) {
++	public void setValue(Object value) {
+ 		//TODO: validate
+ 		this.value = value;
+ 		if(value != null) {
+@@ -48,7 +62,7 @@
+ 		}
+ 	}
+ 
+-	public T getValue() {
++	public Object getValue() {
+ 		return value;
+ 	}
+ 	
+@@ -61,59 +75,105 @@
+ 
+ 	public TableCellRenderer getCellRenderer() {
+ 		if(hasDifferentValues()) return differentRenderer;
+-		switch(type) {
++		switch(type.type()) {
+ 		case COLOR:
+ 			return colorRenderer;
+ 		case LINETYPE:
+ 			return lineTypeRenderer;
+ 		case LINESTYLE:
+ 			return lineStyleRenderer;
++		case DATASOURCE:
++			return datasourceRenderer;
++		case BOOLEAN:
++			return checkboxRenderer;
++		case ORIENTATION:
++			return orientationRenderer;
++		case ORGANISM:
++			return organismRenderer;
++		case ANGLE:
++			return angleRenderer;
++		case FONT:
++		case GENETYPE:
+ 		}
+-		switch(type.type()) {
+-		case DOUBLE:
+-			return doubleRenderer;
+-		}
+ 		return null;
+ 	}
+ 
+ 	public TableCellEditor getCellEditor() {
+-		switch(type) {
++		switch(type.type()) {
++		case BOOLEAN:
++			return checkboxEditor;
++		case DATASOURCE:
++			return datasourceEditor;
+ 		case COLOR:
++			return colorEditor;
++		case LINETYPE:
++			return lineTypeEditor;
++		case LINESTYLE:
++			return lineStyleEditor;
++		case ORIENTATION:
++			return orientationEditor;
++		case ORGANISM:
++			return organismEditor;
++		case ANGLE:
++			return angleEditor;
++		default:
+ 			return null;
+-		default: return null;
+ 		}
+ 	}
+ 	
+-	public Component getEditComponent() {
+-		return (Component)getCellRenderer();
++	private static class AngleEditor extends DefaultCellEditor {
++		public AngleEditor() {
++			super(new JTextField());
++		}
++		public Object getCellEditorValue() {
++			String value = ((JTextField)getComponent()).getText();
++			Double d = new Double(0);
++			try {
++				d = Double.parseDouble(value) * Math.PI / 180;
++			} catch(Exception e) {
++				//ignore
++			}
++			return d;
++		}
++		
++		public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
++			value =  (Double)(value) * 180.0 / Math.PI;
++			return super.getTableCellEditorComponent(table, value, isSelected, row, column);
++		}
+ 	}
++	
++	private static class ComboEditor extends DefaultCellEditor {
++		HashMap label2value;
++		boolean useIndex;
++		
++		public ComboEditor(Object[] labels, boolean useIndex) {
++			super(new JComboBox(labels));
++			this.useIndex = useIndex;
++		}
+ 
+-	public static TypedProperty getInstance(Collection<PathwayElement> elements, Object value, PropertyType type) {
+-		return getInstance(elements, value, type, false);
+-	}
+-
+-	public static TypedProperty getInstance(Collection<PathwayElement> elements, PropertyType type) {
+-		return getInstance(elements, null, type, true);
+-	}
+-
+-	private static TypedProperty getInstance(Collection<PathwayElement> elements, Object value, PropertyType type, boolean different) {
+-		switch(type.type()) {
+-		case STRING:
+-			return new TypedProperty<String>(elements, (String)value, type, different);
+-		case COLOR:
+-			return new TypedProperty<Color>(elements, (Color)value, type, different);
+-		case LINETYPE:
+-			return new TypedProperty<LineType>(elements, (LineType)value, type, different);
+-		case LINESTYLE:
+-			return new TypedProperty<Integer>(elements, (Integer)value, type, different);
+-		case DOUBLE:
+-			return new TypedProperty<Double>(elements, (Double)value, type, different);
+-		default:
+-			return new TypedProperty<Object>(elements, value, type, different);
++		public ComboEditor(Object[] labels, Object[] values) {
++			this(labels, false);
++			if(values != null) {
++				if(labels.length != values.length) {
++					throw new IllegalArgumentException("Number of labels doesn't equal number of values");
++				}
++				label2value = new HashMap();
++				for(int i = 0; i < labels.length; i++) {
++					label2value.put(labels[i], values[i]);
++				}
++			}
+ 		}
++		
++		public Object getCellEditorValue() {
++			if(label2value == null) { //Use index
++				JComboBox cb = (JComboBox)getComponent();
++				return useIndex ? cb.getSelectedIndex() : cb.getSelectedItem();
++			} else {
++				Object label = super.getCellEditorValue();
++				return label2value.get(label);
++			}
++		}
+ 	}
+-
+-	//private ColorEditor colorEditor = new ColorEditor();
+ 	
+ 	private static class ColorEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
+ 		Color currentColor;
+@@ -164,11 +224,29 @@
+ 		}
+ 	}
+ 
+-	private ColorRenderer colorRenderer = new ColorRenderer();
+-	private ComboRenderer lineTypeRenderer = new ComboRenderer(LineType.getNames());
+-	private ComboRenderer lineStyleRenderer = new ComboRenderer(LineStyle.getNames());
+-	private DoubleRenderer doubleRenderer = new DoubleRenderer();
++	private static ColorRenderer colorRenderer = new ColorRenderer();
++	private static ComboRenderer lineTypeRenderer = new ComboRenderer(LineType.getNames(), LineType.values());
++	private static ComboRenderer lineStyleRenderer = new ComboRenderer(LineStyle.getNames());
++	private static ComboRenderer datasourceRenderer = new ComboRenderer(DataSources.dataSources);
++	private static CheckBoxRenderer checkboxRenderer = new CheckBoxRenderer();
++	private static ComboRenderer orientationRenderer = new ComboRenderer(OrientationType.getNames());
++	private static ComboRenderer organismRenderer = new ComboRenderer(MappFormat.organism_latin_name);
+ 	
++	private static ColorEditor colorEditor = new ColorEditor();
++	private static ComboEditor lineTypeEditor = new ComboEditor(LineType.getNames(), true);
++	private static ComboEditor lineStyleEditor = new ComboEditor(LineStyle.getNames(), true);
++	private static ComboEditor datasourceEditor = new ComboEditor(DataSources.dataSources, false);
++	private static DefaultCellEditor checkboxEditor = new DefaultCellEditor(new JCheckBox());
++	private static ComboEditor orientationEditor = new ComboEditor(OrientationType.getNames(), true);
++	private static ComboEditor organismEditor = new ComboEditor(MappFormat.organism_latin_name, false);
++	private static AngleEditor angleEditor = new AngleEditor();
++	
++	private DefaultTableCellRenderer angleRenderer = new DefaultTableCellRenderer() {
++		protected void setValue(Object value) {
++			super.setValue( (Double)(value) * 180.0 / Math.PI );
++		}
++	};
++	
+ 	private DefaultTableCellRenderer differentRenderer = new DefaultTableCellRenderer() {
+ 		protected void setValue(Object value) {
+ 			value = "Different values";
+@@ -176,24 +254,39 @@
+ 		}
+ 	};
+ 
++	private static class CheckBoxRenderer extends JCheckBox implements TableCellRenderer {
++		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
++			setSelected((Boolean)value);
++			return this;
++		}
++	}
++	
+ 	private static class ComboRenderer extends JComboBox implements TableCellRenderer {
+-		public ComboRenderer(Object[] items) {
+-			super(items);
++		HashMap value2label;
++		public ComboRenderer(Object[] values) {
++			super(values);
+ 		}
++		
++		public ComboRenderer(Object[] labels, Object[] values) {
++			this(labels);
++			if(labels.length != values.length) {
++				throw new IllegalArgumentException("Number of labels doesn't equal number of values");
++			}
++			value2label = new HashMap();
++			for(int i = 0; i < labels.length; i++) {
++				value2label.put(values[i], labels[i]);
++			}
++		}
+ 
+ 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
++			if(value2label != null) {
++				value = value2label.get(value);
++			}
+ 			setSelectedItem(value);
+ 			return this;
+ 		}
+ 	}
+ 	
+-	private static class DoubleRenderer extends DefaultTableCellRenderer {		
+-		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+-			Double d = Math.round((Double)(value) * 100.0) / 100.0;
+-			return super.getTableCellRendererComponent(table, d, isSelected, hasFocus, row, column);
+-		}		
+-	}
+-	
+ 	private static class ColorRenderer extends JLabel implements TableCellRenderer {
+ 		Border unselectedBorder = null;
+ 		Border selectedBorder = null;
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 949)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 950)
+@@ -1,9 +1,9 @@
+ package org.pathvisio.gui.swing;
+ 
+ import javax.swing.JFrame;
+-import javax.swing.UIManager;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class GuiMain {
+ 
+@@ -28,6 +28,8 @@
+ 		
+ 		//Display the window.
+ 		frame.setVisible(true);
++		Engine.newPathway(new VPathwaySwing(mainPanel));
++		Engine.getActiveVPathway().setEditMode(true);
+ 	}
+ 
+ 	public static void main(String[] args) {
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 949)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 950)
+@@ -37,7 +37,8 @@
+ 	}
+ 
+ 	public Dimension getVSize() {
+-		return getSize();
++		System.out.println(getPreferredSize());
++		return getPreferredSize();
+ 	}
+ 
+ 	public Dimension getViewportSize() {
+@@ -57,11 +58,14 @@
+ 	}
+ 
+ 	public void setVSize(Dimension size) {
+-		setSize(size.width, size.height);
++		setSize(size);
++		setMaximumSize(size);
++		setMinimumSize(size);
++		setPreferredSize(size);
+ 	}
+ 
+ 	public void setVSize(int w, int h) {
+-		setSize(w, h);
++		setVSize(new Dimension(w, h));
+ 	}
+ 
+ 	public void mouseClicked(MouseEvent arg0) {
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 949)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 950)
+@@ -21,6 +21,7 @@
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.jface.resource.ImageRegistry;
+ import org.eclipse.jface.window.ApplicationWindow;
++import org.eclipse.swt.SWT;
+ import org.eclipse.swt.graphics.DeviceData;
+ import org.eclipse.swt.widgets.Display;
+ import org.eclipse.swt.widgets.Shell;
+@@ -31,6 +32,8 @@
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.preferences.PreferenceCollection;
+ import org.pathvisio.preferences.swt.SwtPreferences;
++import org.pathvisio.view.VPathwayWrapper;
++import org.pathvisio.view.swt.VPathwaySWT;
+ 
+ /**
+  * This class contains the essential parts of the program: the window, drawing and gpml data
+@@ -80,6 +83,10 @@
+ 	
+ 	public static void openPathway(String fileName) {
+ 		try {
++			VPathwayWrapper pswt = null;
++			if(window != null) {
++				pswt = new VPathwaySWT(window.sc, SWT.NO_BACKGROUND);
++			}
+ 			Engine.openPathway(fileName);
+ 		} catch(ConverterException e) {		
+ 			if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
+Index: branches/g2d-branch/src/core/org/pathvisio/Engine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 949)
++++ branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 950)
+@@ -101,6 +101,10 @@
+ 		}
+ 	}
+ 	
++	public static void openPathway(String fileName, VPathwayWrapper wrapper) throws ConverterException {
++		openPathway(new File(fileName), wrapper);
++	}
++	
+ 	/**
+ 	 * Open a pathway from a gpml file
+ 	 */
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Shape.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Shape.java	(revision 949)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Shape.java	(revision 950)
+@@ -69,12 +69,12 @@
+ 		
+ 		switch(gdata.getShapeType()) {
+ 		case OVAL:
+-			g.setColor(linecolor);
+-			g.drawOval(x, y, w, h);
+ 			if(!gdata.isTransparent()) {
+ 				g.setColor(fillcolor);
+ 				g.fillOval(x, y, w, h);
+ 			}
++			g.setColor(linecolor);
++			g.drawOval(x, y, w, h);
+ 			break;
+ 		case ARC:
+ 			g.setColor(linecolor);
+@@ -90,12 +90,12 @@
+ 			g.drawArc (cx + w/2 - h, cy, h, h, 0, 90); //arc on the right
+ 			break;
+ 		default:
+-			g.setColor(linecolor);
+-			g.drawRect(x, y, w, h);
+ 			if(!gdata.isTransparent()) {
+ 				g.setColor(fillcolor);
+ 				g.fillRect(x, y, w, h);
+ 			}
++			g.setColor(linecolor);
++			g.drawRect(x, y, w, h);
+ 			break;
+ 		}
+ 	}	

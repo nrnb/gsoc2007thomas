@@ -1,0 +1,254 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 0)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1035)
+@@ -0,0 +1,71 @@
++<?php
++require_once('wpi/wpi.php');
++
++$wgExtensionFunctions[] = 'wfEditApplet';
++$wgHooks['LanguageGetMagic'][]  = 'wfEditApplet_Magic';
++
++function wfEditApplet() {
++	global $wgParser;
++	$wgParser->setFunctionHook( "editApplet", "createApplet" );
++}
++
++function wfEditApplet_Magic( &$magicWords, $langCode ) {
++	$magicWords['editApplet'] = array( 0, 'editApplet' );
++	return true;
++}
++
++function createApplet( &$parser, $idClick = 'appletButton', $idReplace = 'pwThumb', $new = '' ) {
++	try {
++		$pathway = Pathway::newFromTitle($parser->mTitle);
++		$appletCode = makeAppletFunctionCall($pathway, $idReplace, $idClick, $new);
++		$output = scriptTag('', JS_SRC_PROTOTYPE) . scriptTag('', JS_SRC_RESIZE) . scriptTag('', JS_SRC_EDITAPPLET) . $appletCode;
++	} catch(Exception $e) {
++		return "Error: $e";
++	}
++
++	return array($output, 'isHTML'=>1, 'noparse'=>1);
++}
++
++function scriptTag($code, $src = '') {
++	$src = $src ? 'src="' . $src . '"' : '';
++	return '<script type="text/javascript" ' . $src . '>' . $code . '</script>';
++}
++
++function createJsArray($array) {
++	$jsa = "new Array(";      
++	foreach($array as $elm) {
++		$jsa .= "'{$elm}', ";
++	}
++	return substr($jsa, 0, strlen($jsa) - 2) . ')';
++}
++
++function makeAppletFunctionCall($pathway, $idReplace, $idClick, $new) {
++	global $wgUser;
++
++	if($new) {
++		$pwUrl = $pathway->getTitleObject()->getFullURL();
++	} else {
++		$pwUrl = $pathway->getFileURL(FILETYPE_GPML);
++	}
++
++	$args = array(
++		'rpcUrl' => "http://" . $_SERVER['HTTP_HOST'] . "/wpi/wpi_rpc.php",
++		'pwName' =>     $pathway->name(),
++		'pwSpecies' => $pathway->species(),
++		'pwUrl' => $pwUrl
++	);
++	if($wgUser && $wgUser->isLoggedIn()) {
++		$args = array_merge($args, array('user', $wgUser->getRealName()));
++	}
++	if($new) {
++		$args = array_merge($args, array('new' => true));
++	}
++	$keys = createJsArray(array_keys($args));
++	$values = createJsArray(array_values($args));
++
++	return scriptTag(
++		"elm = document.getElementById('{$idClick}');" . 
++		"elm.addEventListener('click',function() { replaceWithApplet('{$idReplace}', 'applet', {$keys}, {$values}); }, false);"
++	);
++}
++?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php	(revision 1034)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php	(revision 1035)
+@@ -14,11 +14,9 @@
+         $magicWords['pwImage'] = array( 0, 'pwImage' );
+         return true;
+ }
+-
+-
+ 
+-function renderPathwayImage( &$parser, $pwTitle, $width = 0, $align = '', $caption = '', $href = '', $tooltip = '', $id='pwthumb') {    
+-        try {
++function renderPathwayImage( &$parser, $pwTitle, $width = 0, $align = '', $caption = '', $href = '', $tooltip = '', $id='pwthumb') {      
++      try {
+                 $pathway = Pathway::newFromTitle($pwTitle);
+                 $img = new Image($pathway->getFileTitle(FILETYPE_IMG));
+                 switch($href) {
+@@ -31,68 +29,18 @@
+                         default:
+                                 if(!$href) $href = $pathway->getFullURL();
+                 }
+-                $doApplet = strpos($caption, JS_OPEN_EDITOR_APPLET);
+-                if($doApplet) { //Add a link to the editor applet to the caption
+-                        $appletCode = makeAppletFunctionCall($pathway, $id, $new);
+-                }
++
+                 $caption = html_entity_decode($caption);        //This can be quite dangerous (injection),
+                                                                 //we would rather parse wikitext, let me know if
+                                                                 //you know a way to do that (TK)
+                 $output = makeThumbLinkObj($pathway, $caption, $href, $tooltip, $align, $id, $width);
+-                
+-                if($doApplet) {
+-                  //Replace JS_OPEN_EDITOR_APPLET with applet call
+-                  $output = str_replace(JS_OPEN_EDITOR_APPLET, $appletCode, $output);
+-                  //Add import javascript files (also for resize)
+-                  $output = scriptTag('', JS_SRC_EDITAPPLET) . scriptTag('', '/wpi/js/prototype.js') . scriptTag('', JS_SRC_RESIZE) . $output;
+-                }
++
+         } catch(Exception $e) {
+                 return "invalid pathway title: $e";
+         }
+-       // echo($output);
+         return array($output, 'isHTML'=>1, 'noparse'=>1);
+ }
+ 
+-    function scriptTag($code, $src = '') {
+-      $src = $src ? 'src="' . $src . '"' : '';
+-      return '<script type="text/javascript"' . $src . '">' . $code . '</script>';
+-    }
+-
+-    function makeAppletFunctionCall($pathway, $id, $new) {
+-        global $wgUser;
+-
+-  			if($new) {
+-     	         	$pwUrl = $pathway->getTitleObject()->getFullURL();
+-     			} else {
+-     	         	$pwUrl = $pathway->getFileURL(FILETYPE_GPML);
+-      		}
+-
+-  			$args = array(
+-  					'rpcUrl' => "http://" . $_SERVER['HTTP_HOST'] . "/wpi/wpi_rpc.php",
+-  					'pwName' => 	$pathway->name(),	
+-  					'pwSpecies' => $pathway->species(),
+-  					'pwUrl' => $pwUrl
+-  			);
+-  			if($wgUser && $wgUser->isLoggedIn()) {
+-             		$args = array_merge($args, array('user', $wgUser->getRealName()));
+-     		}
+-      	if($new) {
+-              	$args = array_merge($args, array('new' => true));
+-      	}
+-        $keys = createJsArray(array_keys($args));
+-        $values = createJsArray(array_values($args));
+-        //return "replaceWithApplet('{$id}', 'applet', {$keys}, {$values});new Resizeable('applet', {bottom: 10, right: 10, left: 0, top: 0});";
+-	return "replaceWithApplet('{$id}', 'applet', {$keys}, {$values});";
+-    }
+-
+-    function createJsArray($array) {
+-      $jsa = "new Array(";      
+-      foreach($array as $elm) {
+-        $jsa .= "'{$elm}', ";
+-      }
+-      return substr($jsa, 0, strlen($jsa) - 2) . ')';
+-    }
+-
+     /** MODIFIED FROM Linker.php
+         * Make HTML for a thumbnail including image, border and caption
+         * $img is an Image object
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php	(revision 1034)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php	(revision 1035)
+@@ -16,4 +16,5 @@
+ //JS info
+ define("JS_SRC_EDITAPPLET", "/wpi/js/editapplet.js");
+ define("JS_SRC_RESIZE", "/wpi/js/resize.js");
++define("JS_SRC_PROTOTYPE", "/wpi/js/prototype.js");
+ ?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/editapplet.js
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/editapplet.js	(revision 1034)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/editapplet.js	(revision 1035)
+@@ -1,32 +1,29 @@
+-var image;
+-var applet;
+-
+ function replaceWithApplet(idImg, idApplet, keys, values) {
+-	var image = document.getElementById(idImg);
+-	var applet = createAppletElement(idApplet, keys, values);
+-	var resizeDiv = document.createElement('div');
++    var image = document.getElementById(idImg);
++    var applet = createAppletElement(idApplet, keys, values);
++    var resizeDiv = document.createElement('div');
+ 	
+-	//find getWidth of enclosing element / table
+-	var parent = image.parentNode;
+-	var nn = parent.nodeName.toLowerCase();
+-	if(nn == 'td' || nn == 'tr' || nn == 'tbody') {
+-		while(true) {
+-			if(parent.parentNode == null || parent.nodeName.toLowerCase() == 'table') {
+-				break;
+-			} else {
+-				parent = parent.parentNode;
+-			}
+-		}
++    //find getWidth of enclosing element / table
++    var parent = image.parentNode;
++    var nn = parent.nodeName.toLowerCase();
++    if(nn == 'td' || nn == 'tr' || nn == 'tbody') {
++	while(true) {
++	    if(parent.parentNode == null || parent.nodeName.toLowerCase() == 'table') {
++		break;
++	    } else {
++		parent = parent.parentNode;
++	    }
+ 	}
+-	var w = parent.offsetWidth;
++    }
++    var w = parent.offsetWidth;
+ 
+-	resizeDiv.style.width = w + 'px';
+-	resizeDiv.style.height = '500px';
+-	resizeDiv.className = 'thumbinner';
+-	resizeDiv.setAttribute('id', idApplet);
+-	resizeDiv.appendChild(applet);
+-	replaceElement(image, resizeDiv);
+-	new Resizeable(idApplet, {bottom: 10, right: 10, left: 0, top: 0});
++    resizeDiv.style.width = w + 'px';
++    resizeDiv.style.height = '500px';
++    resizeDiv.className = 'thumbinner';
++    resizeDiv.setAttribute('id', idApplet);
++    resizeDiv.appendChild(applet);
++    replaceElement(image, resizeDiv);
++    new Resizeable(idApplet, {bottom: 10, right: 10, left: 0, top: 0});
+ }
+ 
+ function restoreImage() {
+@@ -43,7 +40,6 @@
+ 
+ function createAppletElement(id, keys, values) {
+ 	var applet = document.createElement('applet');
+-	//applet.setAttribute('id', id);
+ 	applet.setAttribute('CODEBASE', '/wpi/applet');
+ 	applet.setAttribute('CODE', 'org.pathvisio.gui.wikipathways.AppletMain');
+ 	applet.setAttribute('ARCHIVE', 'wikipathways.jar');
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1034)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1035)
+@@ -195,6 +195,7 @@
+ require_once('wpi/extensions/button.php');
+ require_once('wpi/extensions/pathwayThumb.php');
+ require_once('wpi/extensions/BrowsePathwaysPage/BrowsePathwaysPage.php');
++require_once('wpi/extensions/editApplet.php');
+ 
+ /* Biblio extension
+ Isbndb account: thomas.kelder@bigcat.unimaas.nl / BigC0w~wiki

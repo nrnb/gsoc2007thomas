@@ -1,0 +1,21 @@
+Index: trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java	(revision 1087)
++++ trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java	(revision 1088)
+@@ -35,6 +35,7 @@
+ public class BackpagePane extends JEditorPane implements SelectionListener, ApplicationEventListener {
+ 	PathwayElement input;
+ 	int maxThreads = 5;
++	ThreadGroup threads;
+ 	Vector<Thread> runningThreads = new Vector<Thread>();
+ 	volatile PathwayElement lastSelected;
+ 	
+@@ -47,6 +48,8 @@
+ 		VPathway vp = Engine.getCurrent().getActiveVPathway();
+ 		if(vp != null) vp.addSelectionListener(this);
+ 		
++		threads = new ThreadGroup("backpage-queries");
++		
+ 	}
+ 
+ 	public void setInput(final PathwayElement e) {

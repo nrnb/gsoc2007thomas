@@ -1,0 +1,456 @@
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1085)
+@@ -40,13 +40,8 @@
+ 	public void actionPerformed(ActionEvent e) {
+ 		if(element instanceof Graphics) {
+ 			PathwayElement p = ((Graphics)element).getGmmlData();
+-			PathwayElementDialog pd = null;
+-			switch(p.getObjectType()) {
+-			case ObjectType.DATANODE:
+-				pd = new DataNodeDialog(p, null, null);
+-			}
++			PathwayElementDialog pd = PathwayElementDialog.getInstance(p, null, null);
+ 			if(pd != null) pd.setVisible(true);
+ 		}
+ 	}
+-
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 1085)
+@@ -42,6 +42,7 @@
+ 	JComboBox dbCombo;
+ 			
+ 	public void refresh() {
++		super.refresh();
+ 		symText.setText(getInput().getTextLabel());
+ 		idText.setText(getInput().getGeneID());
+ 		dbCombo.setSelectedItem(getInput().getDataSource());
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1085)
+@@ -47,6 +47,12 @@
+ 	static final String OK = "Ok";
+ 	static final String CANCEL = "Cancel";
+ 	
++	public static final String TAB_COMMENTS = "Comments";
++	
++	public static PathwayElementDialog getInstance(PathwayElement e) {
++		return getInstance(e, null, null);
++	}
++	
+ 	public static PathwayElementDialog getInstance(PathwayElement e, Frame frame, Component locationComp) {
+ 		switch(e.getObjectType()) {
+ 		case ObjectType.DATANODE:
+@@ -57,14 +63,14 @@
+ 	}
+ 	
+ 	PathwayElement input;
+-	JTabbedPane dialogPane;
+-	private List<PathwayElementPanel> panels;
++	private JTabbedPane dialogPane;
++	private HashMap<String, PathwayElementPanel> panels;
+ 	private HashMap<PropertyType, Object> state = new HashMap<PropertyType, Object>();
+ 		
+ 	public PathwayElementDialog(PathwayElement e, Frame frame, String title, Component locationComp) {
+-		super(frame, "DataNode properties", true);
++		super(frame, "Element properties", true);
+ 		
+-		panels = new ArrayList<PathwayElementPanel>();
++		panels = new HashMap<String, PathwayElementPanel>();
+ 		
+ 		JButton cancelButton = new JButton(CANCEL);
+ 		cancelButton.addActionListener(this);
+@@ -75,7 +81,7 @@
+ 		getRootPane().setDefaultButton(setButton);
+ 		
+ 		dialogPane = new JTabbedPane();
+-		createTabs(dialogPane);
++		createTabs();
+ 		
+ 		JPanel buttonPane = new JPanel();
+ 		buttonPane.setLayout(new BoxLayout(buttonPane, BoxLayout.LINE_AXIS));
+@@ -105,12 +111,11 @@
+ 	}
+ 	
+ 	protected void refresh() {
+-		for(PathwayElementPanel p : panels) {
++		for(PathwayElementPanel p : panels.values()) {
+ 			p.setInput(input);
+ 		}
+ 	}
+ 	
+-	
+ 	protected void storeState() {
+ 		PathwayElement e = getInput();
+ 		for(PropertyType t : e.getAttributes()) {
+@@ -125,16 +130,36 @@
+ 		}
+ 	}
+ 	
+-	private void createTabs(JTabbedPane parent) {
+-		addPathwayElementPanel(parent, new CommentPanel());
+-		addCustomTabs(parent);
++	private void createTabs() {
++		addPathwayElementPanel(TAB_COMMENTS, new CommentPanel());
++		addCustomTabs(dialogPane);
+ 	}
+ 		
+-	protected void addPathwayElementPanel(JTabbedPane parent, PathwayElementPanel p) {
+-		parent.add("Comments", p);
+-		panels.add(p);
++	protected void addPathwayElementPanel(String tabLabel, PathwayElementPanel p) {
++		dialogPane.add(tabLabel, p);
++		panels.put(tabLabel, p);
+ 	}
+ 	
++	protected void removePathwayElementPanel(String tabLabel) {
++		PathwayElementPanel panel = panels.get(tabLabel);
++		if(panel != null) {
++			dialogPane.remove(panel);
++			panels.remove(panel);
++		}
++	}
++	
++	public void selectPathwayElementPanel(String tabLabel) {
++		PathwayElementPanel panel = panels.get(tabLabel);
++		if(panel != null) {
++			dialogPane.setSelectedComponent(panel);
++		}
++	}
++	
++	/**
++	 * Override in subclass and use 
++	 * {@link #addPathwayElementPanel(String, PathwayElementPanel)} to add custom panels
++	 * @param parent
++	 */
+ 	protected void addCustomTabs(JTabbedPane parent) {
+ 		//To be implemented by subclasses
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java	(revision 1085)
+@@ -73,16 +73,16 @@
+ 
+ 	public void actionPerformed(ActionEvent e) {
+ 		if(e.getActionCommand().equals(ADD)) {
+-			input.addComment("Type you comment here", "");
++			getInput().addComment("Type you comment here", "");
+ 		} else if(e.getActionCommand().equals(REMOVE)) {
+ 			int row = commentsTable.getSelectedRow();
+-			if(row > -1) input.removeComment(tableModel.comments.get(row));
++			if(row > -1) getInput().removeComment(tableModel.comments.get(row));
+ 		}
+ 		refresh();
+ 	}
+ 	
+ 	public void refresh() {
+-		tableModel.setComments(input.getComments());	
++		tableModel.setComments(getInput().getComments());	
+ 	}
+ 	
+ 	class CommentsTableModel extends AbstractTableModel {
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/PathwayElementPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/PathwayElementPanel.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/PathwayElementPanel.java	(revision 1085)
+@@ -22,9 +22,9 @@
+ import org.pathvisio.model.PathwayElement;
+ 
+ public abstract class PathwayElementPanel extends JPanel {
+-	PathwayElement input;
++	private PathwayElement input;
+ 	JTabbedPane dialogPane;
+-	
++		
+ 	protected PathwayElement getInput() {
+ 		return input;
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1085)
+@@ -18,9 +18,6 @@
+ 
+ import java.awt.BorderLayout;
+ import java.awt.Component;
+-import java.awt.Container;
+-import java.awt.Frame;
+-import java.awt.Point;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+ import java.util.ArrayList;
+@@ -42,7 +39,6 @@
+ import javax.swing.JTabbedPane;
+ import javax.swing.JTable;
+ import javax.swing.JToolBar;
+-import javax.swing.SwingUtilities;
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
+@@ -58,20 +54,15 @@
+ import org.pathvisio.gui.swing.actions.CommonActions.SaveAsAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.StackAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.ZoomAction;
+-import org.pathvisio.gui.swing.dialogs.DataNodeDialog;
+ import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
+-import org.pathvisio.gui.swing.menus.PathwayElementMenu;
+ import org.pathvisio.gui.swing.propertypanel.PathwayTableModel;
+-import org.pathvisio.model.ObjectType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.Graphics;
+-import org.pathvisio.view.MouseEvent;
+ import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+-import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ import com.mammothsoftware.frwk.ddb.DropDownButton;
+ 
+@@ -352,15 +343,6 @@
+ 				}
+ 			}
+ 			break;
+-		case VPathwayEvent.ELEMENT_RIGHT_CLICKED:
+-//			PathwayElementMenu m = PathwayElementMenu.getInstance(e.getAffectedElement());
+-//			MouseEvent me = e.getMouseEvent();
+-//			VPathwaySwing vps = (VPathwaySwing)e.getAffectedElement().getDrawing().getWrapper();
+-//			Point location = me.getLocation();
+-//			SwingUtilities.convertPointToScreen(location, vps);
+-//			m.setLocation(location);
+-//			m.setVisible(true);
+-//			break;
+ 		case VPathwayEvent.EDIT_MODE_ON:
+ 			for(Component b : getToolbarGroup(TB_GROUP_HIDE_ON_EDIT)) {
+ 				b.setEnabled(true);
+@@ -379,6 +361,7 @@
+ 		case ApplicationEvent.VPATHWAY_CREATED:
+ 			VPathway vp = (VPathway)e.getSource();
+ 			vp.addVPathwayListener(this);
++			vp.addVPathwayListener(new PathwayElementMenuListener());
+ 			break;
+ 		}
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1085)
+@@ -24,6 +24,7 @@
+ import java.awt.event.ActionListener;
+ import java.util.Collection;
+ import java.util.HashMap;
++import java.util.Iterator;
+ 
+ import javax.swing.AbstractCellEditor;
+ import javax.swing.BorderFactory;
+@@ -42,9 +43,9 @@
+ import javax.swing.table.TableCellRenderer;
+ 
+ import org.pathvisio.data.DataSources;
++import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+-import org.pathvisio.model.MappFormat;
+ import org.pathvisio.model.Organism;
+ import org.pathvisio.model.OrientationType;
+ import org.pathvisio.model.PathwayElement;
+@@ -154,11 +155,20 @@
+ 			return fontEditor;
+ 		case SHAPETYPE:
+ 			return shapeTypeEditor;
++		case COMMENTS:
++			commentsEditor.setInput(this);
++			return commentsEditor;
+ 		default:
+ 			return null;
+ 		}
+ 	}
+ 	
++	private PathwayElement getFirstElement() {
++		PathwayElement first;
++		for(first = (PathwayElement)elements.iterator().next();;) break;
++		return first;
++	}
++	
+ 	private static class DoubleEditor extends DefaultCellEditor {
+ 		public DoubleEditor() {
+ 			super(new JTextField());
+@@ -229,6 +239,53 @@
+ 		}
+ 	}
+ 	
++	private static class CommentsEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
++		JButton button;
++		PathwayElement currentElement;
++		TypedProperty property;
++		
++		protected static final String EDIT = "edit";
++
++		public CommentsEditor() {
++			button = new JButton();
++			button.setText("View/edit comments");
++			button.setActionCommand("edit");
++			button.addActionListener(this);
++		}
++
++		public void setInput(TypedProperty p) {
++			property = p;
++			if(p.elements.size() > 1) {
++				button.setEnabled(false);
++			} else {
++				button.setEnabled(true);
++			}
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			if (EDIT.equals(e.getActionCommand()) && property != null) {
++				currentElement = property.getFirstElement();
++				if(currentElement != null) {
++					PathwayElementDialog d = PathwayElementDialog.getInstance(currentElement);
++					d.selectPathwayElementPanel(PathwayElementDialog.TAB_COMMENTS);
++					d.setVisible(true);
++				}
++			}
++		}
++
++		public Object getCellEditorValue() {
++			return currentElement.getComments();
++		}
++
++		public Component getTableCellEditorComponent(JTable table,
++				Object value,
++				boolean isSelected,
++				int row,
++				int column) {
++			return button;
++		}
++	}
++	
+ 	private static class ColorEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
+ 		Color currentColor;
+ 		JButton button;
+@@ -293,6 +350,7 @@
+ 			super.setValue( (Double)(value) * 180.0 / Math.PI );
+ 		}
+ 	};
++	private static CommentsEditor commentsEditor = new CommentsEditor();
+ 	
+ 	private static DefaultTableCellRenderer doubleRenderer = new DefaultTableCellRenderer() {
+ 		protected void setValue(Object value) {
+Index: trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1084)
++++ trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1085)
+@@ -27,14 +27,8 @@
+ public class PathwayElementMenu extends JPopupMenu {
+ 	VPathwayElement element;
+ 	
+-	private PathwayElementMenu(VPathwayElement e) {
++	public PathwayElementMenu(VPathwayElement e) {
+ 		element = e;
+ 		add(new PropertiesAction(e));
+-		Rectangle b = e.getVBounds();
+ 	}
+-	
+-	public static PathwayElementMenu getInstance(VPathwayElement e) {
+-		if(e instanceof Handle) e = ((Handle)e).getParent();
+-		return new PathwayElementMenu(e);
+-	}
+ }
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1084)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1085)
+@@ -545,7 +545,9 @@
+ 		{
+ 			mouseDownViewMode(e);
+ 		}
+-
++		if(pressedObject != null) {
++			fireVPathwayEvent(new VPathwayEvent(this, pressedObject, e, VPathwayEvent.ELEMENT_CLICKED_DOWN));
++		}
+ 	}
+ 		
+ 	/**
+@@ -572,8 +574,8 @@
+ 			redrawDirtyRect();
+ 		}
+ 		isDragging = false;
+-		if(e.getButton() == MouseEvent.BUTTON3 && pressedObject != null) {
+-			fireVPathwayEvent(new VPathwayEvent(this, pressedObject, e, VPathwayEvent.ELEMENT_RIGHT_CLICKED));
++		if(pressedObject != null) {
++			fireVPathwayEvent(new VPathwayEvent(this, pressedObject, e, VPathwayEvent.ELEMENT_CLICKED_UP));
+ 		}
+ 	}
+ 	
+Index: trunk/src/core/org/pathvisio/view/VPathwayEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 1084)
++++ trunk/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 1085)
+@@ -26,7 +26,8 @@
+ 	public static final int MODEL_LOADED = 3;
+ 	public static final int ELEMENT_DOUBLE_CLICKED = 4;
+ 	public static final int ELEMENT_DRAWN = 5;
+-	public static final int ELEMENT_RIGHT_CLICKED = 6;
++	public static final int ELEMENT_CLICKED_UP = 6;
++	public static final int ELEMENT_CLICKED_DOWN = 7;
+ 	
+ 	int type;
+ 	VPathwayElement affectedElement;
+Index: trunk/src/core/org/pathvisio/view/swing/SwingMouseEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 1084)
++++ trunk/src/core/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 1085)
+@@ -23,7 +23,7 @@
+ 	
+ 	public SwingMouseEvent(MouseEvent e) {
+ 		super(e.getSource(), convertType(e), e.getButton(), 
+-				e.getX(), e.getY(), e.getClickCount(), e.getModifiers());
++				e.getX(), e.getY(), e.getClickCount(), e.getModifiers(), e.isPopupTrigger());
+ 		awtEvent = e;
+ 	}
+ 
+Index: trunk/src/core/org/pathvisio/view/MouseEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/MouseEvent.java	(revision 1084)
++++ trunk/src/core/org/pathvisio/view/MouseEvent.java	(revision 1085)
+@@ -40,14 +40,16 @@
+ 	private int clickCount;
+ 	private int x; //x relative to source
+ 	private int y; //y relative to source
++	private boolean isPopupTrigger;
+ 	
+-	public MouseEvent(Object source, int type, int button, int x, int y, int clickCount, int modifier) {
++	public MouseEvent(Object source, int type, int button, int x, int y, int clickCount, int modifier, boolean isPopupTrigger) {
+ 		super(source, modifier);
+ 		this.x = x;
+ 		this.y = y;
+ 		this.type = type;
+ 		this.button = button;
+ 		this.clickCount = clickCount;
++		this.isPopupTrigger = isPopupTrigger;
+ 	}
+ 	
+ 	//public abstract Point getLocationOnScreen();
+@@ -76,6 +78,10 @@
+ 		return new Point(x, y);
+ 	}
+ 	
++	public boolean isPopupTrigger() {
++		return isPopupTrigger;
++	}
++	
+ 	/*
+ 	public int getXOnScreen() {
+ 		return getLocationOnScreen().x;
+Index: trunk/lib/JRI.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream

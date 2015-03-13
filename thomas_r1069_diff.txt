@@ -1,0 +1,39 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1068)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1069)
+@@ -23,7 +23,7 @@
+ 		}
+ 	}
+ 	
+-	class ExitAction extends WikiAction {
++	static class ExitAction extends WikiAction {
+ 		boolean doSave;
+ 		public ExitAction(AppletMain a, WikiPathways w, boolean save) {
+ 			super(a, w, "Finish", new ImageIcon(save ? Engine.getCurrent().getResourceURL("icons/apply.gif") : Engine.getCurrent().getResourceURL("icons/cancel.gif")));
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1068)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1069)
+@@ -17,21 +17,16 @@
+ package org.pathvisio.gui.wikipathways;
+ 
+ import java.awt.Component;
+-import java.awt.event.ActionEvent;
+-import java.awt.event.KeyEvent;
+ import java.net.CookieHandler;
+ import java.net.URL;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ 
+-import javax.swing.AbstractAction;
+ import javax.swing.Action;
+-import javax.swing.ImageIcon;
+ import javax.swing.JApplet;
+ import javax.swing.JLabel;
+ import javax.swing.JOptionPane;
+-import javax.swing.KeyStroke;
+ import javax.swing.SwingUtilities;
+ 
+ import org.pathvisio.ApplicationEvent;

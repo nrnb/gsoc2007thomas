@@ -1,0 +1,834 @@
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 986)
+@@ -0,0 +1,55 @@
++package org.pathvisio.gui.swing.dialogs;
++
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.Frame;
++import java.awt.GridLayout;
++
++import javax.swing.JComboBox;
++import javax.swing.JLabel;
++import javax.swing.JTextField;
++import javax.swing.event.DocumentEvent;
++import javax.swing.event.DocumentListener;
++
++import org.pathvisio.data.DataSources;
++import org.pathvisio.model.PathwayElement;
++
++public class DataNodeDialog extends PathwayElementDialog {
++	public DataNodeDialog(PathwayElement e, Frame frame, Component locationComp) {
++		super(e, frame, "DataNode properties", locationComp);
++	}
++
++	JTextField symText;
++	JTextField idText;
++	JComboBox dbCombo;
++			
++	public void refresh() {
++		symText.setText(getInput().getTextLabel());
++		idText.setText(getInput().getGeneID());
++		dbCombo.setSelectedItem(getInput().getDataSource());
++		pack();
++	}
++	
++	protected void createDialogContents(Container parent) {
++		parent.setLayout(new GridLayout(3, 2));
++		JLabel symLabel = new JLabel("Symbol");
++		JLabel idLabel = new JLabel("Identifier");
++		JLabel dbLabel = new JLabel("Database");
++		symText = new JTextField();
++		idText = new JTextField();
++		dbCombo = new JComboBox(DataSources.dataSources);
++		
++		parent.add(symLabel);	parent.add(symText);
++		parent.add(idLabel);	parent.add(idText);
++		parent.add(dbLabel);	parent.add(dbCombo);
++		
++		symText.getDocument().addDocumentListener(new DocumentListener() {
++			public void changedUpdate(DocumentEvent e) {
++				System.out.println("Text changed");
++				getInput().setTextLabel(symText.getText());
++			}
++			public void insertUpdate(DocumentEvent e) {	}
++			public void removeUpdate(DocumentEvent e) {	}
++		});
++	}
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 986)
+@@ -0,0 +1,107 @@
++package org.pathvisio.gui.swing.dialogs;
++
++import java.awt.BorderLayout;
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.Dimension;
++import java.awt.Frame;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.util.HashMap;
++
++import javax.swing.BorderFactory;
++import javax.swing.Box;
++import javax.swing.BoxLayout;
++import javax.swing.JButton;
++import javax.swing.JDialog;
++import javax.swing.JPanel;
++
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.model.PropertyType;
++
++public abstract class PathwayElementDialog extends JDialog implements ActionListener {
++	static final String OK = "Ok";
++	static final String CANCEL = "Cancel";
++	
++	PathwayElement input;
++	JPanel dialogPane;
++	
++	protected PathwayElement getInput() {
++		return input;
++	}
++	
++	public void setInput(PathwayElement e) {
++		input = e;
++		storeState();
++		refresh();
++	}
++	
++	protected abstract void refresh();
++	
++	public PathwayElementDialog(PathwayElement e, Frame frame, String title, Component locationComp) {
++		super(frame, "DataNode properties", true);
++
++		JButton cancelButton = new JButton(CANCEL);
++		cancelButton.addActionListener(this);
++
++		final JButton setButton = new JButton(OK);
++		setButton.setActionCommand(OK);
++		setButton.addActionListener(this);
++		getRootPane().setDefaultButton(setButton);
++		
++		dialogPane = new JPanel();
++		createDialogContents(dialogPane);
++		
++		JPanel buttonPane = new JPanel();
++		buttonPane.setLayout(new BoxLayout(buttonPane, BoxLayout.LINE_AXIS));
++		buttonPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
++		buttonPane.add(Box.createHorizontalGlue());
++		buttonPane.add(cancelButton);
++		buttonPane.add(Box.createRigidArea(new Dimension(10, 0)));
++		buttonPane.add(setButton);
++
++		Container contentPane = getContentPane();
++		contentPane.add(dialogPane, BorderLayout.CENTER);
++		contentPane.add(buttonPane, BorderLayout.PAGE_END);
++		pack();
++		setLocationRelativeTo(locationComp);
++		
++		setInput(e);
++		}
++
++	private HashMap<PropertyType, Object> state = new HashMap<PropertyType, Object>();
++	
++	protected void storeState() {
++		PathwayElement e = getInput();
++		for(PropertyType t : e.getAttributes()) {
++			state.put(t, e.getProperty(t));
++		}
++	}
++	
++	protected void restoreState() {
++		PathwayElement e = getInput();
++		for(PropertyType t : state.keySet()) {
++			e.setProperty(t, state.get(t));
++		}
++	}
++	
++	protected abstract void createDialogContents(Container parent);
++	
++	protected void okPressed() {
++		setVisible(false);
++	}
++	
++	protected void cancelPressed() {
++		restoreState();
++		setVisible(false);
++	}
++	
++	public void actionPerformed(ActionEvent e) {
++		if (OK.equals(e.getActionCommand())) {
++			okPressed();
++		}
++		if(CANCEL.equals(e.getActionCommand())) {
++			cancelPressed();
++		}
++	}
++}
+\ No newline at end of file
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 985)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 986)
+@@ -17,6 +17,8 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.BorderLayout;
++import java.awt.Container;
++import java.awt.Frame;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+ 
+@@ -34,71 +36,90 @@
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
++import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.gui.swing.CommonActions.CopyAction;
+ import org.pathvisio.gui.swing.CommonActions.ExportAction;
+ import org.pathvisio.gui.swing.CommonActions.ImportAction;
+ import org.pathvisio.gui.swing.CommonActions.NewElementAction;
+ import org.pathvisio.gui.swing.CommonActions.PasteAction;
+-import org.pathvisio.gui.swing.CommonActions.SaveAction;
++import org.pathvisio.gui.swing.CommonActions.SaveLocalAction;
++import org.pathvisio.gui.swing.CommonActions.SaveToServerAction;
+ import org.pathvisio.gui.swing.CommonActions.ZoomAction;
++import org.pathvisio.gui.swing.dialogs.DataNodeDialog;
++import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
+ import org.pathvisio.gui.swing.propertypanel.PathwayTableModel;
++import org.pathvisio.model.ObjectType;
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.view.Graphics;
+ import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.swing.VPathwaySwing;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
+ 
+ import com.mammothsoftware.frwk.ddb.DropDownButton;
+ 
+-public class MainPanel extends JPanel {
++public class MainPanel extends JPanel implements VPathwayListener, ApplicationEventListener {
+ 	private JSplitPane splitPane;
++
+ 	private JMenuBar menuBar;
++
+ 	private JToolBar toolBar;
++
+ 	private JScrollPane pathwayScrollPane;
++
+ 	private JScrollPane sidebarScrollPane;
++
+ 	private JTable propertyTable;
+-	
++
+ 	public MainPanel() {
+ 		setLayout(new BorderLayout());
++
++		Engine.addApplicationEventListener(this);
+ 		
+ 		menuBar = new JMenuBar();
+ 		addMenuActions(menuBar);
+ 		toolBar = new JToolBar();
+ 		addToolBarActions(toolBar);
+-		
++
+ 		add(toolBar, BorderLayout.NORTH);
+-		//menuBar will be added by container (JFrame or JApplet)
+-		
++		// menuBar will be added by container (JFrame or JApplet)
++
+ 		pathwayScrollPane = new JScrollPane();
+-		
++
+ 		final PathwayTableModel model = new PathwayTableModel();
+ 		propertyTable = new JTable(model) {
+ 			public TableCellRenderer getCellRenderer(int row, int column) {
+ 				TableCellRenderer r = model.getCellRenderer(row, column);
+ 				return r == null ? super.getCellRenderer(row, column) : r;
+ 			}
++
+ 			public TableCellEditor getCellEditor(int row, int column) {
+ 				TableCellEditor e = model.getCellEditor(row, column);
+ 				return e == null ? super.getCellEditor(row, column) : e;
+ 			}
+ 		};
+-		
++
+ 		sidebarScrollPane = new JScrollPane(propertyTable);
+-		
+-		splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, pathwayScrollPane, sidebarScrollPane);
++
++		splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
++				pathwayScrollPane, sidebarScrollPane);
+ 		splitPane.setResizeWeight(1);
+ 		splitPane.setOneTouchExpandable(true);
+ 		add(splitPane, BorderLayout.CENTER);
+ 	}
+-	
++
+ 	protected void addMenuActions(JMenuBar mb) {
+ 		JMenu pathwayMenu = new JMenu("Pathway");
+-		pathwayMenu.add(new SaveAction());
++		pathwayMenu.add(new SaveLocalAction());
++		pathwayMenu.add(new SaveToServerAction());
+ 		pathwayMenu.add(new ImportAction(this));
+ 		pathwayMenu.add(new ExportAction());
+-		
++
+ 		JMenu editMenu = new JMenu("Edit");
+ 		editMenu.add(new CopyAction());
+ 		editMenu.add(new PasteAction());
+-		
++
+ 		JMenu viewMenu = new JMenu("View");
+ 		JMenu zoomMenu = new JMenu("Zoom");
+ 		viewMenu.add(zoomMenu);
+@@ -110,90 +131,95 @@
+ 		zoomMenu.add(new ZoomAction(100));
+ 		zoomMenu.add(new ZoomAction(150));
+ 		zoomMenu.add(new ZoomAction(200));
+-		
++
+ 		mb.add(pathwayMenu);
+ 		mb.add(editMenu);
+ 		mb.add(viewMenu);
+ 	}
+-	
++
+ 	protected void addToolBarActions(JToolBar tb) {
+-		tb.add(new SaveAction());
++		tb.add(new SaveLocalAction());
++		tb.add(new SaveToServerAction());
+ 		tb.add(new ImportAction(this));
+ 		tb.add(new ExportAction());
+ 		tb.addSeparator();
+ 		tb.add(new CopyAction());
+ 		tb.add(new PasteAction());
+ 		tb.addSeparator();
+-		
++
+ 		tb.addSeparator();
+-			
++
+ 		tb.add(new JLabel("Zoom:", JLabel.LEFT));
+-		JComboBox combo = new JComboBox(new Object[] { 
+-				new ZoomAction(VPathway.ZOOM_TO_FIT),
+-				new ZoomAction(10),
+-				new ZoomAction(25),
+-				new ZoomAction(50),
+-				new ZoomAction(75),
+-				new ZoomAction(100),
+-				new ZoomAction(150),
+-				new ZoomAction(200)
+-		} );
++		JComboBox combo = new JComboBox(new Object[] {
++				new ZoomAction(VPathway.ZOOM_TO_FIT), new ZoomAction(10),
++				new ZoomAction(25), new ZoomAction(50), new ZoomAction(75),
++				new ZoomAction(100), new ZoomAction(150), new ZoomAction(200) });
+ 		combo.setMaximumSize(combo.getPreferredSize());
+ 		combo.setEditable(true);
+-		combo.setSelectedIndex(5); //100%
++		combo.setSelectedIndex(5); // 100%
+ 		combo.addActionListener(new ActionListener() {
+ 			public void actionPerformed(ActionEvent e) {
+-				JComboBox combo = (JComboBox)e.getSource();
++				JComboBox combo = (JComboBox) e.getSource();
+ 				Object s = combo.getSelectedItem();
+-				if(s instanceof ZoomAction) {
+-					((ZoomAction)s).actionPerformed(e);
+-				} else if(s instanceof String) {
+-					String zs = (String)s;
++				if (s instanceof ZoomAction) {
++					((ZoomAction) s).actionPerformed(e);
++				} else if (s instanceof String) {
++					String zs = (String) s;
+ 					try {
+ 						double zf = Double.parseDouble(zs);
+ 						new ZoomAction(zf).actionPerformed(e);
+-					} catch(Exception ex) {
+-						//Ignore bad input
++					} catch (Exception ex) {
++						// Ignore bad input
+ 					}
+ 				}
+ 			}
+ 		});
+ 		tb.add(combo);
+-		
++
+ 		tb.addSeparator();
+-		
++
+ 		tb.add(new NewElementAction(VPathway.NEWGENEPRODUCT));
+ 		tb.add(new NewElementAction(VPathway.NEWLABEL));
+-		//New line menu
+-		DropDownButton lineButton = new DropDownButton(new ImageIcon(Engine.getResourceURL("icons/newlinemenu.gif")));
+-		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINE)));
+-		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINEARROW)));
+-		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINEDASHED)));
+-		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINEDASHEDARROW)));
++		// New line menu
++		DropDownButton lineButton = new DropDownButton(new ImageIcon(Engine
++				.getResourceURL("icons/newlinemenu.gif")));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWLINE)));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWLINEARROW)));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWLINEDASHED)));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWLINEDASHEDARROW)));
+ 		lineButton.setRunFirstItem(true);
+ 		tb.add(lineButton);
+-		
++
+ 		tb.add(new NewElementAction(VPathway.NEWRECTANGLE));
+ 		tb.add(new NewElementAction(VPathway.NEWOVAL));
+ 		tb.add(new NewElementAction(VPathway.NEWARC));
+ 		tb.add(new NewElementAction(VPathway.NEWBRACE));
+ 		tb.add(new NewElementAction(VPathway.NEWTBAR));
+-		
+-		//New lineshape menu
+-		DropDownButton lineShapeButton = new DropDownButton(new ImageIcon(Engine.getResourceURL("icons/newlineshapemenu.gif")));
+-		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLIGANDROUND)));
+-		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWRECEPTORROUND)));
+-		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLIGANDSQUARE)));
+-		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWRECEPTORSQUARE)));
++
++		// New lineshape menu
++		DropDownButton lineShapeButton = new DropDownButton(new ImageIcon(
++				Engine.getResourceURL("icons/newlineshapemenu.gif")));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWLIGANDROUND)));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWRECEPTORROUND)));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWLIGANDSQUARE)));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(
++				VPathway.NEWRECEPTORSQUARE)));
+ 		lineShapeButton.setRunFirstItem(true);
+ 		tb.add(lineShapeButton);
+-		
++
+ 	}
+-	
++
+ 	public JMenuBar getMenuBar() {
+ 		return menuBar;
+ 	}
+-	
++
+ 	public JToolBar getToolBar() {
+ 		return toolBar;
+ 	}
+@@ -201,9 +227,38 @@
+ 	public JScrollPane getScrollPane() {
+ 		return pathwayScrollPane;
+ 	}
+-	
++
+ 	public JSplitPane getSplitPane() {
+ 		return splitPane;
+ 	}
++	
++	private Frame findParentFrame() {
++		Container c = this;
++		while (c != null) {
++			if (c instanceof Frame)
++				return (Frame) c;
++			c = c.getParent();
++		}
++		return (Frame) null;
++	}
++
++	public void vPathwayEvent(VPathwayEvent e) {
++		if(e.getType() == VPathwayEvent.ELEMENT_DOUBLE_CLICKED) {
++			if(e.getAffectedElement() instanceof Graphics) {
++				PathwayElement p = ((Graphics)e.getAffectedElement()).getGmmlData();
++				PathwayElementDialog pd = null;
++				switch(p.getObjectType()) {
++				case ObjectType.DATANODE:
++					pd = new DataNodeDialog(p, findParentFrame(), this);
++				}
++				if(pd != null) pd.setVisible(true);
++			}
++		}
++	}
++
++	public void applicationEvent(ApplicationEvent e) {
++		if(e.type == ApplicationEvent.VPATHWAY_CREATED) {
++			((VPathway)e.getSource()).addVPathwayListener(this);
++		}
++	}
+ }
+-
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 985)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 986)
+@@ -93,7 +93,8 @@
+ 		for(PathwayElement e : elements) {
+ 			if(properties == null) {
+ 				properties = new ArrayList<PropertyType>();
+-				properties.addAll(e.getAttributes(GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES)));
++				List<PropertyType> attr = e.getAttributes(GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES));
++				properties.addAll(attr);
+ 				continue;
+ 			}
+ 			remove.clear();
+Index: trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 985)
++++ trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 986)
+@@ -17,28 +17,30 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.Component;
+-import java.awt.Dimension;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.KeyEvent;
+ import java.io.File;
+ import java.net.URL;
++import java.util.List;
+ 
+ import javax.swing.AbstractAction;
+ import javax.swing.Action;
+ import javax.swing.ImageIcon;
++import javax.swing.JComponent;
+ import javax.swing.JFileChooser;
++import javax.swing.JPanel;
+ import javax.swing.KeyStroke;
+ import javax.swing.ProgressMonitor;
+ import javax.swing.filechooser.FileFilter;
+ 
+ import org.pathvisio.Engine;
+-import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.view.Graphics;
+ import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayElement;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+-import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public abstract class CommonActions {
+ 	private static URL IMG_SAVE = Engine.getResourceURL("icons/save.gif");
+@@ -74,12 +76,26 @@
+ 		}
+ 	}
+ 	
+-	static class SaveAction extends AbstractAction {
+-		public SaveAction() {
++	static class SaveLocalAction extends AbstractAction {
++		public SaveLocalAction() {
+ 			super("Save", new ImageIcon(IMG_SAVE));
++			putValue(Action.SHORT_DESCRIPTION, "Save a local copy of the pathway");
++			putValue(Action.LONG_DESCRIPTION, "Save a local copy of the pathway");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			// TODO Auto-generated method stub
++			
++		}
++	}
++	
++	static class SaveToServerAction extends AbstractAction {
++		public SaveToServerAction() {
++			super("Save", new ImageIcon(IMG_SAVE));
+ 			putValue(Action.SHORT_DESCRIPTION, "Save the pathway");
+ 			putValue(Action.LONG_DESCRIPTION, "Save the pathway");
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_W, ActionEvent.CTRL_MASK));
+ 		}
+ 
+ 		public void actionPerformed(ActionEvent e) {
+@@ -145,7 +161,7 @@
+ 						int totalWork = 1000;
+ 						ProgressMonitor m = new ProgressMonitor(component, "Loading pathway", "Please wait while the pathway is being loaded", 0, 1000);
+ 						m.setProgress(10);
+-						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing(mainPanel.getScrollPane()));
++						SwingEngine.importPathway(jfc.getSelectedFile());
+ 						m.setProgress((int)(totalWork*2/3));
+ 						Engine.getActiveVPathway().setEditMode(true);
+ 						m.setProgress(totalWork);
+@@ -196,7 +212,7 @@
+ 			Engine.getActiveVPathway().pasteFromClipboad();
+ 		}
+ 	}
+-	
++		
+ 	static class NewElementAction extends AbstractAction implements VPathwayListener {
+ 		int element;
+ 		public NewElementAction(int type) {
+@@ -291,7 +307,7 @@
+ 		}
+ 
+ 		public void vPathwayEvent(VPathwayEvent e) {
+-			if(e.getType() == VPathwayEvent.NEW_ELEMENT_ADDED) {
++			if(e.getType() == VPathwayEvent.ELEMENT_ADDED) {
+ 				e.getVPathway().setNewGraphics(VPathway.NEWNONE);	
+ 			}
+ 		}
+Index: trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 985)
++++ trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 986)
+@@ -17,10 +17,13 @@
+ package org.pathvisio.gui.swing;
+ 
+ import javax.swing.JFrame;
+-import javax.swing.UIManager;
+ 
++import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+-import org.pathvisio.view.swing.VPathwaySwing;
++import org.pathvisio.Engine.ApplicationEventListener;
++import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
+ 
+ public class GuiMain {
+ 
+@@ -45,7 +48,7 @@
+ 		//Display the window.
+ 		frame.setVisible(true);
+ 		mainPanel.getSplitPane().setDividerLocation(0.8);
+-		Engine.newPathway(new VPathwaySwing(mainPanel.getScrollPane()));
++		SwingEngine.newPathway();
+ 		Engine.getActiveVPathway().setEditMode(true);
+ 	}
+ 
+Index: trunk/src/swing/org/pathvisio/gui/swing/AppletMain.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/AppletMain.java	(revision 985)
++++ trunk/src/swing/org/pathvisio/gui/swing/AppletMain.java	(revision 986)
+@@ -16,11 +16,17 @@
+ //
+ package org.pathvisio.gui.swing;
+ 
++import java.awt.Container;
++import java.awt.Frame;
++
+ import javax.swing.JApplet;
+ 
+ public class AppletMain extends JApplet {
++	public static final String PAR_PATHWAY_URL = "pathway.url";
+ 	public void init() {
+ 		super.init();
++		String url = getParameter(PAR_PATHWAY_URL);
++		
+ 		GuiInit.init();
+ 		MainPanel mainPanel = SwingEngine.getApplicationPanel();
+ 		add(mainPanel);
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 985)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 986)
+@@ -17,11 +17,15 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.Component;
++import java.io.File;
+ 
+ import javax.swing.JOptionPane;
+ 
++import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
++import org.pathvisio.view.VPathwayWrapper;
++import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class SwingEngine {
+ 	private static MainPanel mainPanel;
+@@ -56,4 +60,16 @@
+ 			Engine.log.error("Unable to open Gpml file", e);
+ 		}
+ 	}
++		
++	private static VPathwayWrapper createWrapper() {
++		 return new VPathwaySwing(getApplicationPanel().getScrollPane());
++	}
++	
++	public static void importPathway(File f) throws ConverterException {
++		Engine.importPathway(f, createWrapper());
++	}
++	
++	public static void newPathway() {
++		Engine.newPathway(createWrapper());
++	}
+ }
+Index: trunk/src/core/org/pathvisio/Engine.java
+===================================================================
+--- trunk/src/core/org/pathvisio/Engine.java	(revision 985)
++++ trunk/src/core/org/pathvisio/Engine.java	(revision 986)
+@@ -186,16 +186,11 @@
+ 		fireApplicationEvent(new ApplicationEvent(pathway, ApplicationEvent.PATHWAY_NEW));
+ 		
+ 		if(wrapper != null) {
+-			newVPathway(pathway, wrapper);
++			createVPathway(pathway, wrapper);
+ 			fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.VPATHWAY_NEW));
+ 		}
+ 	}
+-	
+-	public static void newVPathway(Pathway pathway, VPathwayWrapper wrapper) {
+-		vPathway = wrapper.createVPathway();
+-		vPathway.fromGmmlData(pathway);
+-	}
+-	
++
+ 	/**
+ 	 * Find out whether a drawing is currently open or not
+ 	 * @return true if a drawing is open, false if not
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 985)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 986)
+@@ -491,7 +491,12 @@
+ 	/**
+ 	 * Handles mouse entered input
+ 	 */
+-	public void mouseDoubleClick(MouseEvent e) {	}
++	public void mouseDoubleClick(MouseEvent e) {
++		VPathwayElement o = getObjectAt(e.getLocation());
++		if(o != null) {
++			fireVPathwayEvent(new VPathwayEvent(this, o, VPathwayEvent.ELEMENT_DOUBLE_CLICKED));
++		}
++	}
+ 
+ 	public void draw (Graphics2D g2d)
+ 	{
+@@ -984,7 +989,7 @@
+ 		vPreviousX = ve.x;
+ 		vPreviousY = ve.y;
+ 		
+-		fireVPathwayEvent(new VPathwayEvent(this, lastAdded, VPathwayEvent.NEW_ELEMENT_ADDED));
++		fireVPathwayEvent(new VPathwayEvent(this, lastAdded, VPathwayEvent.ELEMENT_ADDED));
+ 	}
+ 	
+ 
+@@ -1361,8 +1366,9 @@
+ 			redrawDirtyRect();
+ 		}
+ 	}
++	
+ 	/**
+-	 * TODO: document
++	 * Get all elements of the class Graphics that are currently selected
+ 	 * @return
+ 	 */
+ 	public List<Graphics> getSelectedGraphics() {
+Index: trunk/src/core/org/pathvisio/view/VPathwayEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 985)
++++ trunk/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 986)
+@@ -19,10 +19,11 @@
+ import java.util.EventObject;
+ 
+ public class VPathwayEvent extends EventObject {
+-	public static final int NEW_ELEMENT_ADDED = 0;
++	public static final int ELEMENT_ADDED = 0;
+ 	public static final int EDIT_MODE_ON = 1;
+ 	public static final int EDIT_MODE_OFF = 2;
+ 	public static final int MODEL_LOADED = 3;
++	public static final int ELEMENT_DOUBLE_CLICKED = 4;
+ 	
+ 	int type;
+ 	VPathwayElement affectedElement;
+Index: trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java	(revision 985)
++++ trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java	(revision 986)
+@@ -99,8 +99,10 @@
+ 		setVSize(new Dimension(w, h));
+ 	}
+ 
+-	public void mouseClicked(MouseEvent arg0) {
+-		// TODO: find out how to handle this one
++	public void mouseClicked(MouseEvent e) {
++		if(e.getClickCount() == 2) {
++			child.mouseDoubleClick(new SwingMouseEvent(e));
++		}
+ 	}
+ 
+ 	public void mouseEntered(MouseEvent e) {
+Index: trunk/src/core/org/pathvisio/util/FileUtils.java
+===================================================================
+--- trunk/src/core/org/pathvisio/util/FileUtils.java	(revision 985)
++++ trunk/src/core/org/pathvisio/util/FileUtils.java	(revision 986)
+@@ -16,12 +16,18 @@
+ //
+ package org.pathvisio.util;
+ 
++import java.io.BufferedOutputStream;
+ import java.io.File;
+ import java.io.FileFilter;
++import java.io.FileOutputStream;
+ import java.io.FileReader;
+ import java.io.IOException;
++import java.io.InputStream;
+ import java.io.LineNumberReader;
++import java.io.OutputStream;
+ import java.io.RandomAccessFile;
++import java.net.URL;
++import java.net.URLConnection;
+ import java.util.ArrayList;
+ 
+ import org.pathvisio.Engine;
+@@ -101,4 +107,34 @@
+ 		if(dot > 0) fname = fname.substring(0, dot);
+ 		return fname;
+ 	}
++	
++	/**
++	 * Downloads a remote file given by an URL to the given local file
++	 * @param url The URL that specifies the location of the file to download
++	 * @param toFile The local file to which the remote file will be downloaded
++	 * @throws IOException
++	 */
++	public static void downloadFile(URL url, File toFile) throws IOException {
++		OutputStream out = null;
++		URLConnection conn = null;
++		InputStream  in = null;
++		out = new BufferedOutputStream(
++				new FileOutputStream(toFile));
++		conn = url.openConnection();
++		in = conn.getInputStream();
++		byte[] buffer = new byte[1024];
++		int numRead;
++		long numWritten = 0;
++		while ((numRead = in.read(buffer)) != -1) {
++			out.write(buffer, 0, numRead);
++			numWritten += numRead;
++		}
++
++		if (in != null) {
++			in.close();
++		}
++		if (out != null) {
++			out.close();
++		}
++	}
+ }
+Index: trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 985)
++++ trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 986)
+@@ -462,7 +462,7 @@
+ 		case VPathwayEvent.EDIT_MODE_ON:
+ 			showLegend(false);
+ 			break;
+-		case VPathwayEvent.NEW_ELEMENT_ADDED:
++		case VPathwayEvent.ELEMENT_ADDED:
+ 			deselectNewItemActions();
+ 			break;
+ 		}

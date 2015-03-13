@@ -1,0 +1,554 @@
+Index: trunk/src/wikipathways/org/pathvisio/Globals.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/Globals.java	(revision 1042)
++++ trunk/src/wikipathways/org/pathvisio/Globals.java	(revision 1043)
+@@ -24,8 +24,8 @@
+  */
+ public class Globals {
+ 	public static final String APPLICATION_NAME = "PathVisio";
+-	public static final String APPLICATION_VERSION_NAME = "PathVisio - WikiPathways";
++	public static final String APPLICATION_VERSION_NAME = "PathVisio.WikiPathways";
+ 	public static final String HELP_URL = "http://wiki.bigcat.unimaas.nl/pathvisio/Help";
+ 	// for inclusion in certain error messages.
+-	public static final String DEVELOPER_EMAIL = "thomas.kelder@bigcat.unimaas.nl"; 
++	public static final String DEVELOPER_EMAIL = "thomas.kelder@bigcat.unimaas.nl";
+ }
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1042)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1043)
+@@ -31,10 +31,12 @@
+ import javax.swing.JOptionPane;
+ import javax.swing.JToolBar;
+ 
++import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+ import org.pathvisio.gui.swing.GuiInit;
+ import org.pathvisio.gui.swing.MainPanel;
+ import org.pathvisio.gui.swing.SwingEngine;
++import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.util.ProgressKeeper;
+ import org.pathvisio.util.RunnableWithProgress;
+ import org.pathvisio.wikipathways.Parameter;
+@@ -45,14 +47,15 @@
+ 	private static final long serialVersionUID = 1L;
+ 
+ 	private static WikiPathways wiki;
+-
++	private static MainPanel mainPanel;
++	
+ 	public static final String PAR_PATHWAY_URL = "pathway.url";
+ 	public void init() {
+ 		Engine.log.trace("init applet");
+ 		final UserInterfaceHandler uiHandler = new SwingUserInterfaceHandler(JOptionPane.getFrameForComponent(this));
+-		final MainPanel mainPanel = SwingEngine.getApplicationPanel();
++		mainPanel = SwingEngine.getApplicationPanel();
+ 		RunnableWithProgress r = new RunnableWithProgress() {
+-			public Object excecuteCode() {
++			public Object excecuteCode() {				
+ 				GuiInit.init();
+ 								
+ 				Action saveAction = new ExitAction(true);
+@@ -82,10 +85,19 @@
+ 		getContentPane().add(mainPanel);
+ 	}
+ 	
++	boolean splitPaneSet = false;
+ 	public void start() {
+ 		Engine.log.trace("start applet");
+-		// TODO Auto-generated method stub
+-		super.start();
++		
++		//Not the most elegant solution, but can't set splitpane in init()
++		//if statement because start() can be called multiple times
++		if(!splitPaneSet) {
++			int spPercent = GlobalPreference.getValueInt(GlobalPreference.GUI_SIDEPANEL_SIZE);
++			double spSize = (100 - spPercent) / 100.0;
++			mainPanel.getSplitPane().setDividerLocation(spSize);
++			splitPaneSet = true;
++		}
++
+ 	}
+ 	
+ 	public void stop() {
+@@ -96,11 +108,11 @@
+ 
+ 	public void destroy() {
+ 		Engine.log.trace("destroy applet");
+-/*		ApplicationEvent e = new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE);
++		ApplicationEvent e = new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE);
+ 		Engine.fireApplicationEvent(e);
+ 		if(e.doit) {
+ 			super.destroy();
+-		}*/
++		}
+ 	}
+ 	
+ 	void loadCookies() {
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1042)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1043)
+@@ -39,7 +39,11 @@
+ import org.apache.xmlrpc.util.HttpUtil;
+ import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
++import org.pathvisio.Globals;
+ import org.pathvisio.Engine.ApplicationEventListener;
++import org.pathvisio.data.DBConnector;
++import org.pathvisio.data.DBConnectorDerbyServer;
++import org.pathvisio.data.Gdb;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.util.ProgressKeeper;
+ import org.pathvisio.util.RunnableWithProgress;
+@@ -62,24 +66,32 @@
+ 		cookie = new HashMap<String, String>();
+ 		Engine.addApplicationEventListener(this);
+ 	}
++
++	public void init(VPathwayWrapper wrapper) throws Exception {
++		WikiPathwaysEngine.init();
+ 		
+-	public void init(VPathwayWrapper wrapper) throws Exception {
+-			for(Parameter p : Parameter.values()) {
+-				//Check for required
+-				assert !p.isRequired() || p.getValue() != null : 
+-					"Missing required argument '" + p.name() + "'";
+-			}
++		for(Parameter p : Parameter.values()) {
++			//Check for required
++			assert !p.isRequired() || p.getValue() != null : 
++				"Missing required argument '" + p.name() + "'";
++		}
+ 
+-			if(isNew()) { //Create new pathway
+-				Engine.newPathway(wrapper);
+-			} else { //Download and open the pathway
+-				Engine.openPathway(new URL(getPwURL()), wrapper);
+-			}
++		if(isNew()) { //Create new pathway
++			Engine.newPathway(wrapper);
++		} else { //Download and open the pathway
++			Engine.openPathway(new URL(getPwURL()), wrapper);
++		}
+ 
+-			//TODO: notify user about this and hide edit actions
+-			Engine.getActiveVPathway().setEditMode(isReadOnly());
++		//TODO: notify user about this and hide edit actions
++		Engine.getActiveVPathway().setEditMode(isReadOnly());
++		
++		//Connect to the gene database
++		DBConnector connector = new DBConnectorDerbyServer("wikipathways.org", 1527);
++		Engine.setDBConnector(connector, DBConnector.TYPE_GDB);
++		
++		//Gdb.connect(getPwSpecies());
+ 	}
+-	
++
+ 	public String getPwName() {
+ 		return Parameter.PW_NAME.getValue();
+ 	}
+@@ -127,20 +139,22 @@
+ 		VPathway vPathway = Engine.getActiveVPathway();
+ 		if(vPathway != null && vPathway.getGmmlData().hasChanged()) {
+ 			final String description = uiHandler.askInput("Specify description", "Give a description of your changes");
+-			RunnableWithProgress<Boolean> r = new RunnableWithProgress<Boolean>() {
+-				public Boolean excecuteCode() {
+-					try {
+-						saveToWiki(description);
+-						return true;
+-					} catch (Exception e) {
+-						Engine.log.error("Unable to save pathway", e);
+-						uiHandler.showError("Unable to save pathway", e.getClass() + ": " + e.getMessage());
++			if(description != null) {
++				RunnableWithProgress<Boolean> r = new RunnableWithProgress<Boolean>() {
++					public Boolean excecuteCode() {
++						try {
++							saveToWiki(description);
++							return true;
++						} catch (Exception e) {
++							Engine.log.error("Unable to save pathway", e);
++							uiHandler.showError("Unable to save pathway", e.getClass() + ": " + e.getMessage());
++						}
++						return false;
+ 					}
+-					return false;
+-				}
+-			};
+-			uiHandler.runWithProgress(r, "Saving pathway", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
+-			return r.get();
++				};
++				uiHandler.runWithProgress(r, "Saving pathway", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
++				return r.get();
++			}
+ 		}
+ 		return false;
+ 	}
+@@ -187,6 +201,7 @@
+ 
+ 	
+ 	public void applicationEvent(ApplicationEvent e) {
++		/*
+ 		switch(e.type) {
+ 		case ApplicationEvent.APPLICATION_CLOSE:
+ 			VPathway vPathway = Engine.getActiveVPathway();
+@@ -202,6 +217,7 @@
+ 				//Silently close
+ 			}
+ 		}
++		*/
+ 	}
+ 
+ 	static class XmlRpcCookieTransportFactory implements XmlRpcTransportFactory {
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java	(revision 1043)
+@@ -0,0 +1,24 @@
++package org.pathvisio.wikipathways;
++
++import java.io.File;
++
++import org.pathvisio.Globals;
++import org.pathvisio.preferences.GlobalPreference;
++
++public class WikiPathwaysEngine {
++	public static void init() throws Exception {
++		GlobalPreference.FILE_LOG.setDefault(getApplicationDir() + ".log");
++	}
++		
++	private static File DIR_APPLICATION;
++	/**
++	 * Get the working directory of this application
++	 */
++	public static File getApplicationDir() {
++		if(DIR_APPLICATION == null) {
++			DIR_APPLICATION = new File(System.getProperty("user.home"), "." + Globals.APPLICATION_NAME);
++			if(!DIR_APPLICATION.exists()) DIR_APPLICATION.mkdir();
++		}
++		return DIR_APPLICATION;
++	}
++}
+Index: trunk/src/wikipathways/org/pathvisio/data/DBConnectorDerbyServer.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/data/DBConnectorDerbyServer.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/data/DBConnectorDerbyServer.java	(revision 1043)
+@@ -0,0 +1,45 @@
++package org.pathvisio.data;
++
++import java.io.File;
++import java.sql.Connection;
++import java.sql.DriverManager;
++import java.util.Properties;
++
++import javax.naming.OperationNotSupportedException;
++
++import org.pathvisio.debug.StopWatch;
++
++public class DBConnectorDerbyServer extends AbstractDBConnector {
++	String host;
++	int port;
++	
++	public DBConnectorDerbyServer(String host, int port) {
++		this.host = host;
++		this.port = port;
++	}
++	
++	public Connection createConnection(String dbName) throws Exception {
++		Properties sysprop = System.getProperties();
++		sysprop.setProperty("derby.storage.tempDirectory", System.getProperty("java.io.tmpdir"));
++		sysprop.setProperty("derby.stream.error.file", File.createTempFile("derby",".log").toString());
++		
++		Class.forName("org.apache.derby.jdbc.ClientDriver");
++		
++		StopWatch timer = new StopWatch();
++		timer.start();
++		
++		String url = "jdbc:derby://" + host + ":" + port + "/" + dbName;
++		Connection con = DriverManager.getConnection(url);
++		return con;
++	}
++
++	public Connection createConnection(String dbName, int props) throws Exception {
++		return createConnection(dbName);
++	}
++
++	public String finalizeNewDatabase(String dbName) throws Exception {
++		//Creating database not supported
++		throw new OperationNotSupportedException("Can't create new database on server");
++	}
++
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1042)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1043)
+@@ -32,8 +32,10 @@
+ import javax.swing.JDialog;
+ import javax.swing.JPanel;
+ 
++import org.pathvisio.Engine;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PropertyType;
++import org.pathvisio.view.VPathway;
+ 
+ public abstract class PathwayElementDialog extends JDialog implements ActionListener {
+ 	static final String OK = "Ok";
+@@ -104,6 +106,8 @@
+ 	protected abstract void createDialogContents(Container parent);
+ 	
+ 	protected void okPressed() {
++		VPathway p = Engine.getActiveVPathway();
++		if(p != null) p.redraw();
+ 		setVisible(false);
+ 	}
+ 	
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1042)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1043)
+@@ -18,7 +18,6 @@
+ 
+ import java.awt.BorderLayout;
+ import java.awt.Container;
+-import java.awt.FlowLayout;
+ import java.awt.Frame;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+@@ -53,6 +52,7 @@
+ import org.pathvisio.gui.swing.propertypanel.PathwayTableModel;
+ import org.pathvisio.model.ObjectType;
+ import org.pathvisio.model.PathwayElement;
++import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.Graphics;
+ import org.pathvisio.view.StackType;
+@@ -111,7 +111,7 @@
+ 		splitPane.setOneTouchExpandable(true);
+ 		add(splitPane, BorderLayout.CENTER);
+ 	}
+-
++	
+ 	protected void addMenuActions(JMenuBar mb) {
+ 		JMenu pathwayMenu = new JMenu("Pathway");
+ 		pathwayMenu.add(new SaveLocalAction());
+Index: trunk/src/swing/org/pathvisio/gui/swing/GuiInit.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/GuiInit.java	(revision 1042)
++++ trunk/src/swing/org/pathvisio/gui/swing/GuiInit.java	(revision 1043)
+@@ -16,13 +16,21 @@
+ //
+ package org.pathvisio.gui.swing;
+ 
++import java.io.PrintStream;
++
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.GpmlFormat;
++import org.pathvisio.preferences.GlobalPreference;
+ 
+ public class GuiInit {
+ 	public static void init() {
+ 		initImporters();
+ 		initExporters();
++		try {
++			Engine.log.setStream(new PrintStream(GlobalPreference.FILE_LOG.getValue())); 
++		} catch(Exception e) {}
++		Engine.log.setLogLevel(true, true, true, true, true, true);//Modify this to adjust log level
++		
+ 	}
+ 	
+ 	private static void initImporters() {
+Index: trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 1042)
++++ trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 1043)
+@@ -19,6 +19,7 @@
+ import javax.swing.JFrame;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.preferences.GlobalPreference;
+ 
+ public class GuiMain {
+ 
+@@ -42,7 +43,11 @@
+ 		
+ 		//Display the window.
+ 		frame.setVisible(true);
+-		mainPanel.getSplitPane().setDividerLocation(0.8);
++
++		int spPercent = GlobalPreference.getValueInt(GlobalPreference.GUI_SIDEPANEL_SIZE);
++		double spSize = (100 - spPercent) / 100.0;
++		mainPanel.getSplitPane().setDividerLocation(spSize);
++		
+ 		SwingEngine.newPathway();
+ 		Engine.getActiveVPathway().setEditMode(true);
+ 	}
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1042)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1043)
+@@ -18,6 +18,7 @@
+ 
+ import java.awt.Component;
+ import java.io.File;
++import java.io.PrintStream;
+ import java.net.URL;
+ 
+ import javax.swing.JOptionPane;
+@@ -25,10 +26,11 @@
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+ import org.pathvisio.model.ConverterException;
++import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.view.VPathwayWrapper;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+-public class SwingEngine {
++public class SwingEngine {	
+ 	private static MainPanel mainPanel;
+ 	
+ 	public static MainPanel getApplicationPanel() {
+Index: trunk/src/core/org/pathvisio/preferences/GlobalPreference.java
+===================================================================
+--- trunk/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 1042)
++++ trunk/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 1043)
+@@ -35,9 +35,12 @@
+ 	DB_ENGINE_GEX("org.pathvisio.data.DBConnDerby"),
+ 	DB_GDB_CURRENT("none"),
+ 	
+-	SHOW_ADVANCED_ATTRIBUTES(Boolean.toString(false));
++	SHOW_ADVANCED_ATTRIBUTES(Boolean.toString(false)),
+ 	
++	GUI_SIDEPANEL_SIZE("30"),
+ 	
++	;
++	
+ 	GlobalPreference(String defaultValue) {
+ 		this.defaultValue = defaultValue;
+ 	}
+Index: trunk/src/core/org/pathvisio/Engine.java
+===================================================================
+--- trunk/src/core/org/pathvisio/Engine.java	(revision 1042)
++++ trunk/src/core/org/pathvisio/Engine.java	(revision 1043)
+@@ -279,8 +279,14 @@
+ 		return importers;
+ 	}
+ 	
++	private static HashMap<Integer, DBConnector> connectors = new HashMap<Integer, DBConnector>();
++	
+ 	public static DBConnector getDbConnector(int type) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+-		DBConnector connector = null;
++		//Try to get the DBConnector from the hashmap first
++		DBConnector connector = connectors.get(type);
++		if(connector != null) return connector;
++		
++		//Else load it from the preferences
+ 		String className = null;
+ 		switch(type) {
+ 		case DBConnector.TYPE_GDB:
+@@ -298,10 +304,20 @@
+ 			connector = (DBConnector)dbc.newInstance();
+ 			connector.setDbType(type);
+ 		}
+-	
++		
+ 		return connector;
+ 	}
+-		
++	
++	/**
++	 * Set the DBConnector for the given database type. 
++	 * Overrides seting in GlobalPreference.DB_ENGINE_*
++	 * @param connector
++	 * @param type
++	 */
++	public static void setDBConnector(DBConnector connector, int type) {
++		connectors.put(type, connector);
++	}
++	
+ 	private static List<ApplicationEventListener> applicationEventListeners  = new ArrayList<ApplicationEventListener>();
+ 	
+ 	/**
+Index: trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 1042)
++++ trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 1043)
+@@ -150,7 +150,7 @@
+ 		SWT_DIR_EXPR(new File(SwtEngine.getDataDir().toString(), "expression datasets").toString()),
+ 		SWT_DIR_RDATA(new File(SwtEngine.getDataDir().toString(), "R data").toString()),
+ 
+-		SWT_SIDEPANEL_SIZE("30");
++		;
+ 		
+ 		SwtPreference(String defaultValue) {
+ 			this.defaultValue = defaultValue;
+Index: trunk/src/swt/org/pathvisio/preferences/swt/PreferenceDlg.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 1042)
++++ trunk/src/swt/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 1043)
+@@ -91,7 +91,7 @@
+ 		}
+ 		
+ 		protected void createFieldEditors() {
+-			IntegerFieldEditor f = new IntegerFieldEditor(SwtPreference.SWT_SIDEPANEL_SIZE.name(),
++			IntegerFieldEditor f = new IntegerFieldEditor(GlobalPreference.GUI_SIDEPANEL_SIZE.name(),
+ 					"Initial side panel size (percent of window size):", getFieldEditorParent());
+ 			f.setValidRange(0, 100);
+ 			addField(f);
+Index: trunk/src/swt/org/pathvisio/gui/swt/SidePanel.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/SidePanel.java	(revision 1042)
++++ trunk/src/swt/org/pathvisio/gui/swt/SidePanel.java	(revision 1043)
+@@ -136,7 +136,7 @@
+ 	}
+ 	
+ 	public void show() {
+-		int sidePanelSize = GlobalPreference.getValueInt(SwtPreference.SWT_SIDEPANEL_SIZE);
++		int sidePanelSize = GlobalPreference.getValueInt(GlobalPreference.GUI_SIDEPANEL_SIZE);
+ 		if(sidePanelSize == 0) sidePanelSize = 10; //Force show if initial size = 0
+ 		parentSash.setWeights(calculateWeights(sidePanelSize));
+ 	}
+Index: trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 1042)
++++ trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 1043)
+@@ -370,7 +370,7 @@
+ 		
+ 		addPanelTabs();
+ 		
+-		int sidePanelSize = GlobalPreference.getValueInt(SwtPreference.SWT_SIDEPANEL_SIZE);
++		int sidePanelSize = GlobalPreference.getValueInt(GlobalPreference.GUI_SIDEPANEL_SIZE);
+ 		sashForm.setWeights(new int[] {100 - sidePanelSize, sidePanelSize});
+ 		showRightPanelAction.setChecked(sidePanelSize > 0);
+ 		
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1042)
++++ trunk/build.xml	(revision 1043)
+@@ -163,7 +163,7 @@
+ 		<jar jarfile="wikipathways.jar">
+ 			<fileset dir="${build.wikipathways.dir}" includes="**/*.class"/>
+             <manifest>
+-                <attribute name="Class-Path" value="jdom.jar resources.jar swing-worker-1.1.jar apache/commons-codec-1.3.jar apache/commons-httpclient-3.0.1.jar apache/commons-logging-1.1.jar apache/ws-commons-util-1.0.1.jar apache/xmlrpc-client-3.0.jar apache/xmlrpc-common-3.0.jar"/>
++                <attribute name="Class-Path" value="jdom.jar resources.jar derbyclient.jar swing-worker-1.1.jar apache/commons-codec-1.3.jar apache/commons-httpclient-3.0.1.jar apache/commons-logging-1.1.jar apache/ws-commons-util-1.0.1.jar apache/xmlrpc-client-3.0.jar apache/xmlrpc-common-3.0.jar"/>
+             </manifest>
+ 		</jar>
+ 		<!-- different resources.jar, only with minimal data -->
+@@ -225,6 +225,7 @@
+ 				<include name="apache/*.jar"/>
+ 				<include name="jdom.jar"/>
+ 				<include name="swing-worker-1.1.jar"/>
++				<include name="derbyclient.jar"/>
+ 			</fileset>
+ 			
+ 		</copy>
+Index: trunk/lib/derbyclient.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/derbyclient.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+

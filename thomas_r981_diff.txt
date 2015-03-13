@@ -1,0 +1,214 @@
+Index: trunk/src/core/org/pathvisio/view/Shape.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Shape.java	(revision 980)
++++ trunk/src/core/org/pathvisio/view/Shape.java	(revision 981)
+@@ -16,12 +16,15 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.BasicStroke;
+ import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+-import java.awt.BasicStroke;
++import java.awt.geom.AffineTransform;
+ import java.awt.geom.Arc2D;
+ import java.awt.geom.Ellipse2D;
++import java.awt.geom.GeneralPath;
++
+ import org.pathvisio.model.PathwayElement;
+ 
+ /**
+@@ -59,59 +62,23 @@
+ 		{
+ 			linecolor = selectColor;
+ 		} 
++
++		java.awt.Shape shape = getFillShape();
+ 		
+-		int x = getVLeft();
+-		int y = getVTop();
+-		int w = getVWidth();
+-		int h = getVHeight();
+-		int cx = getVCenterX();
+-		int cy = getVCenterY();
+-						
+-		g.rotate(gdata.getRotation(), cx, cy);
+-
+-		java.awt.Shape shape = null;
++		g.setColor(linecolor);
++		g.draw(shape);
++		
+ 		switch(gdata.getShapeType())
+ 		{
+-		case OVAL: shape = new Ellipse2D.Double (x, y, w, h); break;
+-		case ARC: shape = new Arc2D.Double (x, y, w, h, 0, -180, Arc2D.OPEN); break;
+- 		case BRACE:
+ 		case RECTANGLE:
+-		default: shape = new Rectangle (x, y, w, h);
+-		}
+-		
+-		switch(gdata.getShapeType())
+-		{
+ 		case OVAL:
+ 			if(!gdata.isTransparent()) {
+ 				g.setColor(fillcolor);
+-				g.fillOval(x, y, w, h);
++				g.fill(shape);
+ 			}
+-			g.setColor(linecolor);
+-			g.drawOval(x, y, w, h);
+ 			break;
+-		case ARC:
+-			g.setColor(linecolor);
+-			g.drawArc(x, y, w, h, 0, -180);
+-			break;
+-		case BRACE:
+-			g.setColor(linecolor);
+-			g.drawLine (cx + h/2, cy, cx + w/2 - h/2, cy); //line on the right
+-			g.drawLine (cx - h/2, cy, cx - w/2 + h/2, cy); //line on the left
+-			g.drawArc (cx - w/2, cy, h, h, -180, -90); //arc on the left
+-			g.drawArc (cx - h, cy - h,	h, h, -90, 90); //left arc in the middle
+-			g.drawArc (cx, cy - h, h, h, -90, -90); //right arc in the middle
+-			g.drawArc (cx + w/2 - h, cy, h, h, 0, 90); //arc on the right
+-			break;
+-		default:
+-			if(!gdata.isTransparent()) {
+-				g.setColor(fillcolor);
+-				g.fillRect(x, y, w, h);
+-			}
+-			g.setColor(linecolor);
+-			g.drawRect(x, y, w, h);
+-			break;
+ 		}
+-
++		
+ 		if (isHighlighted())
+ 		{
+ 			Color hc = getHighlightColor();
+@@ -120,4 +87,41 @@
+ 			g.draw (shape);
+ 		}
+ 	}	
++	
++	protected java.awt.Shape getFillShape(float sw) {
++		int x = getVLeft();
++		int y = getVTop();
++		int w = getVWidth() + (int)sw;
++		int h = getVHeight() + (int)sw;
++		int cx = getVCenterX();
++		int cy = getVCenterY();
++		
++		java.awt.Shape s = null;
++		
++		switch(gdata.getShapeType()) {
++		case OVAL:
++			s = new Ellipse2D.Double(x, y, w, h);
++			break;
++		case ARC:;
++			s = new Arc2D.Double (x, y, w, h, 0, -180, Arc2D.OPEN);
++			break;
++		case BRACE:
++			GeneralPath p = new GeneralPath();
++            p.moveTo(x, y + h);
++            p.quadTo(x, y + h/2, x + h/2, y + h/2);
++            p.lineTo(cx - h/2, y + h/2);
++            p.quadTo(cx, y + h/2, cx, y);
++            p.quadTo(cx, y + h/2, cx + h/2, y + h/2);
++            p.lineTo(x + w - h/2, y + h/2);
++            p.quadTo(x + w, y + h/2, x + w, y + h);
++            s = p;
++			break;
++		default:
++			s = new Rectangle(x, y, w, h);
++			break;
++		}
++		AffineTransform t = new AffineTransform();
++		t.rotate(gdata.getRotation(), cx, cy);
++		return t.createTransformedShape(s);
++	}
+ }
+\ No newline at end of file
+Index: trunk/src/core/org/pathvisio/view/GraphicsShape.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 980)
++++ trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 981)
+@@ -19,6 +19,7 @@
+ import java.awt.Polygon;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
++import java.awt.geom.AffineTransform;
+ import java.awt.geom.Area;
+ import java.awt.geom.Rectangle2D;
+ import java.util.HashSet;
+@@ -460,36 +461,28 @@
+ 	 */
+ 	protected Shape getVOutline()
+ 	{
+-		Shape fill = getFillShape();
+-		Area outline = new Area(fill);
+-		outline.add(new Area(defaultStroke.createStrokedShape(fill)));
+-		return outline;
++		return getShape();
+ 	}
+-	
+-	public Rectangle getVBounds() {
+-		//Override VPathwayElement, because getVOutline is too slow
+-		Rectangle b = getFillShape().getBounds();
+-		float sw = defaultStroke.getLineWidth();
+-		//b.x -= sw; b.y -= sw;
+-		b.width += sw; b.height += sw;
+-		return b;
++		
++	protected Shape getShape() {
++		return getFillShape(defaultStroke.getLineWidth());
+ 	}
++	protected Shape getFillShape() {
++		return getFillShape(0);
++	}
+ 	
+-	private Shape getFillShape() {
+-		int[] x = new int[4];
+-		int[] y = new int[4];
+-		
+-		int[] p = getVHandleLocation(handleNE).asIntArray();
+-		x[0] = p[0]; y[0] = p[1];
+-		p = getVHandleLocation(handleSE).asIntArray();
+-		x[1] = p[0]; y[1] = p[1];
+-		p = getVHandleLocation(handleSW).asIntArray();
+-		x[2] = p[0]; y[2] = p[1];
+-		p = getVHandleLocation(handleNW).asIntArray();
+-		x[3] = p[0]; y[3] = p[1];
+-		
+-		Polygon pol = new Polygon(x, y, 4);
+-		return pol;
++	protected Shape getFillShape(float sw) {
++		int x = getVLeft();
++		int y = getVTop();
++		int w = getVWidth();
++		int h = getVHeight();
++		int cx = getVCenterX();
++		int cy = getVCenterY();
++
++		Shape s = new Rectangle2D.Double(x, y, w + sw, h + sw);
++		AffineTransform t = new AffineTransform();
++		t.rotate(gdata.getRotation(), cx, cy);
++		return s;
+ 	}
+ 	
+ 	public void gmmlObjectModified(PathwayEvent e) {		
+Index: trunk/src/swt/org/pathvisio/util/swt/SwtUtils.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/util/swt/SwtUtils.java	(revision 980)
++++ trunk/src/swt/org/pathvisio/util/swt/SwtUtils.java	(revision 981)
+@@ -271,8 +271,8 @@
+ 	
+ 	public static java.awt.Font fontData2awtFont(FontData fd) {
+ 		int style = java.awt.Font.PLAIN;
+-		if((fd.style & SWT.BOLD) != 0) style |= java.awt.Font.BOLD;
+-		if((fd.style & SWT.ITALIC) != 0) style |= java.awt.Font.ITALIC;
++		if((fd.getStyle() & SWT.BOLD) != 0) style |= java.awt.Font.BOLD;
++		if((fd.getStyle() & SWT.ITALIC) != 0) style |= java.awt.Font.ITALIC;
+ 		return new java.awt.Font(fd.getName(), fd.getHeight(), style);		
+ 	}
+ 	

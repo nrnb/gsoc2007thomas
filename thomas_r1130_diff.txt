@@ -1,0 +1,700 @@
+Index: trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WebstartMain.java
+===================================================================
+--- trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WebstartMain.java	(revision 1129)
++++ trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WebstartMain.java	(revision 1130)
+@@ -38,6 +38,8 @@
+ 		SwtEngine.setCurrent(new SwtEngine());
+ 		Engine.setCurrent(new Engine());
+ 		
++		GuiMain.initiate();
++		
+ 		wiki = new WikiPathways(uiHandler);
+ 		window = new MainWindowWikipathways(wiki);
+ 		SwtEngine.getCurrent().setWindow(window);
+@@ -141,7 +143,6 @@
+ 	
+ 	public static void main(String[] args) {
+ 		System.out.println("args: " + args.length);
+-		GuiMain.initiate();
+ 		WebstartMain main = new WebstartMain();
+ 		main.args = args;
+ 		main.createAndShowGui();
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1129)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1130)
+@@ -16,6 +16,8 @@
+ //
+ package org.pathvisio.gui.wikipathways;
+ 
++import java.net.URL;
++
+ import javax.swing.JApplet;
+ import javax.swing.JOptionPane;
+ import javax.swing.SwingUtilities;
+@@ -32,6 +34,7 @@
+ import org.pathvisio.wikipathways.Parameter;
+ import org.pathvisio.wikipathways.UserInterfaceHandler;
+ import org.pathvisio.wikipathways.WikiPathways;
++import org.pathvisio.wikipathways.WikiPathwaysEngine;
+ 
+ public class AppletMain extends JApplet {	
+ 	private static final long serialVersionUID = 1L;
+@@ -69,8 +72,14 @@
+ 		final RunnableWithProgress r = new RunnableWithProgress() {
+ 			public Object excecuteCode() {				
+ 				GuiInit.init();
+-												
+ 				parseArguments();
++
++				try {
++					WikiPathwaysEngine.registerXmlRpcExporters(
++							new URL(wiki.getRpcURL()), Engine.getCurrent());							
++				} catch(Exception e) {
++					Logger.log.error("Unable to register xml-rpc exporters", e);
++				}
+ 								
+ 				try {
+ 					wiki.init(SwingEngine.getCurrent().createWrapper(), 
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java	(revision 1129)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java	(revision 1130)
+@@ -17,8 +17,11 @@
+ package org.pathvisio.wikipathways;
+ 
+ import java.io.File;
++import java.net.URL;
+ 
++import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.model.ImageExporter;
+ import org.pathvisio.model.PropertyType;
+ import org.pathvisio.preferences.GlobalPreference;
+ 
+@@ -50,4 +53,13 @@
+ 		}
+ 		return DIR_APPLICATION;
+ 	}
++	
++	public static void registerXmlRpcExporters(URL rpcUrl, Engine engine) {
++		engine.addPathwayExporter(new WikiPathwaysExporter(rpcUrl, ImageExporter.TYPE_PDF));
++		engine.addPathwayExporter(new WikiPathwaysExporter(rpcUrl, ImageExporter.TYPE_PNG));
++		engine.addPathwayExporter(new WikiPathwaysExporter(rpcUrl, ImageExporter.TYPE_SVG));
++		engine.addPathwayExporter(new WikiPathwaysExporter(rpcUrl, ImageExporter.TYPE_TIFF));
++		engine.addPathwayExporter(new WikiPathwaysExporter(rpcUrl, ImageExporter.TYPE_PDF));
++		engine.addPathwayExporter(new WikiPathwaysExporter(rpcUrl, WikiPathwaysExporter.TYPE_MAPP));
++	}
+ }
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysExporter.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysExporter.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysExporter.java	(revision 1130)
+@@ -0,0 +1,62 @@
++package org.pathvisio.wikipathways;
++
++import java.io.ByteArrayOutputStream;
++import java.io.File;
++import java.io.FileOutputStream;
++import java.net.URL;
++
++import org.apache.commons.codec.binary.Base64;
++import org.apache.xmlrpc.client.XmlRpcClient;
++import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
++import org.apache.xmlrpc.client.XmlRpcSunHttpTransportFactory;
++import org.apache.xmlrpc.client.XmlRpcTransportFactory;
++import org.jdom.Document;
++import org.jdom.output.XMLOutputter;
++import org.pathvisio.model.ConverterException;
++import org.pathvisio.model.GpmlFormat;
++import org.pathvisio.model.ImageExporter;
++import org.pathvisio.model.Pathway;
++
++public class WikiPathwaysExporter extends ImageExporter {
++	public final static String TYPE_MAPP = "mapp";
++	
++	URL rpcUrl;
++	
++	public WikiPathwaysExporter(URL rpcUrl, String type) {
++		super(type);
++		this.rpcUrl = rpcUrl;
++	}
++
++
++	public void doExport(File file, Pathway pathway) throws ConverterException {
++		XmlRpcClientConfigImpl config = new XmlRpcClientConfigImpl();
++		config.setServerURL(rpcUrl);
++
++		XmlRpcClient client = new XmlRpcClient();
++		XmlRpcTransportFactory ctf = new XmlRpcSunHttpTransportFactory(client);
++		client.setTransportFactory(ctf);
++		client.setConfig(config);
++
++		try {
++			Document doc = GpmlFormat.createJdom(pathway);
++			XMLOutputter outputter = new XMLOutputter();
++			ByteArrayOutputStream out = new ByteArrayOutputStream();
++			outputter.output(doc, out);
++
++			byte[] data = out.toByteArray();
++			byte[] data64 = Base64.encodeBase64(data);
++
++			Object[] params = new Object[]{ data64, getDefaultExtension() };
++
++			byte[] converted64 = ((String)client.execute("WikiPathways.convertPathway", params)).getBytes();
++			Base64.decodeBase64(converted64);
++			byte[] converted = Base64.decodeBase64(converted64);
++			
++			FileOutputStream fout = new FileOutputStream(file);
++			fout.write(converted);
++			fout.close();
++		} catch(Exception e) {
++			throw new ConverterException(e);
++		}
++	}
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/ImporterExporterFileFilter.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/ImporterExporterFileFilter.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/ImporterExporterFileFilter.java	(revision 1130)
+@@ -0,0 +1,53 @@
++package org.pathvisio.gui.swing;
++
++import java.io.File;
++import javax.swing.filechooser.FileFilter;
++
++import org.pathvisio.model.PathwayExporter;
++import org.pathvisio.model.PathwayImporter;
++
++public class ImporterExporterFileFilter extends FileFilter {
++	String[] exts;
++	String name;
++	
++	public ImporterExporterFileFilter(PathwayImporter imp) {
++		exts = imp.getExtensions();
++		name = imp.getName();
++	}
++	
++	public ImporterExporterFileFilter(PathwayExporter exp) {
++		exts = exp.getExtensions();
++		name = exp.getName();
++	}
++	
++	public String getDefaultExtension() {
++		return exts[0];
++	}
++	
++	public boolean accept(File f) {
++		if(f.isDirectory()) return true;
++
++		String fn = f.toString();
++		int i = fn.lastIndexOf('.');
++		if(i > 0) {
++			String ext = fn.substring(i + 1);
++			for(String impExt : exts) {
++				if(impExt.equalsIgnoreCase(ext)) {
++					return true;
++				}
++			}
++		}
++		return false;
++	}
++	
++	public String getDescription() {
++		StringBuilder extstr = new StringBuilder();
++		for(String e : exts) {
++			extstr.append(".");
++			extstr.append(e);
++			extstr.append(", ");
++		}
++		String str = extstr.substring(0, extstr.length() - 2);
++		return name + " (" + str + ")";
++	}
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java	(revision 1129)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java	(revision 1130)
+@@ -108,63 +108,15 @@
+ 	}
+ 	
+ 	public static class ImportAction extends AbstractAction {
+-		MainPanel mainPanel;
+-		
+-		public ImportAction(MainPanel parent) {
++		public ImportAction() {
+ 			super("Import", new ImageIcon(IMG_IMPORT));
+-			mainPanel = parent;
+ 			putValue(Action.SHORT_DESCRIPTION, "Import pathway");
+ 			putValue(Action.LONG_DESCRIPTION, "Import a pathway from various file formats");
+ 			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_M, ActionEvent.CTRL_MASK));
+ 		}
+ 		
+ 		public void actionPerformed(ActionEvent e) {
+-				final Component component = (Component)e.getSource();
+-				//Open file dialog
+-				JFileChooser jfc = new JFileChooser();
+-				jfc.setAcceptAllFileFilterUsed(false);
+-				jfc.setDialogTitle("Import pathway");
+-				jfc.setDialogType(JFileChooser.OPEN_DIALOG);
+-				
+-				for(final PathwayImporter imp : Engine.getCurrent().getPathwayImporters().values()) {
+-					FileFilter ff = new FileFilter() {
+-						public boolean accept(File f) {
+-							if(f.isDirectory()) return true;
+-							
+-							String fn = f.toString();
+-							int i = fn.lastIndexOf('.');
+-							if(i > 0) {
+-								String ext = fn.substring(i + 1);
+-								for(String impExt : imp.getExtensions()) {
+-									if(impExt.equalsIgnoreCase(ext)) {
+-										return true;
+-									}
+-								}
+-							}
+-							return false;
+-						}
+-
+-						public String getDescription() {
+-							StringBuilder exts = new StringBuilder();
+-							for(String e : imp.getExtensions()) {
+-								exts.append(".");
+-								exts.append(e);
+-								exts.append(", ");
+-							}
+-							String str = exts.substring(0, exts.length() - 2);
+-							return imp.getName() + " (" + str + ")";
+-						}
+-					};
+-					jfc.addChoosableFileFilter(ff);
+-				}
+-
+-				int status = jfc.showDialog(component, "Import");
+-				if(status == JFileChooser.APPROVE_OPTION) {
+-					boolean editMode = Engine.getCurrent().hasVPathway() ? 
+-					Engine.getCurrent().getActiveVPathway().isEditMode() : false;
+-					SwingEngine.getCurrent().importPathway(jfc.getSelectedFile());
+-					Engine.getCurrent().getActiveVPathway().setEditMode(editMode);
+-				}
++				SwingEngine.getCurrent().importPathway();
+ 		}
+ 	}
+ 	
+@@ -177,7 +129,7 @@
+ 		}
+ 		
+ 		public void actionPerformed(ActionEvent e) {
+-			//TODO
++			SwingEngine.getCurrent().exportPathway();
+ 		}
+ 	}
+ 	
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1129)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1130)
+@@ -46,6 +46,7 @@
+ import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.gui.swing.actions.CommonActions.AlignAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.CopyAction;
++import org.pathvisio.gui.swing.actions.CommonActions.ExportAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.ImportAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.NewElementAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.PasteAction;
+@@ -130,8 +131,8 @@
+ 		JMenu pathwayMenu = new JMenu("Pathway");
+ 		pathwayMenu.add(new SaveAction());
+ 		pathwayMenu.add(new SaveAsAction());
+-		pathwayMenu.add(new ImportAction(this));
+-		//pathwayMenu.add(new ExportAction()); //TODO: implement
++		pathwayMenu.add(new ImportAction());
++		pathwayMenu.add(new ExportAction());
+ 
+ 		JMenu editMenu = new JMenu("Edit");
+ 		editMenu.add(new CopyAction());
+@@ -181,8 +182,8 @@
+ 		
+ 		addToToolbar(new SaveAction());
+ 		addToToolbar(new SaveAsAction());
+-		addToToolbar(new ImportAction(this));
+-		//addToToolbar(new ExportAction()); //TODO: implement
++		addToToolbar(new ImportAction());
++		addToToolbar(new ExportAction());
+ 		tb.addSeparator();
+ 		addToToolbar(new CopyAction(), TB_GROUP_HIDE_ON_EDIT);
+ 		addToToolbar(new PasteAction(), TB_GROUP_HIDE_ON_EDIT);
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1129)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1130)
+@@ -19,16 +19,23 @@
+ import java.awt.Component;
+ import java.io.File;
+ import java.net.URL;
++import java.util.concurrent.ExecutionException;
+ 
+ import javax.swing.JFileChooser;
+ import javax.swing.JOptionPane;
+ import javax.swing.filechooser.FileFilter;
+ 
++import org.jdesktop.swingworker.SwingWorker;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+ import org.pathvisio.debug.Logger;
++import org.pathvisio.gui.swing.progress.ProgressDialog;
++import org.pathvisio.gui.swing.progress.SwingProgressKeeper;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
++import org.pathvisio.model.PathwayExporter;
++import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.util.ProgressKeeper;
+ import org.pathvisio.view.VPathwayWrapper;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+@@ -74,14 +81,14 @@
+ 					"Please note that the Gpml format has changed as of March 2007. " +
+ 					"The standard pathway set can be re-downloaded from http://pathvisio.org " +
+ 					"Non-standard pathways need to be recreated or upgraded. " +
+-					"Please contact the authors at " + Globals.DEVELOPER_EMAIL + " if you need help with this.\n" +
+-					"\nSee error log for details", "Error", JOptionPane.ERROR_MESSAGE);
+-			Logger.log.error("Unable to open Gpml file", e);
++					"Please contact the authors at " + Globals.DEVELOPER_EMAIL + " if you need help with this.\n"
++					, "Error", JOptionPane.ERROR_MESSAGE);
++			Logger.log.error("Converter exception", e);
+ 		}
+ 		else
+ 		{
+ 			JOptionPane.showMessageDialog(c,
+-					message + "\n" + e.getClass() + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
++					message + "\nSee error log for details\n" + e.getClass(), "Error", JOptionPane.ERROR_MESSAGE);
+ 			Logger.log.error("Converter exception", e);
+ 		}
+ 	}
+@@ -90,26 +97,130 @@
+ 		 return new VPathwaySwing(getApplicationPanel().getScrollPane());
+ 	}
+ 	
+-	public void openPathway(URL url) {
++	public boolean openPathway(URL url) {
+ 		try {
+ 			Engine.getCurrent().openPathway(url, createWrapper());
++			return true;
+ 		} catch(ConverterException e) {
+ 			handleConverterException(e.getMessage(), null, e);
++			return false;
+ 		}
+ 	}
+ 	
+-	public void importPathway(File f) {
++	public boolean importPathway(final File f) {
++		final SwingProgressKeeper pk = new SwingProgressKeeper(ProgressKeeper.PROGRESS_UNKNOWN);
++		final ProgressDialog d = new ProgressDialog(JOptionPane.getFrameForComponent(getApplicationPanel()), 
++				"Importing pathway", pk, false, true);
++				
++		SwingWorker sw = new SwingWorker() {
++			protected Object doInBackground() throws Exception {
++				try {
++					Engine eng = Engine.getCurrent();
++					boolean editMode = eng.hasVPathway() ? eng.getActiveVPathway().isEditMode() : false;
++					eng.importPathway(f, createWrapper());
++					eng.getActiveVPathway().setEditMode(editMode);
++					return true;
++				} catch(ConverterException e) {
++					handleConverterException(e.getMessage(), null, e);
++					return false;
++				} finally {
++					pk.finished();
++				}
++			}
++		};
++		
++		sw.execute();
++		d.setVisible(true);
+ 		try {
+-			Engine.getCurrent().importPathway(f, createWrapper());
+-		} catch(ConverterException e) {
+-			handleConverterException(e.getMessage(), null, e);
++			return (Boolean)sw.get();
++		} catch (Exception e) {
++			Logger.log.error("Unable to import pathway", e);
++			return false;
+ 		}
++
+ 	}
+ 	
+ 	public void newPathway() {
+ 		Engine.getCurrent().newPathway(createWrapper());
+ 	}
+ 
++	public boolean exportPathway() {
++		//Open file dialog
++		JFileChooser jfc = new JFileChooser();
++		jfc.setAcceptAllFileFilterUsed(false);
++		jfc.setDialogTitle("Export pathway");
++		jfc.setDialogType(JFileChooser.SAVE_DIALOG);
++
++		for(final PathwayExporter exp : Engine.getCurrent().getPathwayExporters().values()) {
++			jfc.addChoosableFileFilter(new ImporterExporterFileFilter(exp));
++		}
++
++		int status = jfc.showDialog(getApplicationPanel(), "Export");
++		if(status == JFileChooser.APPROVE_OPTION) {	
++			File f = jfc.getSelectedFile();
++			ImporterExporterFileFilter ff = (ImporterExporterFileFilter)jfc.getFileFilter();
++			if(!f.toString().toUpperCase().endsWith(ff.getDefaultExtension().toUpperCase())) {
++				f = new File(f.toString() + "." + ff.getDefaultExtension());
++			}
++			return SwingEngine.getCurrent().exportPathway(f);
++
++		}
++		return false;
++	}
++	
++	public boolean exportPathway(final File f) {
++		final SwingProgressKeeper pk = new SwingProgressKeeper(ProgressKeeper.PROGRESS_UNKNOWN);
++		final ProgressDialog d = new ProgressDialog(JOptionPane.getFrameForComponent(getApplicationPanel()), 
++				"Exporting pathway", pk, false, true);
++				
++		SwingWorker sw = new SwingWorker() {
++			protected Object doInBackground() throws Exception {
++				try {
++					Engine.getCurrent().exportPathway(f);
++					return true;
++				} catch(ConverterException e) {
++					handleConverterException(e.getMessage(), null, e);
++					return false;
++				} finally {
++					pk.finished();
++				}
++			}
++		};
++		
++		sw.execute();
++		d.setVisible(true);
++		try {
++			return (Boolean)sw.get();
++		} catch (Exception e) {
++			Logger.log.error("Unable to export pathway", e);
++			return false;
++		}
++	}
++
++	public boolean importPathway() {
++		//Open file dialog
++		JFileChooser jfc = new JFileChooser();
++		jfc.setAcceptAllFileFilterUsed(false);
++		jfc.setDialogTitle("Import pathway");
++		jfc.setDialogType(JFileChooser.OPEN_DIALOG);
++
++		for(final PathwayImporter imp : Engine.getCurrent().getPathwayImporters().values()) {
++			jfc.addChoosableFileFilter(new ImporterExporterFileFilter(imp));
++		}
++
++		int status = jfc.showDialog(getApplicationPanel(), "Import");
++		if(status == JFileChooser.APPROVE_OPTION) {	
++			File f = jfc.getSelectedFile();
++			ImporterExporterFileFilter ff = (ImporterExporterFileFilter)jfc.getFileFilter();
++			if(!f.toString().toUpperCase().endsWith(ff.getDefaultExtension().toUpperCase())) {
++				f = new File(f.toString() + "." + ff.getDefaultExtension());
++			}
++			return SwingEngine.getCurrent().importPathway(f);
++
++		}
++		return false;
++	}
++
+ 	public boolean mayOverwrite(File f) {
+ 		boolean allow = true;
+ 		if(f.exists()) {
+@@ -119,7 +230,7 @@
+ 		}
+ 		return allow;
+ 	}
+-	
++
+ 	public boolean savePathwayAs() {
+ 		//Open file dialog
+ 		JFileChooser jfc = new JFileChooser();
+Index: trunk/src/core/org/pathvisio/model/ImageExporter.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/ImageExporter.java	(revision 1129)
++++ trunk/src/core/org/pathvisio/model/ImageExporter.java	(revision 1130)
+@@ -36,15 +36,15 @@
+ import org.w3c.dom.Document;
+ 
+ public class ImageExporter implements PathwayExporter {
+-	public static final int TYPE_PNG = 0;
+-	public static final int TYPE_TIFF = 1;
+-	public static final int TYPE_PDF = 2;
+-	public static final int TYPE_SVG = 3;
++	public static final String TYPE_PNG = "png";
++	public static final String TYPE_TIFF = "tiff";
++	public static final String TYPE_PDF = "pdf";
++	public static final String TYPE_SVG = "svg";
+ 	
+-	private int type;
++	private String type;
+ 	private String[] extensions;
+ 	
+-	public ImageExporter(int type) {
++	public ImageExporter(String type) {
+ 		this.type = type;
+ 	}
+ 	
+@@ -56,34 +56,11 @@
+ 	}
+ 	
+ 	public String getDefaultExtension() {
+-		switch(type) {
+-		case TYPE_PNG:
+-			return "png";
+-		case TYPE_TIFF:
+-			return "tiff";
+-		case TYPE_PDF:
+-			return "pdf";
+-		case TYPE_SVG:
+-			return "svg";
+-		default:
+-			return null;
+-		}
++		return type;
+ 	}
+ 
+ 	public String getName() {
+-		switch(type) {
+-		case TYPE_PNG:
+-			return "PNG";
+-		case TYPE_TIFF:
+-			return "TIFF";
+-		case TYPE_PDF:
+-			return "PDF";
+-		case TYPE_SVG:
+-			return "SVG";
+-		default:
+-			return null;
+-		}
+-		
++		return type.toUpperCase();
+ 	}
+ 	
+ 	public void doExport(File file, Pathway pathway) throws ConverterException {		
+@@ -99,10 +76,8 @@
+ 		SVGGraphics2D svgG2d = new SVGGraphics2D(svg);
+ 		svgG2d.setSVGCanvasSize(new Dimension((int)width, (int)height));
+ 		vPathway.draw(svgG2d);
+-		
+ 		Transcoder t = null;
+-		switch(type) {
+-		case TYPE_SVG:
++		if			(type.equals(TYPE_SVG)) {
+ 			try {
+ 				Writer out = new FileWriter(file);			
+ 				svgG2d.stream(out, true);
+@@ -112,13 +87,12 @@
+ 				throw new ConverterException(e);
+ 			}
+ 			return;
+-		case TYPE_PNG:
++		} else if	(type.equals(TYPE_PNG)) {
+ 			t = new PNGTranscoder();
+-			break;
+-		case TYPE_TIFF:
++		} else if	(type.equals(TYPE_TIFF)) {
+ 			t = new TIFFTranscoder();
+-			break;
+-		case TYPE_PDF: try {
++		} else if	(type.equals(TYPE_PDF)) {
++			try {
+                  Class pdfClass = Class.forName("org.apache.fop.svg.PDFTranscoder");
+                  t = (Transcoder)pdfClass.newInstance();
+              } catch(Exception e) {
+@@ -127,6 +101,7 @@
+ 		}
+ 		if(t == null) noExporterException();
+ 
++		svgG2d.getRoot(svg.getDocumentElement());
+ 		t.addTranscodingHint(ImageTranscoder.KEY_BACKGROUND_COLOR, java.awt.Color.WHITE);
+ 
+ 		try {
+Index: trunk/webstart/pathvisio_v2.jnlp
+===================================================================
+--- trunk/webstart/pathvisio_v2.jnlp	(revision 1129)
++++ trunk/webstart/pathvisio_v2.jnlp	(revision 1130)
+@@ -38,6 +38,8 @@
+ 		 <jar href="lib/batik/batik-xml.jar"/>
+ 		 <jar href="lib/batik/pdf-transcoder.jar"/>
+ 		 <jar href="lib/batik/xml-apis.jar"/>
++		 <jar href="lib/batik/xml-apis-ext.jar"/>
++	     <jar href="lib/batik/batik-anim.jar"/>
+ 	</resources>
+ 	<resources os="Windows">
+ 		<jar href="lib/swt-win32-lib/swt.jar"/>
+Index: trunk/webstart/pathvisio_v1.jnlp
+===================================================================
+--- trunk/webstart/pathvisio_v1.jnlp	(revision 1129)
++++ trunk/webstart/pathvisio_v1.jnlp	(revision 1130)
+@@ -35,6 +35,8 @@
+ 		 <jar href="lib/batik/batik-xml.jar"/>
+ 		 <jar href="lib/batik/pdf-transcoder.jar"/>
+ 		 <jar href="lib/batik/xml-apis.jar"/>
++		 <jar href="lib/batik/xml-apis-ext.jar"/>
++	     <jar href="lib/batik/batik-anim.jar"/>
+ 	</resources>
+ 	<resources os="Windows">
+ 		<jar href="lib/swt-win32-lib/swt.jar"/>
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1129)
++++ trunk/build.xml	(revision 1130)
+@@ -27,7 +27,7 @@
+ 	<property name="exec.inno.setup" value="iscc"/>
+ 	
+ 	<property name="wikipathways.class.path" value="lib/jdom.jar lib/resources.jar lib/derbyclient.jar lib/swing-worker-1.1.jar lib/apache/commons-codec-1.3.jar lib/apache/commons-httpclient-3.0.1.jar lib/apache/commons-logging-1.1.jar lib/apache/ws-commons-util-1.0.1.jar lib/apache/xmlrpc-client-3.0.jar lib/apache/xmlrpc-common-3.0.jar"/>
+-	<property name="jar.class.path" value="${wikipathways.class.path} lib/derby.jar lib/R-resources.jar lib/swt-win32-lib/swt.jar lib/swt-linux-lib/swt.jar lib/org.eclipse.core.commands.jar lib/org.eclipse.equinox.common.jar lib/org.eclipse.jface.jar lib/hsqldb.jar lib/JRI.jar lib/BrowserLauncher.jar lib/plugins.jar lib/batik/batik-awt-util.jar lib/batik/batik-bridge.jar lib/batik/batik-css.jar lib/batik/batik-dom.jar lib/batik/batik-ext.jar lib/batik/batik-extension.jar lib/batik/batik-gvt.jar lib/batik/batik-parser.jar lib/batik/batik-script.jar lib/batik/batik-svg-dom.jar lib/batik/batik-svggen.jar lib/batik/batik-transcoder.jar lib/batik/batik-util.jar lib/batik/batik-xml.jar lib/batik/pdf-transcoder.jar lib/batik/xml-apis.jar"/>
++	<property name="jar.class.path" value="${wikipathways.class.path} lib/derby.jar lib/R-resources.jar lib/swt-win32-lib/swt.jar lib/swt-linux-lib/swt.jar lib/org.eclipse.core.commands.jar lib/org.eclipse.equinox.common.jar lib/org.eclipse.jface.jar lib/hsqldb.jar lib/JRI.jar lib/BrowserLauncher.jar lib/plugins.jar lib/batik/batik-awt-util.jar lib/batik/batik-bridge.jar lib/batik/batik-css.jar lib/batik/batik-dom.jar lib/batik/batik-ext.jar lib/batik/batik-extension.jar lib/batik/batik-gvt.jar lib/batik/batik-parser.jar lib/batik/batik-anim.jar lib/batik/xml-apis-ext.jar lib/batik/batik-script.jar lib/batik/batik-svg-dom.jar lib/batik/batik-svggen.jar lib/batik/batik-transcoder.jar lib/batik/batik-util.jar lib/batik/batik-xml.jar lib/batik/pdf-transcoder.jar lib/batik/xml-apis.jar"/>
+ 	<path id="project.v1.class.path">
+ 		<pathelement location="${build.v1.dir}"/>
+ 		<fileset dir="lib">
+@@ -139,7 +139,7 @@
+ 			<classpath refid="project.wikipathways.class.path"/>
+ 		</javac>
+ 		<!-- compile swt webstart version -->
+-		<javac srcdir="." debug="true"
++		<javac srcdir="."
+ 			includes="src/wikipathways/**,src/wikipathways-swt/**,src/v1/**,src/core/**,src/swt/**,src/swing/**"
+ 			excludes="src/v1/org/pathvisio/Globals.java"
+ 			destdir="${build.wikipathways.swt.dir}">
+Index: trunk/lib/batik/batik-anim.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/batik/batik-anim.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/lib/batik/xml-apis-ext.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/batik/xml-apis-ext.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/wikipathways/wpi/bin/pathvisio_wikipathways.jnlp
+===================================================================
+--- trunk/wikipathways/wpi/bin/pathvisio_wikipathways.jnlp	(revision 1129)
++++ trunk/wikipathways/wpi/bin/pathvisio_wikipathways.jnlp	(revision 1130)
+@@ -35,6 +35,8 @@
+ 		 <jar href="lib/batik/batik-util.jar"/>
+ 		 <jar href="lib/batik/batik-xml.jar"/>
+ 		 <jar href="lib/batik/pdf-transcoder.jar"/>
++         <jar href="lib/batik/xml-apis-ext.jar"/>
++	     <jar href="lib/batik/batik-anim.jar"/>
+ 		 <jar href="lib/batik/xml-apis.jar"/>
+ 		 <jar href="lib/apache/commons-codec-1.3.jar"/>
+ 		 <jar href="lib/apache/commons-httpclient-3.0.1.jar"/>

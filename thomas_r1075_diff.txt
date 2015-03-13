@@ -1,0 +1,83 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1074)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1075)
+@@ -6,10 +6,12 @@
+ import javax.swing.AbstractAction;
+ import javax.swing.Action;
+ import javax.swing.ImageIcon;
++import javax.swing.JOptionPane;
+ import javax.swing.KeyStroke;
+ 
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.debug.Logger;
+ import org.pathvisio.wikipathways.WikiPathways;
+ 
+ public class Actions {
+@@ -32,10 +34,14 @@
+ 			putValue(Action.SHORT_DESCRIPTION, descr);
+ 		}
+ 		public void actionPerformed(ActionEvent e) {
+-			System.out.println("DEBUG: exit pressed, " + doSave);
+ 			boolean saved = true;
+-			if(doSave) {
+-				saved = wiki.saveUI();
++			try {
++				if(doSave) {
++					saved = wiki.saveUI();
++				}
++			} catch(Exception ex) {
++				Logger.log.error("Unable to save pathway", ex);
++				JOptionPane.showMessageDialog(null, "Unable to save pathway:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+ 			}
+ 			if(saved) {
+ 				applet.endWithMessage("Please wait while you'll be redirected to the pathway page");
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1074)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1075)
+@@ -55,17 +55,16 @@
+ 		SwingEngine.setCurrent(new SwingEngine());
+ 		Engine.setCurrent(new Engine());
+ 		
+-		System.out.println("Engines: " + Engine.getCurrent().hashCode() + " | " + SwingEngine.getCurrent().hashCode());
+ 		System.out.println("INIT CALLED....");
+ 		Logger.log.trace("INIT CALLED....");
+ 				
+ 		uiHandler = new SwingUserInterfaceHandler(JOptionPane.getFrameForComponent(this));
++		wiki = new WikiPathways(uiHandler);
+ 		
+ 		try {
+ 			SwingUtilities.invokeAndWait(new Runnable() {
+ 				public void run() {
+ 					mainPanel = SwingEngine.getCurrent().getApplicationPanel();
+-					System.out.println("MainPanel: " + mainPanel.hashCode());
+ 					Action saveAction = new Actions.ExitAction(AppletMain.this, wiki, true);
+ 					Action discardAction = new Actions.ExitAction(AppletMain.this, wiki, false);
+ 					
+@@ -93,7 +92,6 @@
+ 			public Object excecuteCode() {				
+ 				GuiInit.init();
+ 												
+-				wiki = new WikiPathways(uiHandler);
+ 				parseArguments();
+ 				loadCookies();
+ 								
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1074)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1075)
+@@ -148,7 +148,11 @@
+ 			uiHandler.showError("Unable to save the pathway", "Unable to save the pathway, you are not logged in");
+ 			return false;
+ 		}
+-		if(vPathway != null && vPathway.getGmmlData().hasChanged()) {
++		if(!vPathway.getGmmlData().hasChanged()) {
++			uiHandler.showInfo("Save pathway", "You didn't make any changes to the pathway");
++			return true;
++		}
++		if(vPathway != null) {
+ 			final String description = uiHandler.askInput("Specify description", "Give a description of your changes");
+ 			Logger.log.trace("Save description: " + description);
+ 			if(description != null) {

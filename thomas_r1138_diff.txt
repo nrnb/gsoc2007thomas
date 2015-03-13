@@ -1,0 +1,466 @@
+Index: trunk/src/wikipathways/org/pathvisio/data/DBConnectorDerbyServer.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/data/DBConnectorDerbyServer.java	(revision 1137)
++++ trunk/src/wikipathways/org/pathvisio/data/DBConnectorDerbyServer.java	(revision 1138)
+@@ -23,6 +23,7 @@
+ 
+ import javax.naming.OperationNotSupportedException;
+ 
++import org.pathvisio.debug.Logger;
+ import org.pathvisio.debug.StopWatch;
+ 
+ public class DBConnectorDerbyServer extends AbstractDBConnector {
+@@ -45,7 +46,9 @@
+ 		timer.start();
+ 		
+ 		String url = "jdbc:derby://" + host + ":" + port + "/" + dbName;
++		Logger.log.trace("Connecting to database: " + url);
+ 		Connection con = DriverManager.getConnection(url);
++		Logger.log.trace("Connected");
+ 		return con;
+ 	}
+ 
+Index: trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1137)
++++ trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1138)
+@@ -8,7 +8,9 @@
+ import org.pathvisio.gui.swing.actions.CommonActions.AddLiteratureAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.EditLiteratureAction;
+ import org.pathvisio.gui.swing.actions.CommonActions.PropertiesAction;
++import org.pathvisio.view.Group;
+ import org.pathvisio.view.Handle;
++import org.pathvisio.view.InfoBox;
+ import org.pathvisio.view.MouseEvent;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayElement;
+@@ -20,21 +22,32 @@
+ public class PathwayElementMenuListener implements VPathwayListener {    
+ 	private static JPopupMenu getMenuInstance(VPathwayElement e) {
+ 		if(e instanceof Handle) e = ((Handle)e).getParent();
++		
+ 		VPathway vp = e.getDrawing();
+ 		VPathwaySwing component = (VPathwaySwing)vp.getWrapper();
+-		JPopupMenu menu = new JPopupMenu();
+ 		ViewActions vActions = vp.getViewActions();
+-		menu.add(vActions.delete);
+ 		
++		JPopupMenu menu = new JPopupMenu();
++
++		//Don't show delete if the element cannot be deleted
++		if(!(e instanceof InfoBox)) {
++			menu.add(vActions.delete);
++		}
++				
+ 		JMenu selectMenu = new JMenu("Select");
+ 		selectMenu.add(vActions.selectAll);
+ 		selectMenu.add(vActions.selectDataNodes);
+ 		menu.add(selectMenu);
+ 		menu.addSeparator();
+-		JMenu groupMenu = new JMenu("Group");
+-		groupMenu.add(vActions.toggleGroup);
+-		menu.add(groupMenu);
+-		menu.addSeparator();
++		
++		//Only show group/ungroup when multiple objects or a group are selected
++		if((e instanceof Group) || vp.getSelectedGraphics().size() > 1) {
++			JMenu groupMenu = new JMenu("Group");
++			groupMenu.add(vActions.toggleGroup);
++			menu.add(groupMenu);
++			menu.addSeparator();
++		}
++		
+ 		JMenu litMenu = new JMenu("Literature");
+ 		litMenu.add(new AddLiteratureAction(component, e));
+ 		litMenu.add(new EditLiteratureAction(component, e));
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/OkCancelDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/OkCancelDialog.java	(revision 1137)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/OkCancelDialog.java	(revision 1138)
+@@ -49,7 +49,7 @@
+ 		contentPane.add(dialogPane, BorderLayout.CENTER);
+ 		contentPane.add(buttonPane, BorderLayout.PAGE_END);
+ 		pack();
+-		setLocationRelativeTo(locationComp);
++		setLocationRelativeTo(null); //Center on screen
+ 	}
+ 	
+ 	public OkCancelDialog(Frame frame, String title, Component locationComp, boolean modal) {
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1137)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1138)
+@@ -62,8 +62,7 @@
+ 		panels = new HashMap<String, PathwayElementPanel>();
+ 		createTabs();
+ 		setInput(e);
+-		setMinimumSize(new Dimension(200, 200));
+-		pack();
++		setSize(450, 300);
+ 	}
+ 
+ 	protected Component createDialogPane() {
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1137)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1138)
+@@ -148,6 +148,8 @@
+ 				return authors.replaceAll(PublicationXRef.AUTHOR_SEP + " ", PublicationXRef.AUTHOR_SEP + "\n");
+ 			}
+ 			void highlight(StyledDocument doc) {
++				SimpleAttributeSet clean = new SimpleAttributeSet();
++				doc.setCharacterAttributes(0, doc.getLength(), clean, true);
+ 				SimpleAttributeSet sep = new SimpleAttributeSet();
+ 				sep.addAttribute(StyleConstants.ColorConstants.Foreground, Color.RED);
+ 				sep.addAttribute(StyleConstants.CharacterConstants.Bold, Boolean.TRUE);
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/LitReferencePanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/LitReferencePanel.java	(revision 1137)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/LitReferencePanel.java	(revision 1138)
+@@ -1,6 +1,8 @@
+ package org.pathvisio.gui.swing.panels;
+ 
+ import java.awt.BorderLayout;
++import java.awt.Component;
++import java.awt.Dimension;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+ import java.awt.event.MouseAdapter;
+@@ -11,9 +13,12 @@
+ import javax.swing.BorderFactory;
+ import javax.swing.BoxLayout;
+ import javax.swing.JButton;
+-import javax.swing.JList;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
++import javax.swing.JTable;
++import javax.swing.JTextArea;
++import javax.swing.table.DefaultTableModel;
++import javax.swing.table.TableCellRenderer;
+ 
+ import org.pathvisio.biopax.BiopaxElementManager;
+ import org.pathvisio.biopax.reflect.PublicationXRef;
+@@ -28,21 +33,46 @@
+ 	BiopaxElementManager biopax;
+ 	List<PublicationXRef> xrefs;
+ 	
+-	JList references;
++	JTable refTable;
++	DefaultTableModel references;
+ 	
+ 	public LitReferencePanel() {
+ 		setLayout(new BorderLayout(5, 5));
+ 		xrefs = new ArrayList<PublicationXRef>();
+ 		
+-		references = new JList();
+-		references.setBorder(BorderFactory.createTitledBorder("References"));
+-		references.addMouseListener(new MouseAdapter() {
++		references = new DefaultTableModel() {
++			public boolean isCellEditable(int row, int column) {
++				return false;
++			}
++		};
++
++		final WrapCellRenderer cr = new WrapCellRenderer();
++		refTable = new JTable(references) {
++			public TableCellRenderer getCellRenderer(int row, int column) {
++				return cr;
++			}
++		};
++		
++		refTable.setTableHeader(null);
++		refTable.setIntercellSpacing(new Dimension(0, 5));
++
++		//Table doesn't adjust to border
++		//See bug: 4222732 at bugs.sun.com
++		//refTable.setBorder(BorderFactory.createTitledBorder("References"));
++		//Workaround, create a JPanel with border, add table to JPanel
++		JPanel tablePanel = new JPanel();
++		tablePanel.setLayout(new BorderLayout());
++		tablePanel.add(new JScrollPane(refTable), BorderLayout.CENTER);
++		tablePanel.setBorder(BorderFactory.createTitledBorder("References"));
++		refTable.addMouseListener(new MouseAdapter() {
+ 			public void mouseClicked(MouseEvent e) {
+ 				if(e.getClickCount() == 2) {
+ 					editPressed();
+ 				}
+ 			}
+ 		});
++
++		
+ 		JPanel buttons = new JPanel();
+ 		buttons.setLayout(new BoxLayout(buttons, BoxLayout.PAGE_AXIS));
+ 		
+@@ -55,7 +85,8 @@
+ 		buttons.add(add);
+ 		buttons.add(remove);
+ 		buttons.add(edit);
+-		add(new JScrollPane(references), BorderLayout.CENTER);
++
++		add(tablePanel, BorderLayout.CENTER);
+ 		add(buttons, BorderLayout.LINE_END);
+ 	}
+ 	
+@@ -68,7 +99,11 @@
+ 	
+ 	public void refresh() {
+ 		xrefs = biopax.getPublicationXRefs();
+-		references.setListData(xrefs.toArray());
++		Object[][] data = new Object[xrefs.size()][1];
++		for(int i = 0; i < xrefs.size(); i++) {
++			data[i][0] = xrefs.get(i);
++		}
++		references.setDataVector(data, new Object[] { "" });
+ 	}
+ 
+ 	public void actionPerformed(ActionEvent e) {
+@@ -82,16 +117,20 @@
+ 	}
+ 	
+ 	private void editPressed() {
+-		PublicationXRef xref = (PublicationXRef)references.getSelectedValue();
+-		if(xref != null) {
+-			PublicationXRefDialog d = new PublicationXRefDialog(xref, null, this, false);
+-			d.setVisible(true);
++		int r = refTable.getSelectedRow();
++		if(r > -1) {
++			PublicationXRef xref = (PublicationXRef)references.getValueAt(r, 0);
++			if(xref != null) {
++				PublicationXRefDialog d = new PublicationXRefDialog(xref, null, this, false);
++				d.setVisible(true);
++			}
++			refresh();
+ 		}
+-		refresh();
+ 	}
+ 
+ 	private void removePressed() {
+-		for(Object o : references.getSelectedValues()) {
++		for(int r : refTable.getSelectedRows()) {
++			Object o = references.getValueAt(r, 0);
+ 			biopax.removeElementReference((PublicationXRef)o);
+ 		}
+ 		refresh();
+@@ -107,4 +146,23 @@
+ 			refresh();			
+ 		}
+ 	}
++	
++	class WrapCellRenderer extends JTextArea implements TableCellRenderer {
++	     public WrapCellRenderer() {
++	       setLineWrap(true);
++	       setWrapStyleWord(true);
++	    }
++	 
++	   public Component getTableCellRendererComponent(JTable table, Object
++	           value, boolean isSelected, boolean hasFocus, int row, int column) {
++	       setText(value == null ? "" : value.toString());
++	       setSize(table.getColumnModel().getColumn(column).getWidth(),
++	               getPreferredSize().height);
++	       if (table.getRowHeight(row) != getPreferredSize().height) {
++	               table.setRowHeight(row, getPreferredSize().height + table.getIntercellSpacing().height);
++	       }
++	       setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
++	       return this;
++	   }
++	} 
+ }
+Index: trunk/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1137)
++++ trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1138)
+@@ -808,12 +808,7 @@
+ 		o.setMBoardWidth (Double.parseDouble(getAttribute("Pathway.Graphics", "BoardWidth", g)));
+ 		o.setMBoardHeight (Double.parseDouble(getAttribute("Pathway.Graphics", "BoardHeight", g)));
+ 		o.setWindowWidth (Double.parseDouble(getAttribute("Pathway.Graphics", "WindowWidth", g)));
+-		o.setWindowHeight (Double.parseDouble(getAttribute("Pathway.Graphics", "WindowHeight", g)));
+-				
+-		for (Object f : e.getChildren("Comment", e.getNamespace()))
+-		{
+-			o.addComment(((Element)f).getText(), getAttribute("Comment", "Source", (Element)f));
+-		}		
++		o.setWindowHeight (Double.parseDouble(getAttribute("Pathway.Graphics", "WindowHeight", g)));	
+ 	}
+ 		
+ 	private static void mapBiopax(PathwayElement o, Element e) throws ConverterException
+Index: trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java
+===================================================================
+--- trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java	(revision 1137)
++++ trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java	(revision 1138)
+@@ -99,7 +99,7 @@
+ 		clearAuthors();
+ 		String[] authors = parseAuthorString(authorString);
+ 		for(String a : authors) {
+-			addAuthor(a);
++			addAuthor(a.trim());
+ 		}
+ 	}
+ 		
+@@ -134,7 +134,7 @@
+ 		String pmid = getPubmedId();
+ 		String authors = getAuthorString();
+ 		return 	(title != null && title.length() > 0 ? title + "; " : "") + 
+-				(pmid != null && pmid.length() > 0 ? authors + "; ": "") + 
+-				(authors != null && authors.length() > 0 ? " pmid=" + pmid : "");
++				(authors != null && authors.length() > 0 ? authors + "; ": "") + 
++				(pmid != null && pmid.length() > 0 ? " pmid=" + pmid : "");
+ 	}
+ }
+Index: trunk/src/core/org/pathvisio/data/PubMedQuery.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/PubMedQuery.java	(revision 1137)
++++ trunk/src/core/org/pathvisio/data/PubMedQuery.java	(revision 1138)
+@@ -46,34 +46,37 @@
+ 	String parsingId;
+ 	String parsingName;
+ 	String parsingElement;
++	String parsingValue;
+ 	public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+ 		parsingElement = localName;
+ 		parsingName = attributes.getValue(NAME);
++		parsingValue = "";
+ 	}
+ 	
+ 	public void characters(char[] ch, int start, int length) throws SAXException {		
+-		String value = new String(ch, start, length).trim();
+-		if(value.length() == 0) return;
+-		
++		parsingValue += new String(ch, start, length).trim();
++	}
++	
++	public void endElement(String uri, String localName, String qName) throws SAXException {
+ 		if(parsingElement == ID) {
+-			parsingId = value;
++			parsingId = parsingValue;
+ 		}
+ 		if		(TITLE.equalsIgnoreCase(parsingName)) {
+ //			System.out.println("Parsing title: " + value);
+-			result.setTitle(value);
++			result.setTitle(parsingValue);
+ 		}
+ 		else if (PUBDATE.equalsIgnoreCase(parsingName)) {
+ //			System.out.println("Parsing pubdate: " + value);
+-			if(value.length() >= 4) value = value.substring(0, 4);
+-			result.setYear(value);
++			if(parsingValue.length() >= 4) parsingValue = parsingValue.substring(0, 4);
++			result.setYear(parsingValue);
+ 		}
+ 		else if (SOURCE.equalsIgnoreCase(parsingName)) {
+ //			System.out.println("Parsing source: " + value);
+-			result.setSource(value);
++			result.setSource(parsingValue);
+ 		}
+ 		else if (AUTHOR.equalsIgnoreCase(parsingName)) {
+ //			System.out.println("Parsing author: " + value);
+-			result.addAuthor(value);
++			result.addAuthor(parsingValue);
+ 		}
+ 	}
+ 	
+Index: trunk/src/core/org/pathvisio/data/Gdb.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/Gdb.java	(revision 1137)
++++ trunk/src/core/org/pathvisio/data/Gdb.java	(revision 1138)
+@@ -529,11 +529,13 @@
+ 	{
+ 		if(dbName == null) dbName = getDbName();
+ 		
++		Logger.log.trace("Opening connection to Gene Database " + dbName);
+ 		DBConnector connector = getDBConnector();
+ 		con = connector.createConnection(dbName);
+ 		con.setReadOnly(true);
+ //		Utils.checkDbVersion(con, COMPAT_VERSION); NOT FOR NOW
+ 		setCurrentGdb(dbName);
++		Logger.log.trace("Current Gene Database: " + dbName);
+ 	}
+ 	
+ 	/**
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1137)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1138)
+@@ -1250,8 +1250,8 @@
+ 	
+ 	public static final int DRAW_ORDER_HANDLE = -1;
+ 
+-	public static final int DRAW_ORDER_GROUP = 0;
+-	public static final int DRAW_ORDER_SELECTIONBOX = 1;
++	public static final int DRAW_ORDER_SELECTIONBOX = 0;
++	public static final int DRAW_ORDER_GROUP = 1;
+ 	public static final int DRAW_ORDER_SELECTED = 2;
+ 	public static final int DRAW_ORDER_GENEPRODUCT = 3;
+ 	public static final int DRAW_ORDER_LABEL = 4;
+@@ -1307,6 +1307,7 @@
+ 				selection.addToSelection(vpe);
+ 			}
+ 		}
++		selection.fitToSelection();
+ 		redrawDirtyRect();
+ 	}
+ 	
+@@ -1325,6 +1326,7 @@
+ 		{
+ 			selection.addToSelection(o);
+ 		}
++		selection.fitToSelection();
+ 		redrawDirtyRect();
+ 	}
+ 	
+@@ -1391,7 +1393,7 @@
+ 					topRef = ref;
+ 				}
+ 
+-				if (ref != topRef)
++				if (!ref.equals(topRef))
+ 				{
+ 					// selection includes elements in distinct, non-nested
+ 					// groups; therefore, currently Ungrouped
+@@ -1416,7 +1418,7 @@
+ 					String ref = pe.getGroupRef();
+ 
+ 					// remove all references to highest-level group
+-					if (ref == topRef) // includes Group Elements
++					if (topRef.equals(ref)) // includes Group Elements
+ 					{
+ 						pe.setGroupRef(null);
+ 					}
+@@ -1696,6 +1698,7 @@
+ 				scaleSelected(alignType);
+ 				break;
+ 			}
++			selection.fitToSelection();
+ 			redrawDirtyRect();
+ 		}
+ 	}
+@@ -1803,6 +1806,7 @@
+ 				}
+ 				break;
+ 			}
++			selection.fitToSelection();
+ 			redrawDirtyRect();
+ 	}
+ 	}
+Index: trunk/src/core/org/pathvisio/view/ViewActions.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/ViewActions.java	(revision 1137)
++++ trunk/src/core/org/pathvisio/view/ViewActions.java	(revision 1138)
+@@ -83,6 +83,7 @@
+ 			} else if(groups == 1) {
+ 				putValue(Action.NAME, "Ungroup");
+ 			} else {
++				putValue(Action.NAME, "Group");
+ 				setEnabled(false);
+ 			}
+ 		}		
+Index: trunk/GPML.xsd
+===================================================================
+--- trunk/GPML.xsd	(revision 1137)
++++ trunk/GPML.xsd	(revision 1138)
+@@ -429,6 +429,7 @@
+ 				</xsd:simpleType>
+ 			</xsd:attribute>
+ 
++			<xsd:attribute name="GroupRef" type="xsd:string" use="optional" />
+ 			<xsd:attribute name="BiopaxRef" type="xsd:string" use="optional" />
+ 
+ 		</xsd:complexType>

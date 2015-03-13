@@ -1,0 +1,542 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php	(revision 1028)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php	(revision 1029)
+@@ -1,4 +1,7 @@
+-<?php
++<?php
++
++define("JS_OPEN_EDITOR_APPLET", "JS_OPEN_EDITOR_APPLET");
++
+ $wgExtensionFunctions[] = 'wfPathwayThumb';
+ $wgHooks['LanguageGetMagic'][]  = 'wfPathwayThumb_Magic';
+ 
+@@ -11,110 +14,163 @@
+         $magicWords['pwImage'] = array( 0, 'pwImage' );
+         return true;
+ }
++
++
+ 
+-function renderPathwayImage( &$parser, $pwTitle, $width = 0, $align = '', $caption = '', $href = '', $tooltip = '') {	
+-	try {
+-		$pathway = Pathway::newFromTitle($pwTitle);
+-		$img = new Image($pathway->getFileTitle(FILETYPE_IMG));
+-		switch($href) {
+-			case 'svg':
+-				$href = Image::imageUrl($pathway->getFileTitle(FILETYPE_IMG)->getPartialURL());
+-				break;
+-			case 'pathway':
+-				$href = $pathway->getFullURL();
+-				break;
+-			default:
+-				if(!$href) $href = $pathway->getFullURL();
+-		}
+-		$caption = html_entity_decode($caption);	//This is quite dangerous (injection), 
+-													//we would rather parse wikitext, let me know if 
+-													//you know a way to do that (TK)
+-
+-		$output = makeThumbLinkObj($pathway, $caption, $href, $tooltip, $align, $width);
+-	} catch(Exception $e) {
+-		return "invalid pathway title: $e";
+-	}
+-	return array($output, 'isHTML'=>1, 'noparse'=>1);
++function renderPathwayImage( &$parser, $pwTitle, $width = 0, $align = '', $caption = '', $href = '', $tooltip = '', $id='pwthumb') {    
++        try {
++                $pathway = Pathway::newFromTitle($pwTitle);
++                $img = new Image($pathway->getFileTitle(FILETYPE_IMG));
++                switch($href) {
++                        case 'svg':
++                                $href = Image::imageUrl($pathway->getFileTitle(FILETYPE_IMG)->getPartialURL());
++                                break;
++                        case 'pathway':
++                                $href = $pathway->getFullURL();
++                                break;
++                        default:
++                                if(!$href) $href = $pathway->getFullURL();
++                }
++                $doApplet = strpos($caption, JS_OPEN_EDITOR_APPLET);
++                if($doApplet) { //Add a link to the editor applet to the caption
++                        $appletCode = makeAppletFunctionCall($pathway, $id, $new);
++                }
++                $caption = html_entity_decode($caption);        //This can be quite dangerous (injection),
++                                                                //we would rather parse wikitext, let me know if
++                                                                //you know a way to do that (TK)
++                $output = makeThumbLinkObj($pathway, $caption, $href, $tooltip, $align, $id, $width);
++                
++                if($doApplet) {
++                  //Replace JS_OPEN_EDITOR_APPLET with applet call
++                  $output = str_replace(JS_OPEN_EDITOR_APPLET, $appletCode, $output);
++                  //Add import javascript files (also for resize)
++                  $output = scriptTag('', JS_SRC_EDITAPPLET) . scriptTag('', '/wpi/js/prototype.js') . scriptTag('', JS_SRC_RESIZE) . $output;
++                }
++        } catch(Exception $e) {
++                return "invalid pathway title: $e";
++        }
++       // echo($output);
++        return array($output, 'isHTML'=>1, 'noparse'=>1);
+ }
+ 
+-	/** MODIFIED FROM Linker.php
+-	 * Make HTML for a thumbnail including image, border and caption
+-	 * $img is an Image object
+-	 */
+-	function makeThumbLinkObj( $pathway, $label = '', $href = '', $alt, $align = 'right', $boxwidth = 180, $boxheight=false, $framed=false ) {
+-		global $wgStylePath, $wgContLang;
+-		
+-		$img = new Image($pathway->getFileTitle(FILETYPE_IMG));
+-		$imgURL = $img->getURL();
++    function scriptTag($code, $src = '') {
++      $src = $src ? 'src="' . $src . '"' : '';
++      return '<script type="text/javascript"' . $src . '">' . $code . '</script>';
++    }
+ 
+-		$thumbUrl = '';
+-		$error = '';
++    function makeAppletFunctionCall($pathway, $id, $new) {
++        global $wgUser;
+ 
+-		$width = $height = 0;
+-		if ( $img->exists() ) {
+-			$width  = $img->getWidth();
+-			$height = $img->getHeight();
+-		}
+-		if ( 0 == $width || 0 == $height ) {
+-			$width = $height = 180;
+-		}
+-		if ( $boxwidth == 0 ) {
+-			$boxwidth = 180;
+-		}
+-		if ( $framed ) {
+-			// Use image dimensions, don't scale
+-			$boxwidth  = $width;
+-			$boxheight = $height;
+-			$thumbUrl  = $img->getViewURL();
+-		} else {
+-			if ( $boxheight === false ) $boxheight = -1;
+-			$thumb = $img->getThumbnail( $boxwidth, $boxheight );
+-			if ( $thumb ) {
+-				$thumbUrl = $thumb->getUrl();
+-				$boxwidth = $thumb->width;
+-				$boxheight = $thumb->height;
+-			} else {
+-				$error = $img->getLastError();
+-			}
+-		}
+-		$oboxwidth = $boxwidth + 2;
++  			if($new) {
++     	         	$pwUrl = $pathway->getTitleObject()->getFullURL();
++     			} else {
++     	         	$pwUrl = $pathway->getFileURL(FILETYPE_GPML);
++      		}
+ 
+-		$more = htmlspecialchars( wfMsg( 'thumbnail-more' ) );
+-		$magnifyalign = $wgContLang->isRTL() ? 'left' : 'right';
+-		$textalign = $wgContLang->isRTL() ? ' style="text-align:right"' : '';
++  			$args = array(
++  					'rpcUrl' => "http://" . $_SERVER['HTTP_HOST'] . "/wpi/wpi_rpc.php",
++  					'pwName' => 	$pathway->name(),	
++  					'pwSpecies' => $pathway->species(),
++  					'pwUrl' => $pwUrl
++  			);
++  			if($wgUser && $wgUser->isLoggedIn()) {
++             		$args = array_merge($args, array('user', $wgUser->getRealName()));
++     		}
++      	if($new) {
++              	$args = array_merge($args, array('new' => true));
++      	}
++        $keys = createJsArray(array_keys($args));
++        $values = createJsArray(array_values($args));
++        return "replaceWithApplet('{$id}', 'applet', {$keys}, {$values});new Resizeable('applet', {bottom: 10, right: 10, left: 0, top: 0});";
++    }
+ 
+-		$s = "<div class=\"thumb t{$align}\"><div class=\"thumbinner\" style=\"width:{$oboxwidth}px;\">";
+-		if( $thumbUrl == '' ) {
+-			// Couldn't generate thumbnail? Scale the image client-side.
+-			$thumbUrl = $img->getViewURL();
+-			if( $boxheight == -1 ) {
+-				// Approximate...
+-				$boxheight = intval( $height * $boxwidth / $width );
+-			}
+-		}
+-		if ( $error ) {
+-			$s .= htmlspecialchars( $error );
+-			$zoomicon = '';
+-		} elseif( !$img->exists() ) {
+-			$s .= "Image does not exist";
+-			$zoomicon = '';
+-		} else {
+-			$s .= '<a href="'.$href.'" class="internal" title="'.$alt.'">'.
+-				'<img src="'.$thumbUrl.'" alt="'.$alt.'" ' .
+-				'width="'.$boxwidth.'" height="'.$boxheight.'" ' .
+-				'longdesc="'.$href.'" class="thumbimage" /></a>';
+-			if ( $framed ) {
+-				$zoomicon="";
+-			} else {
+-				$zoomicon =  '<div class="magnify" style="float:'.$magnifyalign.'">'.
+-					'<a href="'.$imgURL.'" class="internal" title="'.$more.'">'.
+-					'<img src="'.$wgStylePath.'/common/images/magnify-clip.png" ' .
+-					'width="15" height="11" alt="" /></a></div>';
+-			}
+-		}
+-		$s .= '  <div class="thumbcaption"'.$textalign.'>'.$zoomicon.$label."</div></div></div>";
+-		return str_replace("\n", ' ', $s);
+-		//return $s;
+-	}
++    function createJsArray($array) {
++      $jsa = "new Array(";      
++      foreach($array as $elm) {
++        $jsa .= "'{$elm}', ";
++      }
++      return substr($jsa, 0, strlen($jsa) - 2) . ')';
++    }
++
++    /** MODIFIED FROM Linker.php
++        * Make HTML for a thumbnail including image, border and caption
++        * $img is an Image object
++        */
++    function makeThumbLinkObj( $pathway, $label = '', $href = '', $alt, $align = 'right', $id = 'thumb', $boxwidth = 180, $boxheight=false, $framed=false ) {
++            global $wgStylePath, $wgContLang;
++
++            $img = new Image($pathway->getFileTitle(FILETYPE_IMG));
++            $imgURL = $img->getURL();
++
++            $thumbUrl = '';
++            $error = '';
++
++            $width = $height = 0;
++            if ( $img->exists() ) {
++                    $width  = $img->getWidth();
++                    $height = $img->getHeight();
++            }
++            if ( 0 == $width || 0 == $height ) {
++                    $width = $height = 180;
++            }
++            if ( $boxwidth == 0 ) {
++                    $boxwidth = 180;
++            }
++            if ( $framed ) {
++                    // Use image dimensions, don't scale
++                    $boxwidth  = $width;
++                    $boxheight = $height;
++                    $thumbUrl  = $img->getViewURL();
++            } else {
++                    if ( $boxheight === false ) $boxheight = -1;
++                    $thumb = $img->getThumbnail( $boxwidth, $boxheight );
++                    if ( $thumb ) {
++                            $thumbUrl = $thumb->getUrl();
++                            $boxwidth = $thumb->width;
++                            $boxheight = $thumb->height;
++                    } else {
++                            $error = $img->getLastError();
++                    }
++            }
++            $oboxwidth = $boxwidth + 2;
++
++            $more = htmlspecialchars( wfMsg( 'thumbnail-more' ) );
++            $magnifyalign = $wgContLang->isRTL() ? 'left' : 'right';
++            $textalign = $wgContLang->isRTL() ? ' style="text-align:right"' : '';
++
++            $s = "<div id=\"{$id}\" class=\"thumb t{$align}\"><div class=\"thumbinner\" style=\"width:{$oboxwidth}px;\">";
++            if( $thumbUrl == '' ) {
++                    // Couldn't generate thumbnail? Scale the image client-side.
++                    $thumbUrl = $img->getViewURL();
++                    if( $boxheight == -1 ) {
++                            // Approximate...
++                            $boxheight = intval( $height * $boxwidth / $width );
++                    }
++            }
++            if ( $error ) {
++                    $s .= htmlspecialchars( $error );
++                    $zoomicon = '';
++            } elseif( !$img->exists() ) {
++                    $s .= "Image does not exist";
++                    $zoomicon = '';
++            } else {
++                    $s .= '<a href="'.$href.'" class="internal" title="'.$alt.'">'.
++                            '<img src="'.$thumbUrl.'" alt="'.$alt.'" ' .
++                            'width="'.$boxwidth.'" height="'.$boxheight.'" ' .
++                            'longdesc="'.$href.'" class="thumbimage" /></a>';
++                    if ( $framed ) {
++                            $zoomicon="";
++                    } else {
++                            $zoomicon =  '<div class="magnify" style="float:'.$magnifyalign.'">'.
++                                    '<a href="'.$imgURL.'" class="internal" title="'.$more.'">'.
++                                    '<img src="'.$wgStylePath.'/common/images/magnify-clip.png" ' .
++                                    'width="15" height="11" alt="" /></a></div>';
++                    }
++            }
++            $s .= '  <div class="thumbcaption"'.$textalign.'>'.$zoomicon.$label."</div></div></div>";
++            return str_replace("\n", ' ', $s);
++            //return $s;
++    }
+ 
+ ?>
++
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1028)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1029)
+@@ -1,15 +1,6 @@
+ <?php
+-define("FILETYPE_IMG", "svg");
+-define("FILETYPE_GPML", "gpml");
+-define("FILETYPE_MAPP", "mapp");
+-define("FILETYPE_PNG", "png");
+ 
+-//Constants
+-$wpiScriptPath = 'wpi';
+-$wpiScriptFile = 'wpi.php';
+-$wpiScript = "$wpiScriptPath/$wpiScriptFile"; 
+-$wpiScriptURL =  "http://" . $_SERVER['HTTP_HOST'] . '/' . $wpiScript; //TODO: use these variables
+-
++require_once('globals.php');
+ //Initialize MediaWiki
+ set_include_path(get_include_path().PATH_SEPARATOR.realpath('../includes').PATH_SEPARATOR.realpath('../').PATH_SEPARATOR);
+ $dir = getcwd();
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php	(revision 0)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/globals.php	(revision 1029)
+@@ -0,0 +1,19 @@
++<?php
++
++//File types
++define("FILETYPE_IMG", "svg");
++define("FILETYPE_GPML", "gpml");
++define("FILETYPE_MAPP", "mapp");
++define("FILETYPE_PNG", "png");
++
++//Script info
++$wpiScriptPath = 'wpi';
++$wpiScriptFile = 'wpi.php';
++$wpiScript = "$wpiScriptPath/$wpiScriptFile"; 
++$wpiScriptURL =  "http://" . $_SERVER['HTTP_HOST'] . '/' . $wpiScript; //TODO: use these variables
++
++
++//JS info
++define("JS_SRC_EDITAPPLET", "/wpi/js/editapplet.js");
++define("JS_SRC_RESIZE", "/wpi/js/resize.js");
++?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/resize.js
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/resize.js	(revision 0)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/resize.js	(revision 1029)
+@@ -0,0 +1,217 @@
++// Copyright (c) 2005 Thomas Fakes (http://craz8.com)
++// http://blog.craz8.com/articles/2005/12/01/make-your-divs-resizeable
++// 
++// This code is substantially based on code from script.aculo.us which has the 
++// following copyright and permission notice
++//
++// Copyright (c) 2005 Thomas Fuchs (http://script.aculo.us, http://mir.aculo.us)
++// 
++// Permission is hereby granted, free of charge, to any person obtaining
++// a copy of this software and associated documentation files (the
++// "Software"), to deal in the Software without restriction, including
++// without limitation the rights to use, copy, modify, merge, publish,
++// distribute, sublicense, and/or sell copies of the Software, and to
++// permit persons to whom the Software is furnished to do so, subject to
++// the following conditions:
++// 
++// The above copyright notice and this permission notice shall be
++// included in all copies or substantial portions of the Software.
++//
++// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++var Resizeable = Class.create();
++Resizeable.prototype = {
++  initialize: function(element) {
++    var options = Object.extend({
++      top: 6,
++      bottom: 6,
++      left: 6,
++      right: 6,
++      minHeight: 0,
++      minWidth: 0,
++      zindex: 1000,
++      resize: null
++    }, arguments[1] || {});
++
++    this.element      = $(element);
++    this.handle 	  = this.element;
++
++    Element.makePositioned(this.element); // fix IE    
++
++    this.options      = options;
++
++    this.active       = false;
++    this.resizing     = false;   
++    this.currentDirection = '';
++
++    this.eventMouseDown = this.startResize.bindAsEventListener(this);
++    this.eventMouseUp   = this.endResize.bindAsEventListener(this);
++    this.eventMouseMove = this.update.bindAsEventListener(this);
++    this.eventCursorCheck = this.cursor.bindAsEventListener(this);
++    this.eventKeypress  = this.keyPress.bindAsEventListener(this);
++    
++    this.registerEvents();
++  },
++  destroy: function() {
++    Event.stopObserving(this.handle, "mousedown", this.eventMouseDown);
++    this.unregisterEvents();
++  },
++  registerEvents: function() {
++    Event.observe(document, "mouseup", this.eventMouseUp);
++    Event.observe(document, "mousemove", this.eventMouseMove);
++    Event.observe(document, "keypress", this.eventKeypress);
++    Event.observe(this.handle, "mousedown", this.eventMouseDown);
++    Event.observe(this.element, "mousemove", this.eventCursorCheck);
++  },
++  unregisterEvents: function() {
++    //if(!this.active) return;
++    //Event.stopObserving(document, "mouseup", this.eventMouseUp);
++    //Event.stopObserving(document, "mousemove", this.eventMouseMove);
++    //Event.stopObserving(document, "mousemove", this.eventCursorCheck);
++    //Event.stopObserving(document, "keypress", this.eventKeypress);
++  },
++  startResize: function(event) {
++    if(Event.isLeftClick(event)) {
++      
++      // abort on form elements, fixes a Firefox issue
++      var src = Event.element(event);
++      if(src.tagName && (
++        src.tagName=='INPUT' ||
++        src.tagName=='SELECT' ||
++        src.tagName=='BUTTON' ||
++        src.tagName=='TEXTAREA')) return;
++
++	  var dir = this.directions(event);
++	  if (dir.length > 0) {      
++	      this.active = true;
++    	  var offsets = Position.cumulativeOffset(this.element);
++	      this.startTop = offsets[1];
++	      this.startLeft = offsets[0];
++	      this.startWidth = parseInt(Element.getStyle(this.element, 'width'));
++	      this.startHeight = parseInt(Element.getStyle(this.element, 'height'));
++	      this.startX = event.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
++	      this.startY = event.clientY + document.body.scrollTop + document.documentElement.scrollTop;
++	      
++	      this.currentDirection = dir;
++	      Event.stop(event);
++	  }
++    }
++  },
++  finishResize: function(event, success) {
++    // this.unregisterEvents();
++
++    this.active = false;
++    this.resizing = false;
++
++    if(this.options.zindex)
++      this.element.style.zIndex = this.originalZ;
++      
++    if (this.options.resize) {
++    	this.options.resize(this.element);
++    }
++  },
++  keyPress: function(event) {
++    if(this.active) {
++      if(event.keyCode==Event.KEY_ESC) {
++        this.finishResize(event, false);
++        Event.stop(event);
++      }
++    }
++  },
++  endResize: function(event) {
++    if(this.active && this.resizing) {
++      this.finishResize(event, true);
++      Event.stop(event);
++    }
++    this.active = false;
++    this.resizing = false;
++  },
++  draw: function(event) {
++    var pointer = [Event.pointerX(event), Event.pointerY(event)];
++    var style = this.element.style;
++    if (this.currentDirection.indexOf('n') != -1) {
++    	var pointerMoved = this.startY - pointer[1];
++    	var margin = Element.getStyle(this.element, 'margin-top') || "0";
++    	var newHeight = this.startHeight + pointerMoved;
++    	if (newHeight > this.options.minHeight) {
++    		style.height = newHeight + "px";
++    		style.top = (this.startTop - pointerMoved - parseInt(margin)) + "px";
++    	}
++    }
++    if (this.currentDirection.indexOf('w') != -1) {
++    	var pointerMoved = this.startX - pointer[0];
++    	var margin = Element.getStyle(this.element, 'margin-left') || "0";
++    	var newWidth = this.startWidth + pointerMoved;
++    	if (newWidth > this.options.minWidth) {
++    		style.left = (this.startLeft - pointerMoved - parseInt(margin))  + "px";
++    		style.width = newWidth + "px";
++    	}
++    }
++    if (this.currentDirection.indexOf('s') != -1) {
++    	var newHeight = this.startHeight + pointer[1] - this.startY;
++    	if (newHeight > this.options.minHeight) {
++    		style.height = newHeight + "px";
++    	}
++    }
++    if (this.currentDirection.indexOf('e') != -1) {
++    	var newWidth = this.startWidth + pointer[0] - this.startX;
++    	if (newWidth > this.options.minWidth) {
++    		style.width = newWidth + "px";
++    	}
++    }
++    if(style.visibility=="hidden") style.visibility = ""; // fix gecko rendering
++  },
++  between: function(val, low, high) {
++  	return (val >= low && val < high);
++  },
++  directions: function(event) {
++    var pointer = [Event.pointerX(event), Event.pointerY(event)];
++    var offsets = Position.cumulativeOffset(this.element);
++    
++	var cursor = '';
++	if (this.between(pointer[1] - offsets[1], 0, this.options.top)) cursor += 'n';
++	if (this.between((offsets[1] + this.element.offsetHeight) - pointer[1], 0, this.options.bottom)) cursor += 's';
++	if (this.between(pointer[0] - offsets[0], 0, this.options.left)) cursor += 'w';
++	if (this.between((offsets[0] + this.element.offsetWidth) - pointer[0], 0, this.options.right)) cursor += 'e';
++
++	return cursor;
++  },
++  cursor: function(event) {
++  	var cursor = this.directions(event);
++	if (cursor.length > 0) {
++		cursor += '-resize';
++	} else {
++		cursor = '';
++	}
++	this.element.style.cursor = cursor;		
++  },
++  update: function(event) {
++   if(this.active) {
++      if(!this.resizing) {
++        var style = this.element.style;
++        this.resizing = true;
++        
++        if(Element.getStyle(this.element,'position')=='') 
++          style.position = "relative";
++        
++        if(this.options.zindex) {
++          this.originalZ = parseInt(Element.getStyle(this.element,'z-index') || 0);
++          style.zIndex = this.options.zindex;
++        }
++      }
++      this.draw(event);
++
++      // fix AppleWebKit rendering
++      if(navigator.appVersion.indexOf('AppleWebKit')>0) window.scrollBy(0,0); 
++      Event.stop(event);
++      return false;
++   }
++  }
++}
++

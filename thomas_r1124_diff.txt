@@ -1,0 +1,26 @@
+Index: trunk/wikipathways/wpi/bin/pathvisio_wikipathways.jnlp
+===================================================================
+--- trunk/wikipathways/wpi/bin/pathvisio_wikipathways.jnlp	(revision 1123)
++++ trunk/wikipathways/wpi/bin/pathvisio_wikipathways.jnlp	(revision 1124)
+@@ -9,7 +9,7 @@
+ 	</information>
+ 	<resources>
+ 		 <j2se version="1.5+"/>
+-		 <jar href="pathvisio_v1.jar"/>
++		 <jar href="wikipathways-swt.jar"/>
+ 		 <jar href="lib/resources.jar"/>
+ 		 <jar href="lib/hsqldb.jar"/>
+ 		 <jar href="lib/derby.jar"/>
+Index: trunk/wikipathways/wpi/js/editapplet.js
+===================================================================
+--- trunk/wikipathways/wpi/js/editapplet.js	(revision 1123)
++++ trunk/wikipathways/wpi/js/editapplet.js	(revision 1124)
+@@ -52,7 +52,7 @@
+ 	
+ 	new Resizeable(idImg, {bottom: 10, right: 10, left: 0, top: 0});
+ 
+-	ao.preload( idApplet );
++	ao.load( idApplet );
+ }
+ 
+ //Manually (doesn't work well, applet is started twice on firefox

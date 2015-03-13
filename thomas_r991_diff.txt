@@ -1,0 +1,3306 @@
+Index: trunk/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java
+===================================================================
+--- trunk/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 990)
++++ trunk/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 991)
+@@ -1,598 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.visualization.plugins;
+-
+-import java.awt.Color;
+-import java.awt.Dimension;
+-import java.awt.Graphics2D;
+-import java.awt.Image;
+-import java.awt.Rectangle;
+-import java.awt.Toolkit;
+-import java.awt.image.BufferedImage;
+-import java.awt.image.FilteredImageSource;
+-import java.awt.image.ImageProducer;
+-import java.awt.image.RGBImageFilter;
+-import java.io.File;
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.net.URL;
+-import java.net.URLConnection;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.List;
+-
+-import javax.imageio.ImageIO;
+-import javax.swing.ImageIcon;
+-
+-import org.eclipse.jface.dialogs.MessageDialog;
+-import org.eclipse.jface.viewers.ArrayContentProvider;
+-import org.eclipse.jface.viewers.ISelectionChangedListener;
+-import org.eclipse.jface.viewers.IStructuredSelection;
+-import org.eclipse.jface.viewers.LabelProvider;
+-import org.eclipse.jface.viewers.ListViewer;
+-import org.eclipse.jface.viewers.SelectionChangedEvent;
+-import org.eclipse.jface.viewers.StructuredSelection;
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.custom.CLabel;
+-import org.eclipse.swt.events.ControlAdapter;
+-import org.eclipse.swt.events.ControlEvent;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+-import org.eclipse.swt.graphics.ImageData;
+-import org.eclipse.swt.graphics.Point;
+-import org.eclipse.swt.graphics.RGB;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.layout.GridData;
+-import org.eclipse.swt.layout.GridLayout;
+-import org.eclipse.swt.layout.RowLayout;
+-import org.eclipse.swt.widgets.Button;
+-import org.eclipse.swt.widgets.ColorDialog;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.FileDialog;
+-import org.eclipse.swt.widgets.Group;
+-import org.eclipse.swt.widgets.Label;
+-import org.eclipse.swt.widgets.Spinner;
+-import org.jdom.Element;
+-import org.pathvisio.Engine;
+-import org.pathvisio.data.CachedData;
+-import org.pathvisio.data.Gex;
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.util.ColorConverter;
+-import org.pathvisio.util.swt.SwtUtils;
+-import org.pathvisio.view.Graphics;
+-import org.pathvisio.visualization.Visualization;
+-import org.pathvisio.visualization.colorset.ColorSet;
+-
+-public class ExpressionImagePlugin extends PluginWithColoredSamples {
+-	static final String NAME = "Colored image";
+-	static final String DESCRIPTION = 
+-		"This plugin displays one or more images on Gene Product objects and \n" +
+-		"colors the image(s) accoring to the expression value for the Gene Product.";
+-		
+-	static final Color DEFAULT_TRANSPARENT = Engine.TRANSPARENT_COLOR;
+-		
+-	List<URL> imageURLs;
+-	
+-	public ExpressionImagePlugin(Visualization v) {
+-		super(v);
+-		setDisplayOptions(DRAWING | SIDEPANEL);
+-		setIsConfigurable(true);
+-		setIsGeneric(false);
+-		setUseProvidedArea(true);
+-	}
+-
+-	public String getName() { return NAME; }
+-	public String getDescription() { return DESCRIPTION; }
+-
+-	private List<URL> defaultURLs() {
+-		return new ArrayList<URL>(Arrays.asList(new URL[] {
+-				Engine.getResourceURL("images/protein_hi.bmp"),
+-				Engine.getResourceURL("images/mRNA_hi.bmp") }));
+-	}
+-	
+-	List<URL> getImageURLs() { 
+-		if(imageURLs == null) imageURLs = defaultURLs();
+-		return imageURLs;
+-	}
+-	
+-	void addImageURL(URL url) {
+-		if(!imageURLs.contains(url))imageURLs.add(url);
+-	}
+-	
+-	void removeImageURL(URL url) {
+-		if(url.getProtocol().equals("file")) imageURLs.remove(url);
+-	}
+-	
+-	protected void drawSample(ConfiguredSample s, IdCodePair idc, Rectangle area, Graphics2D g2d) {
+-		CachedData cache = Gex.getCachedData();
+-		ColorSet cs = s.getColorSet();
+-
+-		Color rgb = cs.getColor(cache.getAverageSampleData(idc), s.getId());
+-		
+-		drawImage((ImageSample)s, rgb, area, g2d);
+-	}
+-	
+-	protected void drawLegendSample(ConfiguredSample s, Rectangle area, Graphics2D g2d) {
+-		drawImage((ImageSample)s, Color.WHITE, area, g2d);
+-		g2d.draw(area);
+-	}
+-	
+-	void drawImage(ImageSample is, Color rgb, Rectangle area, Graphics2D g2d) {
+-		Image img = is.getImage(rgb);
+-		if(img != null) {
+-			drawBackground(area, g2d);
+-			
+-			Dimension scaleTo = is.getScaleSize(new Dimension(area.width, area.height));
+-			Image simg = img.getScaledInstance(scaleTo.width, scaleTo.height, Image.SCALE_SMOOTH);
+-									
+-			int xs = area.width - scaleTo.width;
+-			int ys = area.height - scaleTo.height;
+-			g2d.drawImage(simg, area.x + xs / 2, area.y + ys / 2, null);
+-		}
+-	}
+-		
+-	void drawNoDataFound(ConfiguredSample s, Rectangle area, Graphics2D g2d) {
+-		g2d.setColor(s.getColorSet().getColor(ColorSet.ID_COLOR_NO_DATA_FOUND));
+-		g2d.fill(area);
+-	}
+-	
+-	void drawBackground(Rectangle area, Graphics2D g2d) {
+-		g2d.setColor(Color.WHITE);
+-		g2d.fill(area);
+-	}
+-	
+-	final static String XML_ELM_URL = "image";
+-	void loadAttributes(Element xml) {
+-		for(Object o : xml.getChildren(XML_ELM_URL)) {
+-			try {
+-				URL url = new URL(((Element)o).getText());
+-				addImageURL(url);
+-			} catch(Exception e) {
+-				Engine.log.error("couldn't load image URL for plugin", e);
+-			}
+-		}
+-	}
+-	
+-	void saveAttributes(Element xml) {
+-		for(URL url : getImageURLs()) {
+-			Element elm = new Element(XML_ELM_URL);
+-			elm.setText(url.toString());
+-			xml.addContent(elm);
+-		}
+-	}
+-	
+-	protected ConfiguredSample createConfiguredSample(Sample s) {
+-		return new ImageSample(s);
+-	}
+-	
+-	protected ConfiguredSample createConfiguredSample(Element xml) throws Exception {
+-		return new ImageSample(xml);
+-	}
+-	
+-	Composite createOptionsComp(Composite parent) {
+-		return new Composite(parent, SWT.NULL);
+-	}
+-		
+-	protected SampleConfigComposite createSampleConfigComp(Composite parent) {
+-		return new ImageConfigComposite(parent, SWT.NULL);
+-	}
+-	
+-	protected class ImageConfigComposite extends SampleConfigComposite {		
+-		ListViewer imageList;
+-		CLabel colorLabel, imageLabel;
+-		org.eclipse.swt.graphics.Color replaceColor;
+-		org.eclipse.swt.graphics.Image image;
+-		Button aspectButton;
+-		Spinner spinner;
+-		
+-		public ImageConfigComposite(Composite parent, int style) {
+-			super(parent, style);
+-		}
+-		
+-		ImageSample getInput() {
+-			return input == null || input.length == 0 ? null : (ImageSample)input[0];
+-		}
+-		
+-		void createContents() {
+-			setLayout(new FillLayout());
+-			Group group = new Group(this, SWT.NULL);
+-			group.setText("Image to display for this sample");
+-			group.setLayout(new FillLayout(SWT.HORIZONTAL));
+-			
+-			createListComp(group);
+-			createImageComp(group);
+-			
+-			imageList.setInput(getImageURLs());
+-			setInput(null);
+-		}
+-		
+-		String shortenURL(String urlString) {
+-			//Remove middle path (after first /, to before last /)
+-			if(urlString == null) return "null";
+-			String[] parts = urlString.split("/");
+-			if(parts.length <= 2) {
+-				return urlString;
+-			} else {
+-				String shorten = "";
+-				for(int i = 0; i < parts.length; i ++) {
+-					if(i == 1) shorten = parts[i - 1] + "/" + parts[i] + "/.../";
+-					else if (i == parts.length - 1) shorten += parts[i];
+-				}
+-				return shorten;
+-			}
+-		}
+-		
+-		Composite createListComp(Composite parent) {
+-			Composite listComp = new Composite(parent, SWT.NULL);
+-			listComp.setLayout(new GridLayout());
+-			
+-			imageList = new ListViewer(listComp, SWT.SINGLE | SWT.BORDER | SWT.H_SCROLL | SWT.V_SCROLL);
+-			imageList.getList().setLayoutData(new GridData(GridData.FILL_BOTH));
+-			imageList.setContentProvider(new ArrayContentProvider());
+-			imageList.setLabelProvider(new LabelProvider() {
+-				public String getText(Object element) {
+-					return shortenURL(((URL)element).toString());
+-				}
+-			});
+-			imageList.addSelectionChangedListener(new ISelectionChangedListener() {
+-				public void selectionChanged(SelectionChangedEvent event) {
+-					URL url = (URL)((IStructuredSelection)event.getSelection()).getFirstElement();
+-					getInput().setURL(url);
+-					refreshImage();
+-				}
+-			});
+-			
+-			Composite buttonComp = new Composite(listComp, SWT.NULL);
+-			buttonComp.setLayout(new RowLayout());
+-			final Button add = new Button(buttonComp, SWT.PUSH);
+-			add.setText("Add image...");
+-			final Button remove = new Button(buttonComp, SWT.PUSH);
+-			remove.setText("Remove image");
+-			
+-			SelectionAdapter buttonAdapter = new SelectionAdapter() {
+-				public void widgetSelected(SelectionEvent e) {
+-					if(e.widget == add) addImage();
+-					else removeImage();
+-				}
+-			};
+-			remove.addSelectionListener(buttonAdapter);
+-			add.addSelectionListener(buttonAdapter);
+-			return listComp;
+-		}
+-
+-		Composite createImageComp(Composite parent) {
+-			Group imageGroup = new Group(parent, SWT.NULL);
+-			imageGroup.setLayout(new GridLayout());
+-			imageGroup.setText("Image settings");
+-			
+-			imageLabel = new CLabel(imageGroup, SWT.CENTER);
+-			GridData grid = new GridData(GridData.FILL_BOTH);
+-			grid.heightHint = grid.widthHint = 70;
+-			imageLabel.setLayoutData(grid);
+-			imageLabel.addControlListener(new ControlAdapter() {
+-				public void controlResized(ControlEvent e) {
+-					refreshImage();
+-				}
+-			});
+-			Composite buttons = new Composite(imageGroup, SWT.NULL);
+-			buttons.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+-			buttons.setLayout(new GridLayout(2, false));
+-			
+-			aspectButton = new Button(buttons, SWT.CHECK);
+-			GridData span = new GridData();
+-			span.horizontalSpan = 2;
+-			aspectButton.setLayoutData(span);
+-			aspectButton.setText("Maintain aspect ratio");
+-			aspectButton.addSelectionListener(new SelectionAdapter() {
+-				public void widgetSelected(SelectionEvent e) {
+-					getInput().setMaintainAspect(aspectButton.getSelection());
+-					refreshImage();
+-				}
+-			});
+-				
+-			Composite cc = new Composite(buttons, SWT.NULL);
+-			cc.setLayoutData(span);
+-			cc.setLayout(new GridLayout(3, false));
+-			colorLabel = new CLabel(cc, SWT.NULL);
+-			colorLabel.setLayoutData(SwtUtils.getColorLabelGrid());
+-			Button colorButton = new Button(cc, SWT.PUSH);
+-			colorButton.setText("...");
+-			colorButton.setLayoutData(SwtUtils.getColorLabelGrid());
+-			colorButton.addSelectionListener(new SelectionAdapter() {
+-				public void widgetSelected(SelectionEvent e) {
+-					changeColorLabel();
+-				}
+-			});
+-			Label label = new Label(cc, SWT.WRAP);
+-			label.setText("Color to replace with expression data color");
+-			
+-			Label spl = new Label(buttons, SWT.NULL);
+-			spl.setText("Tolerance:");
+-			spinner = new Spinner(buttons, SWT.NULL);
+-			spinner.setMaximum(255);
+-			spinner.addSelectionListener(new SelectionAdapter() {
+-				public void widgetSelected(SelectionEvent e) {
+-					setTolerance();
+-				}
+-			});
+-		
+-			return imageGroup;
+-		}
+-		
+-		void setTolerance() {
+-			getInput().setTolerance(spinner.getSelection());
+-			refreshImage();
+-		}
+-		
+-		void changeColorLabel() {
+-			ColorDialog cd = new ColorDialog(getShell());
+-			cd.setRGB(SwtUtils.color2rgb(getInput().getReplaceColor()));
+-			RGB rgb = cd.open();
+-			if(rgb != null) {
+-				getInput().setReplaceColor(SwtUtils.rgb2color(rgb));
+-				setColorLabel();
+-			}
+-		}
+-		
+-		void setColorLabel() {
+-			RGB rgb = SwtUtils.color2rgb(getInput().getReplaceColor());
+-			replaceColor = SwtUtils.changeColor(replaceColor, rgb, getDisplay());
+-			colorLabel.setBackground(replaceColor);
+-			refreshImage();
+-		}
+-		
+-		void refreshImage() {
+-			if(input == null || input.length < 1) {
+-				image = null;
+-			} else {
+-				Point size = imageLabel.getSize();
+-				ImageData imgd = null;
+-				if(size.x > 0 && size.y > 0) {
+-					int b = 8;
+-					size.x -= size.x > b ? b : 0; 
+-					size.y -= size.y > b ? b : 0; 
+-					imgd = getInput().getImageData(size, imageLabel.getBackground().getRGB());
+-				}
+-				image = SwtUtils.changeImage(image, imgd, getDisplay());
+-			}
+-			imageLabel.setImage(image);
+-		}
+-		
+-		void addImage() {
+-			FileDialog fd = new FileDialog(getShell());
+-			String fn = fd.open();
+-			if(fn == null) return;
+-			try {
+-				new ImageData(fn);
+-				addImageURL(new File(fn).toURL());
+-				imageList.refresh();
+-			} catch(Exception e) {
+-				MessageDialog.openError(getShell(), "Unable to open image file", e.toString());
+-				Engine.log.error("Unable to load image", e);
+-			}
+-		}
+-		
+-		void removeImage() {
+-			URL url = (URL)((IStructuredSelection)imageList.getSelection()).getFirstElement();
+-			removeImageURL(url);
+-		}
+-				
+-		public void refresh() {
+-			if(input == null || input.length != 1) {
+-				setAllEnabled(false);
+-				refreshImage();
+-			}
+-			else {
+-				setAllEnabled(true);
+-				URL url = getInput().getURL();
+-				if(url != null) imageList.setSelection(new StructuredSelection(url));
+-				else imageList.setSelection(new StructuredSelection(imageList.getElementAt(0)));
+-				aspectButton.setSelection(getInput().getMaintainAspect());
+-				setColorLabel();
+-				spinner.setSelection(getInput().getTolerance());
+-			}
+-		}
+-		
+-		public void dispose() {
+-			if(replaceColor != null && !replaceColor.isDisposed()) replaceColor.dispose();
+-			if(image != null && !image.isDisposed()) image.dispose();
+-			super.dispose();
+-		}
+-	}
+-	
+-	protected class ImageSample extends ConfiguredSample {
+-		BufferedImage cacheImage;
+-		URL imageURL;
+-		Color replaceColor = DEFAULT_TRANSPARENT;
+-		int tolerance; //range 0 - 255;
+-		boolean aspectRatio = true;
+-		
+-		public ImageSample(int idSample, String name, int dataType) {
+-			super(idSample, name, dataType);
+-		}
+-		
+-		public ImageSample(Sample s) {
+-			super(s.getId(), s.getName(), s.getDataType());
+-		}
+-		
+-		public ImageSample(Element xml) throws Exception {
+-			super(xml);
+-		}
+-		
+-		public void setURL(URL url) { 
+-			imageURL = url;
+-			cacheImage = null;
+-			fireModifiedEvent();
+-		}
+-		
+-		public URL getURL() { 
+-			return imageURL == null ? imageURL = imageURLs.get(0) : imageURL; 
+-		}
+-		
+-		public void setReplaceColor(Color rgb) { 
+-			if(rgb != null) replaceColor = rgb;
+-			fireModifiedEvent();
+-		}
+-		public Color getReplaceColor() { return replaceColor; }
+-		public void setMaintainAspect(boolean maintain) { 
+-			aspectRatio = maintain;
+-			fireModifiedEvent();
+-		}
+-		public boolean getMaintainAspect() { return aspectRatio;}
+-		public void setTolerance(int tol) { 
+-			fireModifiedEvent();
+-			tolerance = tol; 
+-		}
+-		public int getTolerance() { return tolerance; }
+-		
+-		public BufferedImage getImage() {
+-			if(imageURL == null) return null;
+-			if(cacheImage == null) {
+-				try {
+-					cacheImage = ImageIO.read(imageURL);
+-				} catch(IOException e) {
+-					Engine.log.error("Unable to load image", e);
+-					return null;
+-				}
+-			}
+-			return cacheImage.getSubimage(0, 0, cacheImage.getWidth(), cacheImage.getHeight());
+-		}
+-		
+-		public Image getImage(Dimension size) {
+-			return getImage(size, null);
+-		}
+-		
+-		public Image getImage(Color replaceWith) {
+-			Image img = getImage();
+-			if(img == null) return null;
+-			if(replaceWith != null) img = doReplaceColor(img, replaceColor, replaceWith, tolerance);
+-			return img;
+-		}
+-		
+-		public ImageData getImageData(Point size, RGB replaceWith) {
+-			Dimension dsize = new Dimension(size.x, size.y);
+-			BufferedImage img = toBufferedImage(getImage(dsize, SwtUtils.rgb2color(replaceWith)));
+-			return SwtUtils.convertImageToSWT(img);
+-		}
+-		
+-		public Image getImage(Dimension size, Color replaceWith) {
+-			Image img = getImage();
+-			if(img == null) return null;
+-			
+-			img = getImage(replaceWith);
+-			
+-			size = getScaleSize(size);
+-			
+-			img = img.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH);
+-			return img;
+-		}
+-		
+-		public Dimension getScaleSize(Dimension target) {
+-			if(aspectRatio) {
+-				BufferedImage img = getImage();
+-				double r = (double)img.getHeight() / img.getWidth();
+-				int min = (int)Math.min(target.getWidth(), target.getHeight());
+-				if(min == target.getWidth()) target.height = (int)(min * r);
+-				else target.width = (int)(min * r);
+-			}
+-			return target;
+-		}
+-		
+-		Image doReplaceColor(Image img, final Color oldColor, final Color newColor, final int tol) {
+-			RGBImageFilter f = new RGBImageFilter() {
+-				public int filterRGB(int x, int y, int rgb) {
+-					Color thisColor = new Color(rgb);
+-					if(compareColor(oldColor, thisColor, tol)) {
+-						return newColor.getRGB();
+-					}
+-					return rgb;
+-				}
+-			};
+-			ImageProducer pr = new FilteredImageSource(img.getSource(), f);
+-			return Toolkit.getDefaultToolkit().createImage(pr);
+-		}
+-		
+-		boolean compareColor(Color rgb1, Color rgb2, int tolerance) {
+-			return 	rgb2.getRed() >= rgb1.getRed() - tolerance &&
+-					rgb2.getRed() <= rgb1.getRed() + tolerance &&
+-					rgb2.getGreen() >= rgb1.getGreen() - tolerance &&
+-					rgb2.getGreen() <= rgb1.getGreen() + tolerance &&
+-					rgb2.getBlue() >= rgb1.getBlue() - tolerance &&
+-					rgb2.getBlue() <= rgb1.getBlue() + tolerance;
+-		}
+-		
+-		InputStream getInputStream(URL url) {
+-			try {
+-				URLConnection con = url.openConnection();
+-				return con.getInputStream();
+-			} catch(IOException e) {
+-				Engine.log.error("Unable to open connection to image", e);
+-			}
+-			return null;
+-		}
+-		
+-		final static String XML_ATTR_ASPECT = "maintain-aspect-ratio";
+-		final static String XML_ATTR_TOLERANCE = "tolerance";
+-		final static String XML_ATTR_IMAGE = "image-url";
+-		final static String XML_ATTR_REPLACE = "replace-color";
+-		protected void saveAttributes(Element xml) {
+-			xml.setAttribute(XML_ATTR_ASPECT, Boolean.toString(getMaintainAspect()));
+-			xml.setAttribute(XML_ATTR_TOLERANCE, Integer.toString(getTolerance()));
+-			xml.setAttribute(XML_ATTR_IMAGE, getURL().toString());
+-			xml.addContent(ColorConverter.createColorElement(XML_ATTR_REPLACE, getReplaceColor()));
+-		}
+-		protected void loadAttributes(Element xml) {
+-			try {
+-				setMaintainAspect(Boolean.parseBoolean(xml.getAttributeValue(XML_ATTR_ASPECT)));
+-				setTolerance(Integer.parseInt(xml.getAttributeValue(XML_ATTR_TOLERANCE)));
+-				setURL(new URL(xml.getAttributeValue(XML_ATTR_IMAGE)));
+-				setReplaceColor(ColorConverter.parseColorElement(xml.getChild(XML_ATTR_REPLACE)));
+-			} catch(Exception e) {
+-				Engine.log.error("Unable to load plugin", e);
+-			}
+-		}
+-		
+-	}
+-	
+-    // This method returns a buffered image with the contents of an image
+-	public static BufferedImage toBufferedImage(Image image) {
+-		if (image instanceof BufferedImage) {
+-			return (BufferedImage)image;
+-		}
+-
+-		// This code ensures that all the pixels in the image are loaded
+-		image = new ImageIcon(image).getImage();
+-
+-
+-		// Create a buffered image with a format that's compatible with the screen
+-		int type = BufferedImage.TYPE_INT_ARGB;
+-		System.out.println(image.getWidth(null));
+-		BufferedImage bimage = new BufferedImage(image.getWidth(null), image.getHeight(null), type);
+-
+-		// Copy image to buffered image
+-		Graphics2D g = bimage.createGraphics();
+-
+-		// Paint the image onto the buffered image
+-		g.drawImage(image, 0, 0, null);
+-        g.dispose();
+-    
+-        return bimage;
+-    }
+-    
+-	public Composite visualizeOnToolTip(Composite parent, Graphics g) { return null; }
+-}
+Index: trunk/src/plugins/org/pathvisio/visualization/plugins/ColorByLinkPlugin.java
+===================================================================
+--- trunk/src/plugins/org/pathvisio/visualization/plugins/ColorByLinkPlugin.java	(revision 990)
++++ trunk/src/plugins/org/pathvisio/visualization/plugins/ColorByLinkPlugin.java	(revision 991)
+@@ -1,140 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.visualization.plugins;
+-
+-import java.awt.Color;
+-import java.awt.Graphics2D;
+-import java.util.Collection;
+-import java.util.HashMap;
+-import java.util.Random;
+-
+-import org.eclipse.swt.widgets.Composite;
+-import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.view.Graphics;
+-import org.pathvisio.visualization.Visualization;
+-
+-/**
+- * Colors drawing-objects according to their graphId / graphRef values
+- * @author thomas
+- *
+- */
+-public class ColorByLinkPlugin extends VisualizationPlugin {	
+-	static final String NAME = "Graphical link color";
+-	static final String DESCRIPTION = 
+-		"This plugin colors objects depending on their graphRef and graphId attributes";
+-	
+-	static final int refMarkRadius = 12;
+-	static final int refMarkAlpha = 128;
+-	
+-	HashMap<String, Color> id2col;
+-	Random rnd;
+-	
+-	public ColorByLinkPlugin(Visualization v) {
+-		super(v);
+-		setDisplayOptions(DRAWING);
+-		setIsGeneric(true);
+-		setIsConfigurable(false);
+-		
+-		id2col = new HashMap<String, Color>();
+-		rnd = new Random();
+-	}
+-
+-	public String getName() { return NAME; }
+-	public String getDescription() { return DESCRIPTION; }
+-	
+-	public void initSidePanel(Composite parent) { }
+-
+-	public void visualizeOnDrawing(Graphics g, Graphics2D g2d) {
+-		PathwayElement gd = g.getGmmlData();
+-		String[] ids = parseIds(gd);
+-		if(ids[0] != null) { //This is a shape
+-			drawShape(ids[0], g, g2d);
+-			return;
+-		}
+-		if(ids[1] != null) {
+-			drawLineStart(ids[1], g, g2d);
+-		}
+-		if(ids[2] != null) {
+-			drawLineEnd(ids[2], g, g2d);
+-		}
+-	}
+-	
+-	void drawLineStart(String id, Graphics g, Graphics2D g2d) {
+-		PathwayElement gd = g.getGmmlData();
+-		drawRefMark( 
+-				id,			
+-				// TODO: this should be in visual coords
+-				(int)gd.getMStartX() - refMarkRadius/2, 
+-				(int)gd.getMStartY() - refMarkRadius/2,
+-				g2d);
+-	}
+-	
+-	void drawLineEnd(String id, Graphics g, Graphics2D g2d) {
+-		PathwayElement gd = g.getGmmlData();
+-		drawRefMark( 
+-				id,			
+-				// TODO: this should be in visual coords
+-				(int)gd.getMEndX() - refMarkRadius/2, 
+-				(int)gd.getMEndY() - refMarkRadius/2,
+-				g2d);
+-	}
+-	
+-	void drawRefMark(String id, int x, int y, Graphics2D g2d) {
+-		Color c = getRGB(id);
+-		g2d.setColor(c);
+-		g2d.fillOval(x, y, refMarkRadius, refMarkRadius);
+-	}
+-	
+-	void drawShape(String id, Graphics g, Graphics2D g2d) {
+-		PathwayElement gd = g.getGmmlData();
+-		Color oldRGB = gd.getColor();
+-		gd.dontFireEvents(2);
+-		gd.setColor(getRGB(id));
+-		g.draw(g2d);
+-		gd.setColor(oldRGB);
+-	}
+-	
+-	Color getRGB(String id) {
+-		Color rgb = id2col.get(id);
+-		if(rgb == null) {
+-			rgb = randomRGB();
+-			id2col.put(id, rgb);
+-		}
+-		return rgb;
+-	}
+-	
+-	Color randomRGB() {
+-		int rgb = java.awt.Color.HSBtoRGB(rnd.nextFloat(), 1, 1);
+-		Color c = new Color(rgb);
+-		return new Color(c.getRed(), c.getGreen(), c.getBlue(), refMarkAlpha);
+-	}
+-	
+-	String[] parseIds(PathwayElement gd) {
+-		String[] ids = new String[3];
+-		String gid = gd.getGraphId();
+-		String sr = gd.getStartGraphRef();
+-		String er =  gd.getEndGraphRef();
+-		if(gid != null) ids[0] = gid.equals("") ? null : gid;
+-		if(sr != null) 	ids[1] = sr.equals("") ? null : sr;
+-		if(er != null) 	ids[2] = er.equals("") ? null : er;
+-		return ids;
+-	}
+-		
+-	public Composite visualizeOnToolTip(Composite parent, Graphics g) { return null; }
+-	
+-	public void visualizeOnSidePanel(Collection<Graphics> objects) {	}
+-}
+Index: trunk/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java
+===================================================================
+--- trunk/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java	(revision 990)
++++ trunk/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java	(revision 991)
+@@ -1,429 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.visualization.plugins;
+-
+-import java.awt.Dimension;
+-import java.awt.Font;
+-import java.awt.Graphics2D;
+-import java.awt.font.TextLayout;
+-import java.awt.geom.Rectangle2D;
+-import java.util.Collection;
+-import java.util.Iterator;
+-import java.util.LinkedHashSet;
+-import java.util.List;
+-import java.util.Set;
+-
+-import org.eclipse.jface.viewers.ArrayContentProvider;
+-import org.eclipse.jface.viewers.ISelectionChangedListener;
+-import org.eclipse.jface.viewers.IStructuredSelection;
+-import org.eclipse.jface.viewers.LabelProvider;
+-import org.eclipse.jface.viewers.ListViewer;
+-import org.eclipse.jface.viewers.SelectionChangedEvent;
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.ModifyEvent;
+-import org.eclipse.swt.events.ModifyListener;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+-import org.eclipse.swt.graphics.FontData;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.layout.GridData;
+-import org.eclipse.swt.layout.GridLayout;
+-import org.eclipse.swt.layout.RowLayout;
+-import org.eclipse.swt.widgets.Button;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.FontDialog;
+-import org.eclipse.swt.widgets.Group;
+-import org.eclipse.swt.widgets.Label;
+-import org.eclipse.swt.widgets.Spinner;
+-import org.jdom.Element;
+-import org.pathvisio.Engine;
+-import org.pathvisio.data.CachedData;
+-import org.pathvisio.data.DataSources;
+-import org.pathvisio.data.Gex;
+-import org.pathvisio.data.CachedData.Data;
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.util.swt.SwtUtils;
+-import org.pathvisio.view.GeneProduct;
+-import org.pathvisio.view.Graphics;
+-import org.pathvisio.visualization.Visualization;
+-
+-/**
+- * Provides label for Gene Product
+- * @author thomas
+- *
+- */
+-public class ExpressionAsTextPlugin extends VisualizationPlugin {
+-	static final String NAME = "Text by expression";
+-	static final String DESCRIPTION = 
+-		"This plugin displays expression data for a given set of samples as text";
+-	
+-	static final Font DEFAULT_FONT = new Font("Arial narrow", Font.PLAIN, 10);
+-			
+-	final static String SEP = ", ";	
+-	int roundTo = 2;
+-	boolean mean = false;
+-			
+-	Font font;
+-	Set<Sample> useSamples = new LinkedHashSet<Sample>();
+-	
+-	public ExpressionAsTextPlugin(Visualization v) {
+-		super(v);		
+-	    setIsConfigurable(true);
+-		setDisplayOptions(DRAWING | TOOLTIP);
+-		setIsGeneric(false);
+-		setUseProvidedArea(false);
+-	}
+-	
+-	public String getName() { return NAME; }
+-	public String getDescription() { return DESCRIPTION; }
+-	
+-	static final int SPACING = 3;
+-	public void visualizeOnDrawing(Graphics g, Graphics2D g2d) {
+-		if(g instanceof GeneProduct) {
+-			GeneProduct gp = (GeneProduct) g;
+-			CachedData  cache = Gex.getCachedData();
+-			
+-			String id = gp.getGmmlData().getXref();
+-			String db = DataSources.sysName2Code.get(gp.getGmmlData().getDataSource());
+-			IdCodePair idc = new IdCodePair(id, db);
+-			
+-			if(cache == null || !cache.hasData(idc)|| useSamples.size() == 0) {
+-				return;
+-			}
+-									
+-			int startx = (int)(g.getVLeft() + g.getVWidth() + SPACING);
+-			int starty = (int)(g.getVTop() + g.getVHeight() / 2);
+-			
+-			Font f = getFont(true);
+-			g2d.setFont(f);
+-			
+-			int w = 0, i = 0;
+-			for(Sample s : useSamples) {
+-				String str = getDataString(s, idc, cache, SEP + "\n") + 
+-				(++i == useSamples.size() ? "" : SEP);
+-				
+-				TextLayout tl = new TextLayout(str, f, g2d.getFontRenderContext());
+-				Rectangle2D tb = tl.getBounds();
+-				Dimension size = new Dimension((int)tb.getHeight(), (int)tb.getWidth());
+-
+-				g2d.drawString(str, startx + w, starty - size.height / 2);
+-				w += size.width;
+-			}
+-		}
+-	}
+-	
+-	public Composite visualizeOnToolTip(Composite parent, Graphics g) {
+-		if(g instanceof GeneProduct) {
+-			GeneProduct gp = (GeneProduct) g;
+-			CachedData  cache = Gex.getCachedData();
+-			
+-			IdCodePair idc = new IdCodePair(gp.getID(), gp.getSystemCode());
+-			
+-			if(!cache.hasData(idc)|| useSamples.size() == 0) {
+-				return null;
+-			}
+-						
+-			Group group = new Group(parent, SWT.NULL);
+-			group.setLayout(new GridLayout(2, false));
+-			group.setText("Expression data");
+-			
+-			for(Sample s : useSamples) {
+-				Label labelL = new Label(group, SWT.NULL);
+-				labelL.setText(getLabelLeftText(s));
+-				Label labelR = new Label(group, SWT.NULL);
+-				labelR.setText(getLabelRightText(s, idc, cache));
+-			}
+-			SwtUtils.setCompositeAndChildrenBackground(group, 
+-					group.getShell().getDisplay().getSystemColor(SWT.COLOR_INFO_BACKGROUND));
+-			return group;
+-		} else return null;
+-	}
+-	
+-	public Composite createLegendComposite(Composite parent) {
+-		Composite lc = new Composite(parent, SWT.NULL);
+-		lc.setLayout(new FillLayout());
+-		Label label = new Label(lc, SWT.NULL);
+-		String s = "Displayed value" + (useSamples.size() > 1 ? "s from left to right:" : " on drawing:");
+-		for(Sample smp : useSamples) {
+-			s += "\n- " + smp.getName();
+-		}
+-		label.setText(s);
+-		SwtUtils.setCompositeAndChildrenBackground(lc, parent.getBackground());
+-		return lc;
+-	}
+-	
+-	String getLabelLeftText(Sample s) {
+-		return s.getName() + ":";
+-	}
+-	
+-	String getLabelRightText(Sample s, IdCodePair idc, CachedData cache) {
+-		return getDataString(s, idc, cache, SEP);
+-	}
+-	
+-	String getDataString(Sample s, IdCodePair idc, CachedData cache, String multSep) {	
+-		Object str = null;
+-		if(cache.hasMultipleData(idc))
+-			str = formatData(getSampleStringMult(s, idc, cache, multSep));
+-		else
+-			str =  formatData(getSampleData(s, cache.getSingleData(idc)));
+-		return str == null ? "" : str.toString();
+-	}
+-	
+-	Object getSampleData(Sample s, Data data) {
+-		return data.getSampleData(s.getId());
+-	}
+-	
+-	Object getSampleStringMult(Sample s, IdCodePair idc, CachedData cache, String sep) {
+-		if(mean) return cache.getAverageSampleData(idc).get(s.getId());
+-		
+-		List<Data> refdata = cache.getData(idc);
+-		StringBuilder strb = new StringBuilder();
+-		for(Data d : refdata) {
+-			String str = formatData(d.getSampleData().get(s.getId())).toString();
+-			if(!str.equals("NaN")) {
+-				strb.append(str + sep);
+-			}
+-		}
+-		return strb.length() > sep.length() ? strb.substring(0, strb.length() - sep.length()) : strb;
+-	}
+-	
+-	Object formatData(Object data) {
+-		if(data instanceof Double) {
+-			double d = (Double)data;
+-			
+-			if(Double.isNaN(d)) return "NaN";
+-			
+-			int dec = (int)Math.pow(10, getRoundTo());
+-			double rounded = (double)(Math.round(d * dec)) / dec;
+-			data = dec == 1 ? Integer.toString((int)rounded) : Double.toString(rounded);
+-		}
+-		return data;
+-	}
+-	
+-	void setFont(Font f) {
+-		if(f != null) {
+-			font = f;
+-			fireModifiedEvent();
+-		}
+-	}
+-	
+-//	int getFontSize() {
+-//		return getFont().getSize()
+-//	}
+-	
+-	Font getFont() {
+-		return getFont(false);
+-	}
+-	
+-	Font getFont(boolean adjustZoom) {
+-		Font f = font == null ? DEFAULT_FONT : font;
+-		if(adjustZoom) {
+-			int size = (int)Math.ceil(Engine.getActiveVPathway().vFromM(f.getSize()) * 15);
+-			f = new Font(f.getName(), size, f.getStyle());
+-		}
+-		return f;
+-	}
+-	
+-	FontData getFontData() {
+-		return SwtUtils.awtFont2FontData(getFont());
+-	}
+-	
+-	void setFontData(FontData fd) {
+-		setFont(SwtUtils.fontData2awtFont(fd));
+-	}
+-	
+-	void addUseSample(Sample s) {
+-		if(s != null) {
+-			useSamples.add(s);
+-			fireModifiedEvent();
+-		}
+-	}
+-	
+-	void addUseSamples(IStructuredSelection selection) {
+-		Iterator it = selection.iterator();
+-		while(it.hasNext()) {
+-			useSamples.add((Sample)it.next());
+-		}
+-		fireModifiedEvent();
+-	}
+-	
+-	void removeUseSamples(IStructuredSelection selection) {
+-		Iterator it = selection.iterator();
+-		while(it.hasNext()) {
+-			useSamples.remove((Sample)it.next());
+-		}
+-		fireModifiedEvent();
+-	}
+-	
+-	public int getRoundTo() { return roundTo; }
+-	
+-	public void setRoundTo(int dec) {
+-		if(dec >= 0 && dec < 10) {
+-			roundTo = dec;
+-			fireModifiedEvent();
+-		}
+-	}
+-	
+-	public void setCalcMean(boolean doCalcMean) {
+-		mean = doCalcMean;
+-		fireModifiedEvent();
+-	}
+-	
+-	protected Composite createConfigComposite(Composite parent) {
+-		Composite comp = new Composite(parent, SWT.NULL);
+-		comp.setLayout(new GridLayout());
+-		
+-		Composite sampleComp = createSampleComp(comp);
+-		sampleComp.setLayoutData(new GridData(GridData.FILL_BOTH));
+-		
+-		Composite options = createOptionsComp(comp);
+-		options.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+-		
+-		return comp;
+-	}
+-		
+-	Composite createSampleComp(Composite parent) {
+-		Composite sampleComp = new Composite(parent, SWT.NULL);
+-		sampleComp.setLayout(new GridLayout(2, false));
+-
+-		Label expl = new Label(sampleComp, SWT.NULL);
+-		expl.setText("- Click on a sample in the left list to add to the samples that will" +
+-				"be shown as text\n" +
+-				"- Click on a sample on the right list to remove");
+-		GridData span = new GridData();
+-		span.horizontalSpan = 2;
+-		expl.setLayoutData(span);
+-		
+-		Label slabel = new Label(sampleComp, SWT.NULL);
+-		slabel.setText("All samples:");
+-		
+-		Label ulabel = new Label(sampleComp, SWT.NULL);
+-		ulabel.setText("Selected samples:");
+-		
+-		LabelProvider lprov = new LabelProvider() {
+-			public String getText(Object element) {
+-				return ((Sample)element).getName();
+-			}
+-		};
+-		
+-		final ListViewer samples = new ListViewer(sampleComp, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER | SWT.MULTI);
+-		samples.getList().setLayoutData(new GridData(GridData.FILL_BOTH));
+-		samples.setContentProvider(new ArrayContentProvider());
+-		samples.setLabelProvider(lprov);
+-			
+-		final ListViewer use = new ListViewer(sampleComp, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER | SWT.MULTI);
+-		use.getList().setLayoutData(new GridData(GridData.FILL_BOTH));
+-		use.setContentProvider(new ArrayContentProvider());
+-		use.setLabelProvider(lprov);
+-		
+-		ISelectionChangedListener slist = new ISelectionChangedListener() {
+-			public void selectionChanged(SelectionChangedEvent event) {
+-				if(event.getSource() == use) 
+-					removeUseSamples((IStructuredSelection)event.getSelection());
+-				else
+-					addUseSamples((IStructuredSelection)event.getSelection());
+-				use.refresh();
+-			}
+-		};
+-		use.addSelectionChangedListener(slist);
+-		samples.addSelectionChangedListener(slist);
+-		
+-		samples.setInput(Gex.getSamples(-1));
+-		use.setInput(useSamples);
+-		
+-		return sampleComp;
+-	}
+-	
+-	Composite createOptionsComp(Composite parent) {
+-		Group optionsComp = new Group(parent, SWT.NULL);
+-		optionsComp.setText("Options");
+-		optionsComp.setLayout(new RowLayout(SWT.VERTICAL));
+-		final Button font = new Button(optionsComp, SWT.PUSH);
+-		font.setText("Change font");
+-		font.addSelectionListener(new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				FontDialog fd = new FontDialog(font.getShell());
+-				fd.setFontList(new FontData[] { getFontData() });
+-				FontData data = fd.open();
+-				if(data != null) setFontData(data);
+-			}
+-		});
+-		createRoundComp(optionsComp);
+-		final Button doAvg = new Button(optionsComp, SWT.CHECK);
+-		doAvg.setText("Show mean value of data with ambigious reporters");
+-		doAvg.addSelectionListener(new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				setCalcMean(doAvg.getSelection());
+-			}
+-		});
+-		doAvg.setSelection(mean);
+-		return optionsComp;
+-	}
+-	
+-	Composite createRoundComp(Composite parent) {
+-		Composite roundComp = new Composite(parent, SWT.NULL);
+-		roundComp.setLayout(new RowLayout(SWT.VERTICAL));
+-		Label lb = new Label(roundComp, SWT.NULL);
+-		lb.setText("Number of decimals to round numeric data to:");
+-		final Spinner sp = new Spinner(roundComp, SWT.BORDER);
+-		sp.setMaximum(9);
+-		sp.addModifyListener(new ModifyListener() {
+-			public void modifyText(ModifyEvent e) {
+-				setRoundTo(sp.getSelection());
+-			}
+-		});
+-		sp.setSelection(getRoundTo());
+-		sp.pack();
+-		return roundComp;
+-	}
+-	
+-	
+-	public void visualizeOnSidePanel(Collection<Graphics> objects) { }
+-	public void initSidePanel(Composite parent) { }
+-
+-	static final String XML_ATTR_FONTDATA = "font";
+-	static final String XML_ATTR_AVG = "mean";
+-	static final String XML_ATTR_ROUND = "round-to";
+-	static final String XML_ELM_ID = "sample-id";
+-	public Element toXML() {
+-		Element elm = super.toXML();
+-		elm.setAttribute(XML_ATTR_FONTDATA, getFontData().toString());
+-		elm.setAttribute(XML_ATTR_ROUND, Integer.toString(getRoundTo()));
+-		elm.setAttribute(XML_ATTR_AVG, Boolean.toString(mean));
+-		for(Sample s : useSamples) {
+-			Element selm = new Element(XML_ELM_ID);
+-			selm.setText(Integer.toString(s.getId()));
+-			elm.addContent(selm);
+-		}
+-		return elm;
+-	}
+-	
+-	public void loadXML(Element xml) {
+-		super.loadXML(xml);
+-		for(Object o : xml.getChildren(XML_ELM_ID)) {
+-			try {
+-				int id = Integer.parseInt(((Element)o).getText());
+-				useSamples.add(Gex.getSample(id));
+-			} catch(Exception e) { Engine.log.error("Unable to add sample", e); }
+-		}
+-		roundTo = Integer.parseInt(xml.getAttributeValue(XML_ATTR_ROUND));
+-		setFontData(new FontData(xml.getAttributeValue(XML_ATTR_FONTDATA)));
+-		mean = Boolean.parseBoolean(xml.getAttributeValue(XML_ATTR_AVG));
+-	}
+-}
+-
+Index: trunk/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java
+===================================================================
+--- trunk/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java	(revision 990)
++++ trunk/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java	(revision 991)
+@@ -1,736 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.visualization.plugins;
+-
+-import java.awt.Color;
+-import java.awt.Graphics2D;
+-import java.awt.Rectangle;
+-import java.awt.Shape;
+-import java.sql.Types;
+-import java.util.ArrayList;
+-import java.util.Collection;
+-import java.util.Iterator;
+-import java.util.List;
+-
+-import org.eclipse.jface.viewers.ArrayContentProvider;
+-import org.eclipse.jface.viewers.CellEditor;
+-import org.eclipse.jface.viewers.ComboBoxCellEditor;
+-import org.eclipse.jface.viewers.ICellModifier;
+-import org.eclipse.jface.viewers.ILabelProviderListener;
+-import org.eclipse.jface.viewers.ISelectionChangedListener;
+-import org.eclipse.jface.viewers.IStructuredSelection;
+-import org.eclipse.jface.viewers.ITableLabelProvider;
+-import org.eclipse.jface.viewers.LabelProvider;
+-import org.eclipse.jface.viewers.ListViewer;
+-import org.eclipse.jface.viewers.SelectionChangedEvent;
+-import org.eclipse.jface.viewers.TableViewer;
+-import org.eclipse.jface.viewers.TextCellEditor;
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.PaintEvent;
+-import org.eclipse.swt.events.PaintListener;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+-import org.eclipse.swt.events.SelectionListener;
+-import org.eclipse.swt.graphics.GC;
+-import org.eclipse.swt.graphics.Image;
+-import org.eclipse.swt.graphics.Point;
+-import org.eclipse.swt.graphics.Transform;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.layout.GridData;
+-import org.eclipse.swt.layout.GridLayout;
+-import org.eclipse.swt.layout.RowLayout;
+-import org.eclipse.swt.widgets.Button;
+-import org.eclipse.swt.widgets.Canvas;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Group;
+-import org.eclipse.swt.widgets.Label;
+-import org.eclipse.swt.widgets.Table;
+-import org.eclipse.swt.widgets.TableColumn;
+-import org.eclipse.swt.widgets.TableItem;
+-import org.jdom.Element;
+-import org.pathvisio.Engine;
+-import org.pathvisio.data.CachedData;
+-import org.pathvisio.data.Gex;
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.util.swt.SwtUtils;
+-import org.pathvisio.util.swt.TableColumnResizer;
+-import org.pathvisio.view.GeneProduct;
+-import org.pathvisio.view.Graphics;
+-import org.pathvisio.view.swt.SWTGraphics2D;
+-import org.pathvisio.visualization.Visualization;
+-import org.pathvisio.visualization.colorset.ColorSet;
+-import org.pathvisio.visualization.colorset.ColorSetManager;
+-
+-/**
+- * Extend this class if you want to create a visualization plug-in where the user
+- * can select which samples to visualize.
+- * 
+- * For an example of an implementation see {@link PluginWithColoredSamples} 
+- * @author Thomas
+- *
+- */
+-public abstract class PluginWithColoredSamples extends VisualizationPlugin {	
+-	static final String[] useSampleColumns = { "sample", "color set" };
+-	static final Color LINE_COLOR_DEFAULT = Color.BLACK;
+-	
+-	private List<ConfiguredSample> useSamples = new ArrayList<ConfiguredSample>();
+-	private Canvas sidePanel;
+-	private Collection<Graphics> spGraphics;
+-	
+-	public PluginWithColoredSamples(Visualization v) {
+-		super(v);
+-		setIsConfigurable(true);
+-		setIsGeneric(false);
+-		setUseProvidedArea(true);
+-	}
+-	
+-	/**
+-	 * This method determines the area in the gene-box to use for visualization and calls
+-	 * {@link #drawArea(GmmlGeneProduct, Rectangle, PaintEvent, GC)} to draw the samples.
+-	 * If you want to visualize the data in the gene-box, implement 
+-	 * {@link #drawSample(visualization.plugins.PluginWithColoredSamples.ConfiguredSample, IdCodePair, Rectangle, PaintEvent, GC)}
+-	 * and
+-	 * {@link #drawNoDataFound(visualization.plugins.PluginWithColoredSamples.ConfiguredSample, Rectangle, PaintEvent, GC)}.
+-	 * @see VisualizationPlugin#visualizeOnDrawing(GmmlGraphics, PaintEvent, GC)
+-	 */
+-	public void visualizeOnDrawing(Graphics g, Graphics2D g2d) {
+-		if(!(g instanceof GeneProduct)) return;
+-		if(useSamples.size() == 0) return; //Nothing to draw
+-		
+-		GeneProduct gp = (GeneProduct) g;
+-		
+-		Shape da = getVisualization().provideDrawArea(this, g);
+-		Rectangle area = da.getBounds();
+-		
+-		drawArea(gp, area, g2d);
+-		
+-		Color c = gp.getGmmlData().getColor();
+-		g2d.setColor(c);
+-		g2d.draw(area);
+-		
+-	}
+-	
+-	/**
+-	 * Divides the given area in a rectangle for each sample and calls
+-	 * {@link #drawSample(visualization.plugins.PluginWithColoredSamples.ConfiguredSample, IdCodePair, Rectangle, PaintEvent, GC)}
+-	 * (when data is available) or
+-	 * {@link #drawNoDataFound(visualization.plugins.PluginWithColoredSamples.ConfiguredSample, Rectangle, PaintEvent, GC)}
+-	 * (when no data is available).
+-	 * @param gp The gene-product to visualize the data for
+-	 * @param area The area in which to draw
+-	 * @param g2d The graphics context on which to draw
+-	 */
+-	void drawArea(GeneProduct gp, Rectangle area, Graphics2D g2d) {
+-		int nr = useSamples.size();
+-		int left = area.width % nr; //Space left after dividing, give to last rectangle
+-		int w = area.width / nr;
+-		for(int i = 0; i < nr; i++) {
+-			Rectangle r = new Rectangle(
+-					area.x + w * i,
+-					area.y,
+-					w + ((i == nr - 1) ? left : 0), area.height);
+-			ConfiguredSample s = (ConfiguredSample)useSamples.get(i);
+-			IdCodePair idc = new IdCodePair(gp.getID(), gp.getSystemCode());
+-			CachedData cache = Gex.getCachedData();
+-			if(cache == null) continue;
+-			
+-			if(s.getColorSet() == null) continue; //No colorset for this sample
+-			if(cache.hasData(idc)) 
+-				drawSample(s, idc, r, g2d);
+-			else 
+-				drawNoDataFound(s, area, g2d);
+-		}
+-	}
+-	
+-	/**
+-	 * Implement this method to perform the drawing operation for a single sample in case no data is found
+-	 * for a gene-product
+-	 * @see #visualizeOnDrawing(GmmlGraphics, PaintEvent, GC)
+-	 * @param s The sample that will be visualized
+-	 * @param area The area to draw in
+-	 * @param e	{@link PaintEvent} containing information about the paint
+-	 * @param gc Graphical context on which drawing operations can be performed
+-	 */
+-	abstract void drawNoDataFound(ConfiguredSample s, Rectangle area, Graphics2D g2d);
+-	
+-	/**
+-	 * Implement this method to perform the drawing operation for a single sample when data is
+-	 * present for the gene-product to visualize.
+-	 * @see #visualizeOnDrawing(GmmlGraphics, PaintEvent, GC)
+-	 * @see CachedData#getData(IdCodePair)
+-	 * @param s The sample that will be visualized
+-	 * @param idc The id and code of the gene-product
+-	 * @param area The area to draw in
+-	 * @param e	{@link PaintEvent} containing information about the paint
+-	 * @param gc Graphical context on which drawing operations can be performed
+-	 */
+-	abstract void drawSample(ConfiguredSample s, IdCodePair idc, Rectangle area, Graphics2D g2d);
+-	
+-	static final int SIDEPANEL_SPACING = 3;
+-	static final int SIDEPANEL_MARGIN = 5;
+-	
+-	/**
+-	 * This method implements a visualization on the side-panel, which is divided
+-	 * in horizontal bars, one for each selected gene-product. In the horizontal bars, the samples
+-	 * are visualized by calling {@link #drawArea(GmmlGeneProduct, Rectangle, PaintEvent, GC)}
+-	 * @see #drawSample(visualization.plugins.PluginWithColoredSamples.ConfiguredSample, IdCodePair, Rectangle, PaintEvent, GC)
+-	 * @see #drawNoDataFound(visualization.plugins.PluginWithColoredSamples.ConfiguredSample, Rectangle, PaintEvent, GC)
+-	 * @param e
+-	 */
+-	void drawSidePanel(PaintEvent e) {
+-		if(spGraphics == null) return;
+-		
+-		org.eclipse.swt.graphics.Rectangle area = sidePanel.getClientArea();
+-		area.x += SIDEPANEL_MARGIN;
+-		area.y += SIDEPANEL_MARGIN;
+-		area.width -= SIDEPANEL_MARGIN * 2;
+-		area.height -= SIDEPANEL_MARGIN * 2;
+-		
+-		int nr = 0;
+-		for(Graphics g : spGraphics) if(g instanceof GeneProduct) nr++;
+-
+-		if(nr == 0) {
+-			e.gc.setBackground(e.display.getSystemColor(SWT.COLOR_WHITE));
+-			e.gc.fillRectangle(sidePanel.getClientArea());
+-			return;
+-		}
+-		
+-		GeneProduct[] gps = new GeneProduct[nr];
+-		int x = 0;
+-		for(Graphics g : spGraphics) 
+-			if(g instanceof GeneProduct) gps[x++] = (GeneProduct)g;
+-		
+-		e.gc.setFont(e.display.getSystemFont());
+-		int tw = 0;
+-		for(GeneProduct g : gps) tw = Math.max(tw, e.gc.textExtent(g.getGmmlData().getTextLabel()).x);
+-		tw += e.gc.getFontMetrics().getHeight();
+-		
+-		//Draw sample labels (vertical)
+-		int lw = 0;
+-		for(ConfiguredSample s : useSamples) lw = Math.max(lw, e.gc.textExtent(s.getName()).x);
+-		
+-		
+-		Rectangle larea = new Rectangle(area.x + tw, area.y, area.width - tw, lw);
+-
+-		Transform t = new Transform(e.display);
+-		int ns = useSamples.size();
+-		
+-		for(int i = 0; i < ns; i++) {
+-			int tx = larea.x + i * (larea.width / ns) + larea.width / (2*ns);
+-			int ty = larea.y;
+-			t.translate(tx, ty);
+-			t.rotate(90);
+-			e.gc.setTransform(t);
+-			e.gc.drawText(useSamples.get(i).getName(), 0, 0);
+-			t.rotate(-90);
+-			t.translate(-tx, -ty);
+-			e.gc.setTransform(t);
+-		}
+-		t.dispose();
+-		
+-		area.y += lw;
+-		area.height -= lw;
+-		int h = area.height / nr;
+-		for(int i = 0; i < nr; i++) {
+-			int y = area.y + i*h;
+-			e.gc.setBackground(e.display.getSystemColor(SWT.COLOR_WHITE));
+-			e.gc.drawText(gps[i].getGmmlData().getTextLabel(), area.x, y + h / 2 - e.gc.getFontMetrics().getHeight() / 2);
+-			Rectangle r = new Rectangle(area.x + tw, y, area.width - tw, h - SIDEPANEL_SPACING);
+-			SWTGraphics2D g2d = new SWTGraphics2D(e.gc, e.display);
+-			drawArea(gps[i], r, g2d);
+-			g2d.dispose();
+-		}
+-	}
+-	
+-	public void initSidePanel(Composite parent) { 
+-		sidePanel = new Canvas(parent, SWT.NULL);
+-		sidePanel.setBackground(sidePanel.getDisplay().getSystemColor(SWT.COLOR_WHITE));
+-		sidePanel.addPaintListener(new PaintListener() {
+-			public void paintControl(PaintEvent e) {
+-				drawSidePanel(e);
+-			}
+-		});
+-	}
+-	
+-	public void visualizeOnSidePanel(Collection<Graphics> objects) {
+-		spGraphics = objects;
+-		sidePanel.redraw();
+-	}
+-	
+-	/**
+-	 * Add a sample to use for visualization
+-	 * @param s The sample to add
+-	 */
+-	void addUseSample(Sample s) {
+-		if(s != null) {
+-			if(!useSamples.contains(s)) useSamples.add(createConfiguredSample(s));
+-			fireModifiedEvent();
+-		}
+-	}
+-	
+-	/**
+-	 * Add samples to use for visualization
+-	 * @param selection A selection containing samples to add
+-	 */
+-	void addUseSamples(IStructuredSelection selection) {
+-		Iterator it = selection.iterator();
+-		while(it.hasNext()) {
+-			Sample s = (Sample)it.next();
+-			if(!useSamples.contains(s)) 
+-				useSamples.add(createConfiguredSample(s));
+-		}
+-		fireModifiedEvent();
+-	}
+-	
+-	/**
+-	 * Remove samples from the samples that will be used for visualization
+-	 * @param selection A selection containing samples to remove
+-	 */
+-	void removeUseSamples(IStructuredSelection selection) {
+-		Iterator it = selection.iterator();
+-		while(it.hasNext()) {
+-			useSamples.remove((ConfiguredSample)it.next());
+-		}
+-		fireModifiedEvent();
+-	}
+-	
+-	/**
+-	 * Remove a sample from the samples that will be used for visualization
+-	 * @param s
+-	 */
+-	void removeUseSample(ConfiguredSample s) {
+-		if(s != null) {
+-			useSamples.remove(s);
+-			fireModifiedEvent();
+-		}
+-	}
+-	
+-	public final Element toXML() {
+-		Element xml = super.toXML();
+-		saveAttributes(xml);
+-		for(ConfiguredSample s : useSamples) xml.addContent(s.toXML());
+-		return xml;
+-	}
+-	
+-	/**
+-	 * Implement this method to save attributes to the XML element 
+-	 * that contain additional configuration of this plug-ins
+-	 * @param xml The XML element to save the attributes to
+-	 */
+-	abstract void saveAttributes(Element xml);
+-	
+-	public final void loadXML(Element xml) {
+-		super.loadXML(xml);
+-		loadAttributes(xml);
+-		for(Object o : xml.getChildren(ConfiguredSample.XML_ELEMENT)) {
+-			try {
+-				useSamples.add(createConfiguredSample((Element)o));
+-			} catch(Exception e) {
+-				Engine.log.error("Unable to save plugin settings", e);
+-			}
+-		}	
+-	}
+-	
+-	/**
+-	 * Implement this method to load additional attributes that were saved to XML
+-	 * by {@link #saveAttributes(Element)}
+-	 * @param xml The XML element containig the attributes
+-	 */
+-	abstract void loadAttributes(Element xml);
+-	
+-	public Composite createLegendComposite(Composite parent) {
+-		final Canvas canvas = new LegendCanvas(parent, SWT.NULL);
+-		canvas.addPaintListener(new PaintListener() {
+-			public void paintControl(PaintEvent e) {
+-				drawLegend(canvas, e);
+-			}
+-		});
+-		SwtUtils.setCompositeAndChildrenBackground(canvas, parent.getBackground());
+-		return canvas;
+-	}
+-	
+-	private class LegendCanvas extends Canvas {
+-		public LegendCanvas(Composite parent, int style) {
+-			super(parent, style);
+-		}
+-		
+-		
+-		public Point computeSize(int wHint, int hHint, boolean changed) {
+-			Point size = super.computeSize(wHint, hHint, changed);
+-			size.y = 2*LEGEND_MARGIN + useSamples.size() * SAMPLE_HEIGHT + LEGEND_BOXHEIGHT;
+-			return size;
+-		}
+-		
+-	}
+-	
+-	final static int LEGEND_MARGIN = 5;
+-	final static int LEGEND_SPACING = 5;
+-	final static int SAMPLE_HEIGHT = LEGEND_SPACING + 15;
+-	final static int LEGEND_BOXHEIGHT = 20;
+-	void drawLegend(Canvas c, PaintEvent e) {
+-		e.gc.setForeground(e.display.getSystemColor(SWT.COLOR_BLACK));
+-		
+-		//Draw a square divided into ns blocks
+-		//Draw labels for samplenames
+-		//Draw vertical line to labels
+-		
+-		org.eclipse.swt.graphics.Rectangle r = c.getClientArea();
+-		r.x += LEGEND_MARGIN;
+-		r.y += LEGEND_MARGIN;
+-		r.width -= 2*LEGEND_MARGIN;
+-		r.height -= 2*LEGEND_MARGIN;
+-		
+-		int ns = useSamples.size();
+-		int w = r.width / ns;
+-		int hi = (r.height - LEGEND_BOXHEIGHT) / ns + LEGEND_SPACING;
+-		
+-		for(int i = 0; i < ns; i++) {
+-			ConfiguredSample s = useSamples.get(i);
+-			org.eclipse.swt.graphics.Rectangle area = 
+-				new org.eclipse.swt.graphics.Rectangle(w * i, r.y, w, LEGEND_BOXHEIGHT);
+-			drawLegendSample(s, area, e, e.gc);
+-			
+-			Point ts = e.gc.textExtent(s.getName());
+-			int cx = area.x + area.width / 2;
+-			int cy = area.y + area.height / 2;
+-			int yo = (i == 0 ? 10 : 0);
+-			int xo = cx - ts.x / 2;
+-			if(i == 0) xo = Math.max(0, xo);
+-			else if(i == ns - 1) xo = Math.min(xo, area.x + area.width - ts.x);
+-		
+-			e.gc.drawLine(cx, cy, cx, area.y + area.height + (hi * i) + yo);
+-			e.gc.drawString(s.getName(), xo, 
+-					area.y + area.height + (hi * i) + yo, true);
+-			
+-		}
+-	}
+-	
+-	/**
+-	 * Draw an example visualization for the legend.
+-	 * (default implementation is an empty rectangle)
+-	 * @param s
+-	 * @param area
+-	 * @param e
+-	 * @param gc
+-	 */
+-	protected void drawLegendSample(ConfiguredSample s, org.eclipse.swt.graphics.Rectangle area, PaintEvent e, GC gc) {
+-		e.gc.drawRectangle(area);
+-	}
+-	
+-	TableViewer useSampleTable;
+-	SampleConfigComposite sampleConfigComp;
+-	protected Composite createConfigComposite(Composite parent) {
+-		Composite config = new Composite(parent, SWT.NULL);
+-		config.setLayout(new GridLayout());
+-		
+-		Composite optionsComp = createOptionsComp(config);
+-		optionsComp.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+-		
+-		Composite samplesComp = createSamplesComp(config);
+-		samplesComp.setLayoutData(new GridData(GridData.FILL_BOTH));
+-		sampleConfigComp = createSampleConfigComp(config);
+-		sampleConfigComp.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+-		return config;
+-	}
+-	
+-	/**
+-	 * Create a composite that displays items for additional configuration
+-	 * of the visualization plug-in.
+-	 * @param parent The parent Composite
+-	 * @return A Composite for additional configuration
+-	 */
+-	abstract Composite createOptionsComp(Composite parent);
+-	
+-	Composite createSamplesComp(Composite parent) {
+-		Group samplesGroup = new Group(parent, SWT.NULL);
+-		samplesGroup.setText("Samples to display");
+-		samplesGroup.setLayout(new GridLayout(3, false));
+-		
+-		Label sampleLabel = new Label(samplesGroup, SWT.NULL);
+-		sampleLabel.setText("Available samples:");
+-		GridData span = new GridData(GridData.HORIZONTAL_ALIGN_BEGINNING);
+-		span.horizontalSpan = 2;
+-		sampleLabel.setLayoutData(span);
+-		
+-		Label useSampleLabel = new Label(samplesGroup, SWT.NULL);
+-		useSampleLabel.setText("Selected samples\t\t\t\t\t");
+-		useSampleLabel.setLayoutData(new GridData(GridData.HORIZONTAL_ALIGN_BEGINNING));
+-				
+-		final ListViewer sampleList = new ListViewer(samplesGroup, SWT.BORDER | SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
+-		sampleList.getList().setLayoutData(new GridData(GridData.FILL_VERTICAL));
+-		sampleList.setContentProvider(new ArrayContentProvider());
+-		sampleList.setLabelProvider(new LabelProvider() {
+-			public String getText(Object element) {
+-				return ((Sample)element).getName();
+-			}
+-		});
+-		sampleList.setInput(Gex.getSamples(Types.REAL));
+-		
+-		Composite buttons = new Composite(samplesGroup, SWT.NULL);
+-		buttons.setLayout(new RowLayout(SWT.VERTICAL));
+-		final Button add = new Button(buttons, SWT.PUSH);
+-		add.setText(">");
+-		final Button remove = new Button(buttons, SWT.PUSH);
+-		remove.setText("<");
+-		
+-		SelectionListener buttonListener = new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				if(e.widget == add) {
+-					addUseSamples((IStructuredSelection)sampleList.getSelection());
+-				} else {
+-					removeUseSamples((IStructuredSelection)useSampleTable.getSelection());
+-				}
+-				useSampleTable.refresh();
+-			}
+-		};
+-		
+-		add.addSelectionListener(buttonListener);
+-		remove.addSelectionListener(buttonListener);
+-		
+-		Composite tableComp = new Composite(samplesGroup, SWT.NULL);
+-		tableComp.setLayout(new FillLayout());
+-		tableComp.setLayoutData(new GridData(GridData.FILL_BOTH));
+-		Table t = new Table(tableComp, SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI);
+-		t.setHeaderVisible(true);
+-		
+-		TableColumn tcnm = new TableColumn(t, SWT.LEFT);
+-		tcnm.setText(useSampleColumns[0]);
+-		tcnm.setToolTipText("The samples that will be displayed in the gene box");
+-		TableColumn tccs = new TableColumn(t, SWT.LEFT);
+-		tccs.setText(useSampleColumns[1]);
+-		tccs.setToolTipText("The color set to apply on this sample");
+-		t.addControlListener(new TableColumnResizer(t, tableComp));
+-		useSampleTable = new TableViewer(t);
+-		useSampleTable.setContentProvider(new ArrayContentProvider());
+-		useSampleTable.setLabelProvider(new ITableLabelProvider() {
+-			public String getColumnText(Object element, int columnIndex) {
+-				switch(columnIndex) {
+-				case 0: return ((Sample)element).getName();
+-				case 1: return ((ConfiguredSample)element).getColorSetName();
+-				default: return null;
+-				}
+-			}
+-			public Image getColumnImage(Object element, int columnIndex) { return null; }
+-			public void addListener(ILabelProviderListener listener) { }
+-			public void dispose() { }
+-			public boolean isLabelProperty(Object element, String property) { return false; }
+-			public void removeListener(ILabelProviderListener listener) { }
+-		});
+-		useSampleTable.addSelectionChangedListener(new ISelectionChangedListener() {
+-			public void selectionChanged(SelectionChangedEvent e) {
+-				sampleConfigComp.setInput(getSelectedUseSamples());
+-			}
+-			
+-		});
+-		useSampleTable.setColumnProperties(useSampleColumns);
+-		final ComboBoxCellEditor editor = new ComboBoxCellEditor(useSampleTable.getTable(), ColorSetManager.getColorSetNames());
+-		useSampleTable.setCellEditors(new CellEditor[] { new TextCellEditor(), editor });
+-		useSampleTable.setCellModifier(new ICellModifier() {
+-			public boolean canModify(Object element, String property) {
+-				return 
+-				property.equals(useSampleColumns[1]) &&
+-				editor.getItems().length > 0;
+-			}
+-			public Object getValue(Object element, String property) {
+-				if(property.equals(useSampleColumns[1]))
+-					return ((ConfiguredSample)element).getColorSetIndex();
+-				return null;
+-			}
+-			public void modify(Object element, String property, Object value) {
+-				if(property.equals(useSampleColumns[1])) {
+-					TableItem ti = (TableItem)element;
+-					((ConfiguredSample)ti.getData()).setColorSetIndex((Integer)value);
+-					useSampleTable.refresh();
+-				}
+-			}
+-			
+-		});
+-		
+-		useSampleTable.setInput(useSamples);
+-		return samplesGroup;
+-	}
+-		
+-	ConfiguredSample getSelectedUseSample() {
+-		return (ConfiguredSample)
+-		((IStructuredSelection)useSampleTable.getSelection()).getFirstElement();
+-	}
+-	
+-	ConfiguredSample[] getSelectedUseSamples() {
+-		Object[] selection = ((IStructuredSelection)useSampleTable.getSelection()).toArray();
+-		ConfiguredSample[] samples = new ConfiguredSample[selection.length];
+-		int i = 0;
+-		for(Object o : selection) samples[i++] = (ConfiguredSample)o;
+-		return samples;
+-	}
+-	/**
+-	 * Create a composite for configuring a sample selected for visualization.
+-	 * You can use an implementation of {@link SampleConfigComposite}.
+-	 * @see SampleConfigComposite
+-	 * @param parent
+-	 * @return
+-	 */
+-	abstract SampleConfigComposite createSampleConfigComp(Composite parent);
+-	
+-	/**
+-	 * This class provides a framework to create a composite to configure a sample selected
+-	 * for visualization.
+-	 * @author Thomas
+-	 *
+-	 */
+-	abstract class SampleConfigComposite extends Composite {
+-		ConfiguredSample[] input;
+-		
+-		public SampleConfigComposite(Composite parent, int style) {
+-			super(parent, style);
+-			createContents();
+-		}
+-		
+-		/**
+-		 * Create the contents for this composite
+-		 */
+-		abstract void createContents();
+-		
+-		/**
+-		 * Set the samples to display the configuration for
+-		 */
+-		public void setInput(ConfiguredSample[] samples) {
+-			input = samples;
+-			refresh();
+-		}
+-
+-		/**
+-		 * Refresh the information in this composite
+-		 *
+-		 */
+-		void refresh() {
+-			if(input == null) setAllEnabled(false);
+-			else {
+-				setAllEnabled(true);
+-			}
+-		}
+-		
+-		protected final void setAllEnabled(boolean enable) {
+-			SwtUtils.setCompositeAndChildrenEnabled(this, enable);
+-		}
+-	}
+-	
+-	abstract ConfiguredSample createConfiguredSample(Sample s);
+-	
+-	abstract ConfiguredSample createConfiguredSample(Element xml) throws Exception;
+-	
+-	/**
+-	 * This class stores the configuration for a sample that is selected for
+-	 * visualization. In this implementation, a color-set to use for visualization is stored.
+-	 * Extend this class to store additional configuration data.
+-	 * @author Thomas
+-	 *
+-	 */
+-	abstract class ConfiguredSample extends Sample {		
+-		int colorSetIndex = 0;
+-		
+-		public ConfiguredSample(int idSample, String name, int dataType) {
+-			super(idSample, name, dataType);
+-		}
+-		
+-		/**
+-		 * Create a configured sample based on an existing sample
+-		 * @param s The sample to base the configured sample on
+-		 */
+-		public ConfiguredSample(Sample s) {
+-			super(s.getId(), s.getName(), s.getDataType());
+-		}
+-		
+-		/**
+-		 * Create a configured sample from the information in the given XML element
+-		 * @param xml The XML element containing information to create the configured sample from
+-		 * @throws Exception
+-		 */
+-		public ConfiguredSample(Element xml) throws Exception {
+-			super(0, "", 0);
+-			loadXML(xml);
+-		}
+-		
+-		/**
+-		 * Set the color-set to use for visualization of this sample
+-		 * @param index
+-		 */
+-		protected void setColorSetIndex(int index) { 
+-			colorSetIndex = index;
+-			fireModifiedEvent();
+-		}
+-		
+-		/**
+-		 * Get the color-set to use for visualization of this sample
+-		 * @return the color-set
+-		 */
+-		protected ColorSet getColorSet() { return ColorSetManager.getColorSet(colorSetIndex); }
+-		
+-		/**
+-		 * Get the name of the color-sets that is selected for visualization
+-		 * @return The name of the selected color-set, or "no colorsets available", if no
+-		 * color-sets exist
+-		 */
+-		protected String getColorSetName() {
+-			ColorSet cs = getColorSet();
+-			return cs == null ? "no colorsets available" : cs.getName();
+-		}
+-		
+-		/**
+-		 * Get the index of the color-set that is selected for visualization
+-		 * @return The index of the color-set
+-		 */
+-		protected int getColorSetIndex() { return colorSetIndex; }
+-				
+-		static final String XML_ELEMENT = "sample";
+-		static final String XML_ATTR_ID = "id";
+-		static final String XML_ATTR_COLORSET = "colorset";
+-		
+-		private final Element toXML() {
+-			Element xml = new Element(XML_ELEMENT);
+-			xml.setAttribute(XML_ATTR_ID, Integer.toString(getId()));
+-			xml.setAttribute(XML_ATTR_COLORSET, Integer.toString(colorSetIndex));
+-			saveAttributes(xml);
+-			return xml;
+-		}
+-		
+-		private final void loadXML(Element xml) throws Exception {
+-			int id = Integer.parseInt(xml.getAttributeValue(XML_ATTR_ID));
+-			int csi = Integer.parseInt(xml.getAttributeValue(XML_ATTR_COLORSET));
+-			Sample s = Gex.getSamples().get(id);
+-			setId(id);
+-			setName(s.getName());
+-			setDataType(s.getDataType());
+-			setColorSetIndex(csi);
+-			loadAttributes(xml);
+-		}
+-		
+-		/**
+-		 * Implement this method to save attributes to the XML element 
+-		 * that contain additional configuration of this configured sample
+-		 * @param xml The XML element to save the attributes to
+-		 */
+-		abstract void saveAttributes(Element xml);
+-		
+-		/**
+-		 * Implement this method to load additional attributes that were saved to XML
+-		 * by {@link #saveAttributes(Element)}
+-		 * @param xml The XML element containig the attributes
+-		 */
+-		abstract void loadAttributes(Element xml);
+-	}
+-}
+Index: trunk/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java
+===================================================================
+--- trunk/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java	(revision 990)
++++ trunk/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java	(revision 991)
+@@ -1,363 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.visualization.plugins;
+-
+-import java.awt.Color;
+-import java.awt.Font;
+-import java.awt.Graphics2D;
+-import java.awt.Rectangle;
+-import java.awt.Shape;
+-import java.awt.geom.Rectangle2D;
+-import java.util.Collection;
+-
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+-import org.eclipse.swt.graphics.FontData;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.layout.GridData;
+-import org.eclipse.swt.layout.GridLayout;
+-import org.eclipse.swt.layout.RowLayout;
+-import org.eclipse.swt.widgets.Button;
+-import org.eclipse.swt.widgets.Combo;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.FontDialog;
+-import org.eclipse.swt.widgets.Group;
+-import org.eclipse.swt.widgets.Label;
+-import org.jdom.Element;
+-import org.pathvisio.Engine;
+-import org.pathvisio.util.ColorConverter;
+-import org.pathvisio.util.Utils;
+-import org.pathvisio.util.swt.SwtUtils;
+-import org.pathvisio.view.GeneProduct;
+-import org.pathvisio.view.Graphics;
+-import org.pathvisio.visualization.Visualization;
+-import org.pathvisio.visualization.Visualization.PluginSet;
+-
+-/**
+- * Provides label for Gene Product
+- * @author thomas
+- *
+- */
+-public class LabelPlugin extends VisualizationPlugin {
+-	static final String NAME = "Gene product label";
+-	static final String DESCRIPTION = 
+-		"This plugin shows a label with customizable font on Gene Products.\n" +
+-		"The label text can be set to the Gene Product's ID or Symbol.";
+-	static final Font DEFAULT_FONT = new Font("Arial narrow", Font.PLAIN, 10);
+-			
+-	final static int STYLE_ID = 0;
+-	final static int STYLE_SYMBOL = 1;
+-	
+-	final static int ALIGN_CENTER = 0;
+-	final static int ALIGN_LEFT = 1;
+-	final static int ALIGN_RIGHT = 2;
+-	
+-	Label labelSidePanel;
+-	
+-	int style = STYLE_SYMBOL;
+-	boolean adaptFontSize;
+-	int align;
+-	
+-	Font font;
+-	Color fontColor;
+-	
+-	public LabelPlugin(Visualization v) {
+-		super(v);		
+-	    setIsConfigurable(true);
+-		setDisplayOptions(DRAWING | TOOLTIP);
+-		setIsGeneric(true);
+-		setUseProvidedArea(true);
+-	}
+-
+-	void setStyle(int style) {
+-		this.style = style;
+-		fireModifiedEvent();
+-	}
+-	
+-	void setAlignment(int alignMode) {
+-		align = alignMode;
+-		fireModifiedEvent();
+-	}
+-	
+-	int getAlignment() { return align; }
+-	
+-	void setOverlay(boolean overlay) {
+-		if(overlay) {
+-			Visualization v = getVisualization();
+-			PluginSet p = v.getPluginSet(this.getClass());
+-			v.setDisplayOrder(p, Utils.ORDER_FIRST);
+-		}
+-		setUseProvidedArea(!overlay);
+-		fireModifiedEvent();
+-	}
+-	
+-	boolean getOverlay() { return !isUseProvidedArea(); }
+-	
+-	public String getName() { return NAME; }
+-	public String getDescription() { return DESCRIPTION; }
+-	
+-	public void initSidePanel(Composite parent) {
+-		Composite comp = new Composite(parent, SWT.NULL);
+-		comp.setLayout(new FillLayout());
+-		labelSidePanel = new Label(comp, SWT.CENTER);
+-	}
+-
+-	public void visualizeOnDrawing(Graphics g, Graphics2D g2d) {
+-		if(g instanceof GeneProduct) {
+-			Font f = getFont();
+-			
+-			Shape region;
+-			
+-			if(isUseProvidedArea()) {
+-				region = getVisualization().provideDrawArea(this, g);
+-			} else {
+-				region = g.createVisualizationRegion();
+-			}
+-			
+-			Rectangle area = region.getBounds();
+-			
+-			if(!getOverlay()) {
+-				g2d.setColor(Color.WHITE);
+-				g2d.fill(area);
+-			}
+-			g2d.setColor(Color.BLACK);
+-			g2d.draw(area);
+-			
+-			g2d.clip(region);
+-					
+-			String label = getLabelText((GeneProduct) g);
+-			
+-			if(adaptFontSize) {
+-				//TODO: adapt font size for awt
+-				//f = SwtUtils.adjustFontSize(f, new Dimension(area.width, area.height), label, g2d);
+-			}	
+-			g2d.setFont(f);
+-			
+-			g2d.setColor(getFontColor());
+-			
+-			Rectangle2D textSize = g2d.getFontMetrics().getStringBounds(label, g2d);
+-			
+-			switch(align) {
+-			case ALIGN_RIGHT: 
+-				area.x += area.width - textSize.getWidth();
+-				break;
+-			case ALIGN_CENTER:
+-				area.x += (int)(area.width / 2) - (int)(textSize.getWidth()/ 2);
+-			}
+-			g2d.drawString (label, 
+-					area.x,
+-					area.y + (int)(area.height / 2) - (int)(textSize.getHeight()/ 2));
+-		}
+-	}
+-	
+-	void setAdaptFontSize(boolean adapt) {
+-		adaptFontSize = adapt;
+-		fireModifiedEvent();
+-	}
+-	
+-	void setFont(Font f) {
+-		if(f != null) {
+-			font = f;
+-			fireModifiedEvent();
+-		}
+-	}
+-	
+-	void setFontColor(Color fc) {
+-		fontColor = fc;
+-		fireModifiedEvent();
+-	}
+-	
+-	Color getFontColor() { 
+-		return fontColor == null ? Color.BLACK : fontColor;
+-	}
+-	
+-	int getFontSize() {
+-		return getFont().getSize();
+-	}
+-	
+-	Font getFont() {
+-		return getFont(false);
+-	}
+-	
+-	Font getFont(boolean adjustZoom) {
+-		Font f = font == null ? DEFAULT_FONT : font;
+-		if(adjustZoom) {
+-			int fs = (int)Math.ceil(Engine.getActiveVPathway().vFromM(f.getSize()) * 15);
+-			f = new Font(f.getName(), f.getStyle(), f.getSize());
+-		}
+-		return f;
+-	}
+-	
+-	public Composite visualizeOnToolTip(Composite parent, Graphics g) {
+-		if(g instanceof GeneProduct) {
+-			Composite comp = new Composite(parent, SWT.NULL);
+-			comp.setBackground(comp.getDisplay().getSystemColor(SWT.COLOR_INFO_BACKGROUND));
+-			comp.setLayout(new FillLayout());
+-			Label label = new Label(comp, SWT.CENTER);
+-			label.setBackground(comp.getDisplay().getSystemColor(SWT.COLOR_INFO_BACKGROUND));
+-			label.setText(getLabelText((GeneProduct) g));
+-			return comp;
+-		}
+-		return null;
+-	}
+-
+-	protected Composite createConfigComposite(Composite parent) {
+-		Composite comp = new Composite(parent, SWT.NULL);
+-		comp.setLayout(new FillLayout(SWT.VERTICAL));
+-				
+-		Group typeGroup = new Group(comp, SWT.NULL);
+-		typeGroup.setLayout(new RowLayout(SWT.VERTICAL));
+-		typeGroup.setText("Label text");
+-		final Button symbol = new Button(typeGroup, SWT.RADIO);
+-		symbol.setText("Geneproduct name");
+-		final Button id = new Button(typeGroup, SWT.RADIO);
+-		id.setText("Geneproduct ID");
+-		
+-		SelectionAdapter radioAdapter = new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				if		(e.widget == id) 		setStyle(STYLE_ID);
+-				else if (e.widget == symbol) 	setStyle(STYLE_SYMBOL);
+-			}
+-		};
+-		
+-		symbol.setSelection(style == STYLE_SYMBOL);
+-		id.setSelection(style == STYLE_ID);
+-		
+-		id.addSelectionListener(radioAdapter);
+-		symbol.addSelectionListener(radioAdapter);
+-		
+-		createFontComp(comp);
+-		createOtherComp(comp);
+-		
+-		return comp;
+-	}
+-		
+-	Composite createFontComp(Composite parent) {
+-		GridData span = new GridData(GridData.FILL_HORIZONTAL);
+-		span.horizontalSpan = 2;
+-		
+-		Group fontSizeComp = new Group(parent, SWT.NULL);
+-		fontSizeComp.setText("Label font");
+-		fontSizeComp.setLayout(new GridLayout(2, false));
+-		final Button font = new Button(fontSizeComp, SWT.PUSH);
+-		font.setLayoutData(span);
+-		font.setText("Change label font");
+-		font.addSelectionListener(new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				FontDialog fd = new FontDialog(font.getShell());
+-				fd.setRGB(SwtUtils.color2rgb(getFontColor()));
+-				fd.setFontList(new FontData[] { SwtUtils.awtFont2FontData(getFont()) });
+-				setFont(SwtUtils.fontData2awtFont(fd.open()));
+-				setFontColor(SwtUtils.rgb2color(fd.getRGB()));
+-			}
+-		});
+-		final Button adapt = new Button(fontSizeComp, SWT.CHECK);
+-		adapt.setLayoutData(span);
+-		adapt.setText("Adapt font size to genebox size");
+-		adapt.addSelectionListener(new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				setAdaptFontSize(adapt.getSelection());
+-			}
+-		});
+-		adapt.setSelection(adaptFontSize);
+-		Label alignLabel = new Label(fontSizeComp, SWT.NONE);
+-		alignLabel.setText("Alignment:");
+-		final Combo align = new Combo(fontSizeComp, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
+-		align.setItems(new String[] { "Center", "Left", "Right" });
+-		align.addSelectionListener(new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				setAlignment(align.getSelectionIndex());
+-			}
+-		});
+-		align.select(getAlignment());
+-		return fontSizeComp;
+-	}
+-	
+-	Composite createOtherComp(Composite parent) {		
+-		Group other = new Group(parent, SWT.NULL);
+-		other.setText("Other options");
+-		other.setLayout(new RowLayout(SWT.VERTICAL));
+-		final Button overlay = new Button(other, SWT.CHECK);
+-		overlay.setText("Draw over other visualizations");
+-		overlay.addSelectionListener(new SelectionAdapter() {
+-			public void widgetSelected(SelectionEvent e) {
+-				setOverlay(overlay.getSelection());
+-			}
+-		});
+-		overlay.setSelection(getOverlay());
+-		return other;
+-	}
+-	
+-	
+-	public void visualizeOnSidePanel(Collection<Graphics> objects) { }
+-	
+-	private String getLabelText(GeneProduct g) {
+-		switch(style) {
+-		case STYLE_ID: 		return g.getGmmlData().getGeneID();
+-		case STYLE_SYMBOL:
+-		default:			return g.getGmmlData().getTextLabel();
+-		}
+-	}
+-
+-	static final String XML_ATTR_STYLE = "style";
+-	static final String XML_ATTR_ADAPT_FONT = "adjustFontSize";
+-	static final String XML_ATTR_FONTDATA = "font";
+-	static final String XML_ELM_FONTCOLOR = "font-color";
+-	static final String XML_ATTR_OVERLAY = "overlay";
+-	static final String XML_ATTR_ALIGN = "alignment";
+-	public Element toXML() {
+-		Element elm = super.toXML();
+-		elm.setAttribute(XML_ATTR_STYLE, Integer.toString(style));
+-		elm.setAttribute(XML_ATTR_ADAPT_FONT, Boolean.toString(adaptFontSize));
+-		
+-		Font f = getFont();
+-		String style = "PLAIN";
+-		if(f.isBold() && f.isItalic()) style = "BOLDITALIC";
+-		else if (f.isBold()) style = "BOLD";
+-		else if (f.isItalic()) style = "ITALIC";
+-		String fs = f.getName() + "-" + style + "-" + f.getSize(); 
+-		elm.setAttribute(XML_ATTR_FONTDATA, fs);
+-		
+-		elm.addContent(ColorConverter.createColorElement(XML_ELM_FONTCOLOR, getFontColor()));
+-		elm.setAttribute(XML_ATTR_OVERLAY, Boolean.toString(getOverlay()));
+-		elm.setAttribute(XML_ATTR_ALIGN, Integer.toString(getAlignment()));
+-		return elm;
+-	}
+-	
+-	public void loadXML(Element xml) {
+-		super.loadXML(xml);
+-		
+-		String styleStr = xml.getAttributeValue(XML_ATTR_STYLE);
+-		String adaptStr = xml.getAttributeValue(XML_ATTR_ADAPT_FONT);
+-		String fontStr = xml.getAttributeValue(XML_ATTR_FONTDATA);
+-		String ovrStr = xml.getAttributeValue(XML_ATTR_OVERLAY);
+-		String alnStr = xml.getAttributeValue(XML_ATTR_ALIGN);
+-		Element fcElm = xml.getChild(XML_ELM_FONTCOLOR);
+-		try {
+-			if(styleStr != null) setStyle(Integer.parseInt(styleStr));
+-			if(adaptStr != null) adaptFontSize = Boolean.parseBoolean(adaptStr);
+-			if(fontStr != null) font = Font.decode(fontStr);
+-			if(ovrStr != null) setOverlay(Boolean.parseBoolean(ovrStr));
+-			if(fcElm != null) fontColor = ColorConverter.parseColorElement(fcElm);
+-			if(alnStr != null) align = Integer.parseInt(alnStr);
+-		} catch(NumberFormatException e) {
+-			Engine.log.error("Unable to load configuration for " + NAME, e);
+-		}
+-	}
+-}
+-
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 990)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 991)
+@@ -60,12 +60,12 @@
+ 		parent.add(dbLabel);	parent.add(dbCombo);
+ 		
+ 		symText.getDocument().addDocumentListener(new DocumentListener() {
+-			public void changedUpdate(DocumentEvent e) {
+-				System.out.println("Text changed");
++			public void changedUpdate(DocumentEvent e) { setText();	}
++			public void insertUpdate(DocumentEvent e) {	setText(); }
++			public void removeUpdate(DocumentEvent e) { setText(); }
++			private void setText() {
+ 				getInput().setTextLabel(symText.getText());
+ 			}
+-			public void insertUpdate(DocumentEvent e) {	}
+-			public void removeUpdate(DocumentEvent e) {	}
+ 		});
+ 	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/SidebarManager.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/SidebarManager.java	(revision 990)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/SidebarManager.java	(revision 991)
+@@ -16,11 +16,7 @@
+ //
+ package org.pathvisio.gui.swing.propertypanel;
+ 
+-import java.util.Collection;
+-import java.util.List;
+ 
+-import org.pathvisio.model.PathwayElement;
+-
+ public class SidebarManager {
+ 
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 990)
++++ trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 991)
+@@ -21,14 +21,11 @@
+ import java.awt.event.KeyEvent;
+ import java.io.File;
+ import java.net.URL;
+-import java.util.List;
+ 
+ import javax.swing.AbstractAction;
+ import javax.swing.Action;
+ import javax.swing.ImageIcon;
+-import javax.swing.JComponent;
+ import javax.swing.JFileChooser;
+-import javax.swing.JPanel;
+ import javax.swing.KeyStroke;
+ import javax.swing.ProgressMonitor;
+ import javax.swing.filechooser.FileFilter;
+@@ -36,9 +33,7 @@
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
+-import org.pathvisio.view.Graphics;
+ import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.VPathwayElement;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+ 
+@@ -158,6 +153,7 @@
+ 				int status = jfc.showDialog(component, "Import");
+ 				if(status == JFileChooser.APPROVE_OPTION) {
+ 					try {
++						
+ 						int totalWork = 1000;
+ 						ProgressMonitor m = new ProgressMonitor(component, "Loading pathway", "Please wait while the pathway is being loaded", 0, 1000);
+ 						m.setProgress(10);
+Index: trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 990)
++++ trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 991)
+@@ -18,12 +18,7 @@
+ 
+ import javax.swing.JFrame;
+ 
+-import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+-import org.pathvisio.Engine.ApplicationEventListener;
+-import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.VPathwayEvent;
+-import org.pathvisio.view.VPathwayListener;
+ 
+ public class GuiMain {
+ 
+Index: trunk/src/swing/org/pathvisio/gui/swing/AppletMain.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/AppletMain.java	(revision 990)
++++ trunk/src/swing/org/pathvisio/gui/swing/AppletMain.java	(revision 991)
+@@ -16,19 +16,30 @@
+ //
+ package org.pathvisio.gui.swing;
+ 
+-import java.awt.Container;
+-import java.awt.Frame;
+-
+ import javax.swing.JApplet;
+ 
++import org.pathvisio.ApplicationEvent;
++import org.pathvisio.Engine;
++import org.pathvisio.wikipathways.WikiPathways;
++
+ public class AppletMain extends JApplet {
++	private static WikiPathways wiki;
++	
+ 	public static final String PAR_PATHWAY_URL = "pathway.url";
+ 	public void init() {
+ 		super.init();
+-		String url = getParameter(PAR_PATHWAY_URL);
+ 		
+ 		GuiInit.init();
+-		MainPanel mainPanel = SwingEngine.getApplicationPanel();
++	
++		MainPanel mainPanel = SwingEngine.getApplicationPanel();		
++		parseArguments();
++		
++		try { 
++			wiki.openPathwayURL();
++		} catch(Exception e) {
++			e.printStackTrace();
++		}
++		
+ 		add(mainPanel);
+ 	}
+ 	
+@@ -38,7 +49,25 @@
+ 	}
+ 	
+ 	public void stop() {
+-		// TODO Auto-generated method stub
+-		super.stop();
++		ApplicationEvent e = new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE);
++		Engine.fireApplicationEvent(e);
++		if(e.doit) {
++			super.stop();
++		}
+ 	}
++	
++	void parseArguments() {
++		String pwURL = getParameter("pathwayUrl");
++		String pwName = getParameter("pwName");
++		String rpcUrl = getParameter("rpcUrl");
++		String pwSpecies = getParameter("pwSpecies");
++		String user = getParameter("user");
++		boolean pwNew = Boolean.parseBoolean(getParameter("new"));
++		wiki = new WikiPathways();
++		wiki.setUser(user);
++		wiki.setPwName(pwName);
++		wiki.setPwSpecies(pwSpecies);
++		wiki.setPwURL(pwURL);
++		wiki.setRpcURL(rpcUrl);
++	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 990)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 991)
+@@ -18,10 +18,10 @@
+ 
+ import java.awt.Component;
+ import java.io.File;
++import java.net.URL;
+ 
+ import javax.swing.JOptionPane;
+ 
+-import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.view.VPathwayWrapper;
+@@ -65,6 +65,10 @@
+ 		 return new VPathwaySwing(getApplicationPanel().getScrollPane());
+ 	}
+ 	
++	public static File openPathway(URL url) throws ConverterException {
++		return Engine.openPathway(url, createWrapper());
++	}
++	
+ 	public static void importPathway(File f) throws ConverterException {
+ 		Engine.importPathway(f, createWrapper());
+ 	}
+Index: trunk/src/swing/com/mammothsoftware/frwk/ddb/RolloverButton.java
+===================================================================
+--- trunk/src/swing/com/mammothsoftware/frwk/ddb/RolloverButton.java	(revision 990)
++++ trunk/src/swing/com/mammothsoftware/frwk/ddb/RolloverButton.java	(revision 991)
+@@ -33,18 +33,18 @@
+ // Contact the author at: info@mammothsoftware.com
+ package com.mammothsoftware.frwk.ddb;
+ 
+-import java.awt.Dimension;
+-import java.awt.event.MouseAdapter;
+-import java.awt.event.MouseEvent;
+-import java.awt.event.MouseListener;
++import java.awt.Dimension;
++import java.awt.event.MouseAdapter;
++import java.awt.event.MouseEvent;
++import java.awt.event.MouseListener;
++
++import javax.swing.Action;
++import javax.swing.BorderFactory;
++import javax.swing.Icon;
++import javax.swing.JButton;
++import javax.swing.border.Border;
++import javax.swing.border.CompoundBorder;
+ 
+-import javax.swing.Action;
+-import javax.swing.BorderFactory;
+-import javax.swing.Icon;
+-import javax.swing.JButton;
+-import javax.swing.border.Border;
+-import javax.swing.border.CompoundBorder;
+-
+ /**
+  * A button that uses a mouse listener to indicate rollover.
+  * 
+Index: trunk/src/swing/com/mammothsoftware/frwk/ddb/DropDownButton.java
+===================================================================
+--- trunk/src/swing/com/mammothsoftware/frwk/ddb/DropDownButton.java	(revision 990)
++++ trunk/src/swing/com/mammothsoftware/frwk/ddb/DropDownButton.java	(revision 991)
+@@ -33,26 +33,26 @@
+ // Contact the author at: info@mammothsoftware.com
+ package com.mammothsoftware.frwk.ddb;
+ 
+-import java.awt.Color;
+-import java.awt.Component;
+-import java.awt.Dimension;
+-import java.awt.Graphics;
+-import java.awt.Insets;
+-import java.awt.event.ActionEvent;
+-import java.awt.event.ActionListener;
+-import java.awt.event.MouseAdapter;
+-import java.awt.event.MouseEvent;
+-import java.awt.event.MouseListener;
++import java.awt.Color;
++import java.awt.Component;
++import java.awt.Dimension;
++import java.awt.Graphics;
++import java.awt.Insets;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.awt.event.MouseAdapter;
++import java.awt.event.MouseEvent;
++import java.awt.event.MouseListener;
++
++import javax.swing.BorderFactory;
++import javax.swing.Icon;
++import javax.swing.JButton;
++import javax.swing.JMenuItem;
++import javax.swing.JPopupMenu;
++import javax.swing.JToolBar;
++import javax.swing.border.Border;
++import javax.swing.border.CompoundBorder;
+ 
+-import javax.swing.BorderFactory;
+-import javax.swing.Icon;
+-import javax.swing.JButton;
+-import javax.swing.JMenuItem;
+-import javax.swing.JPopupMenu;
+-import javax.swing.JToolBar;
+-import javax.swing.border.Border;
+-import javax.swing.border.CompoundBorder;
+-
+ /**
+  * A Drop Down Button.
+  * 
+Index: trunk/src/v2/org/pathvisio/R/RController.java
+===================================================================
+--- trunk/src/v2/org/pathvisio/R/RController.java	(revision 990)
++++ trunk/src/v2/org/pathvisio/R/RController.java	(revision 991)
+@@ -432,7 +432,7 @@
+ 	//Error messages
+ 	static final String WWW_R = "http://www.r-project.org";
+ 	static final String ERR_NO_JRI_VERSION = 
+-		"Your version of R is not supported, pleases install an updated version of R (" + WWW_R + ")"; 
++		"Your version of R is not supported, please install an updated version of R (" + WWW_R + ")"; 
+ 	static final String ERR_MSG_PRE = "Problems when starting R-interface";
+ 	static final String ERR_MSG_NOR_LINUX = 
+ 		" and that environment variable LD_LIBRARY_PATH " +
+Index: trunk/src/core/org/pathvisio/model/LineStyle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/LineStyle.java	(revision 990)
++++ trunk/src/core/org/pathvisio/model/LineStyle.java	(revision 991)
+@@ -16,8 +16,6 @@
+ //
+ package org.pathvisio.model;
+ 
+-import java.util.ArrayList;
+-import java.util.List;
+ 
+ public class LineStyle {
+ 	public static final int SOLID = 0;
+Index: trunk/src/core/org/pathvisio/ApplicationEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/ApplicationEvent.java	(revision 990)
++++ trunk/src/core/org/pathvisio/ApplicationEvent.java	(revision 991)
+@@ -29,10 +29,12 @@
+ 
+ 	public Object source;
+ 	public int type;
++	public boolean doit;
+ 	
+ 	public ApplicationEvent(Object source, int type) {
+ 		super(source);
+ 		this.source = source;
+ 		this.type = type;
++		doit = true;
+ 	}
+ }
+Index: trunk/src/core/org/pathvisio/Engine.java
+===================================================================
+--- trunk/src/core/org/pathvisio/Engine.java	(revision 990)
++++ trunk/src/core/org/pathvisio/Engine.java	(revision 991)
+@@ -20,7 +20,6 @@
+ import java.io.File;
+ import java.net.URL;
+ import java.util.ArrayList;
+-import java.util.EventObject;
+ import java.util.HashMap;
+ import java.util.List;
+ 
+@@ -32,6 +31,7 @@
+ import org.pathvisio.model.PathwayExporter;
+ import org.pathvisio.model.PathwayImporter;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
++import org.pathvisio.util.FileUtils;
+ import org.pathvisio.util.Utils;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+@@ -155,6 +155,28 @@
+ 		
+ 	}
+ 	
++	public static File openPathway(URL url) throws ConverterException {
++		return openPathway(url, null);
++	}
++	
++	public static File openPathway(URL url, VPathwayWrapper w) throws ConverterException {
++		String protocol = url.getProtocol();
++		File f = null;
++		if(protocol.equals("file")) {
++			f = new File(url.getFile());
++			openPathway(f, w);
++		} else {
++			try {
++				f = File.createTempFile("urlPathway", ".gpml");
++				FileUtils.downloadFile(url, f);
++				openPathway(f.toString());
++			} catch(Exception e) {
++				throw new ConverterException(e);
++			}
++		}
++		return f;
++	}
++	
+ 	public static void savePathway() throws ConverterException {
+ 		savePathway(pathway.getSourceFile());
+ 	}
+Index: trunk/src/core/org/pathvisio/data/Gex.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/Gex.java	(revision 990)
++++ trunk/src/core/org/pathvisio/data/Gex.java	(revision 991)
+@@ -40,6 +40,7 @@
+ import java.util.HashMap;
+ import java.util.List;
+ 
++import org.eclipse.core.runtime.IProgressMonitor;
+ import org.jdom.Document;
+ import org.jdom.Element;
+ import org.jdom.input.SAXBuilder;
+Index: trunk/src/core/org/pathvisio/view/Graphics.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Graphics.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/Graphics.java	(revision 991)
+@@ -16,7 +16,6 @@
+ //
+ package org.pathvisio.view;
+ 
+-import java.awt.Color;
+ import java.awt.Font;
+ import java.awt.geom.Area;
+ 
+@@ -24,7 +23,6 @@
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
+ import org.pathvisio.model.PathwayListener;
+-import org.pathvisio.preferences.GlobalPreference;
+ 
+ 
+ /**
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 991)
+@@ -547,12 +547,12 @@
+ 			if(o.vIntersects(area))
+ 			{
+ 				if(checkDrawAllowed(o)) {
+-					o.draw (g2d);
++					o.draw ((Graphics2D)g2d.create());
+ 				}
+ 				
+ 				if(v != null && o instanceof Graphics) {
+ 						try {
+-							v.visualizeDrawing((Graphics) o, g2d);
++							v.visualizeDrawing((Graphics) o, (Graphics2D)g2d.create());
+ 						} catch(Exception ex) {
+ 							Engine.log.error(
+ 									"Unable to apply visualization " + v + " on " + o, ex);
+Index: trunk/src/core/org/pathvisio/view/swing/SwingMouseEvent.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 991)
+@@ -16,7 +16,6 @@
+ //
+ package org.pathvisio.view.swing;
+ 
+-import java.awt.Point;
+ import java.awt.event.MouseEvent;
+ 
+ public class SwingMouseEvent extends org.pathvisio.view.MouseEvent {
+Index: trunk/src/core/org/pathvisio/view/VPathwayElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayElement.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/VPathwayElement.java	(revision 991)
+@@ -17,10 +17,10 @@
+ package org.pathvisio.view;
+ 
+ import java.awt.BasicStroke;
++import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+-import java.awt.Color;
+ import java.awt.geom.Point2D;
+ import java.awt.geom.Rectangle2D;
+ 
+Index: trunk/src/core/org/pathvisio/view/Label.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Label.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/Label.java	(revision 991)
+@@ -22,7 +22,6 @@
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.font.TextAttribute;
+-import java.awt.font.TextLayout;
+ import java.awt.geom.Rectangle2D;
+ import java.text.AttributedString;
+ 
+Index: trunk/src/core/org/pathvisio/view/GraphicsShape.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 991)
+@@ -16,11 +16,8 @@
+ //
+ package org.pathvisio.view;
+ 
+-import java.awt.Polygon;
+-import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.geom.AffineTransform;
+-import java.awt.geom.Area;
+ import java.awt.geom.Rectangle2D;
+ import java.util.HashSet;
+ import java.util.Set;
+Index: trunk/src/core/org/pathvisio/view/Line.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Line.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/Line.java	(revision 991)
+@@ -20,7 +20,6 @@
+ import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Polygon;
+-import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.geom.AffineTransform;
+ import java.awt.geom.Arc2D;
+Index: trunk/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Handle.java	(revision 990)
++++ trunk/src/core/org/pathvisio/view/Handle.java	(revision 991)
+@@ -20,7 +20,6 @@
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+-import java.awt.geom.Area;
+ import java.awt.geom.Ellipse2D;
+ import java.awt.geom.Rectangle2D;
+ 
+Index: trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 991)
+@@ -30,8 +30,6 @@
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.view.Graphics;
+ 
+-import com.sun.org.apache.xpath.internal.operations.Bool;
+-
+ /**
+  * This class contains all user preferences used in this application
+  */
+Index: trunk/src/swt/org/pathvisio/visualization/Visualization.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/visualization/Visualization.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/visualization/Visualization.java	(revision 991)
+@@ -184,7 +184,7 @@
+ 	 */
+ 	public void visualizeDrawing(Graphics g, Graphics2D g2d) {
+ 		for(PluginSet pr : getPluginSetsDrawingOrder()) {
+-			if(pr.isDrawing()) pr.getDrawingPlugin().visualizeOnDrawing(g, g2d);
++			if(pr.isDrawing()) pr.getDrawingPlugin().visualizeOnDrawing(g, (Graphics2D)g2d.create());
+ 		}
+ 	}
+ 	
+@@ -217,6 +217,7 @@
+ 		int w = bounds.width / nrRes;
+ 		bounds.x += w * index;
+ 		bounds.width = w;
++		bounds.height -= 1;
+ 		
+ 		Area barea = new Area(bounds);
+ 		area.intersect(barea);
+Index: trunk/src/swt/org/pathvisio/visualization/colorset/ColorGradient.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/visualization/colorset/ColorGradient.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/visualization/colorset/ColorGradient.java	(revision 991)
+@@ -390,7 +390,7 @@
+ 				public Object getValue(Object element, String property) {
+ 					ColorValuePair cvp = (ColorValuePair)element;
+ 					if(property.equals(tableColumns[0])) {
+-						return cvp.getColor();
++						return SwtUtils.color2rgb(cvp.getColor());
+ 					} else {
+ 						return Double.toString(cvp.getValue());
+ 					}
+Index: trunk/src/swt/org/pathvisio/biopax/gui/BiopaxRefDialog.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/biopax/gui/BiopaxRefDialog.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/biopax/gui/BiopaxRefDialog.java	(revision 991)
+@@ -37,7 +37,6 @@
+ import org.eclipse.swt.widgets.Shell;
+ import org.eclipse.swt.widgets.Table;
+ import org.eclipse.swt.widgets.TableColumn;
+-import org.eclipse.swt.widgets.Text;
+ import org.pathvisio.biopax.BiopaxManager;
+ 
+ public class BiopaxRefDialog extends Dialog {	
+Index: trunk/src/swt/org/pathvisio/biopax/gui/BiopaxDialog.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/biopax/gui/BiopaxDialog.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/biopax/gui/BiopaxDialog.java	(revision 991)
+@@ -25,8 +25,8 @@
+ import org.eclipse.swt.widgets.Control;
+ import org.eclipse.swt.widgets.Shell;
+ import org.eclipse.swt.widgets.Text;
++import org.pathvisio.Engine;
+ import org.pathvisio.biopax.BiopaxManager;
+-import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+ 
+Index: trunk/src/swt/org/pathvisio/biopax/BiopaxManager.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/biopax/BiopaxManager.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/biopax/BiopaxManager.java	(revision 991)
+@@ -33,8 +33,6 @@
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.util.Utils;
+ 
+-import com.hp.hpl.jena.ontology.OntModel;
+-
+ public class BiopaxManager {
+ 	Model model;
+ 	
+Index: trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java	(revision 991)
+@@ -58,8 +58,6 @@
+ import org.pathvisio.model.PropertyType;
+ import org.pathvisio.model.ShapeType;
+ import org.pathvisio.preferences.GlobalPreference;
+-import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+-import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.swt.SuggestCellEditor;
+ import org.pathvisio.util.swt.SwtUtils;
+ import org.pathvisio.util.swt.TableColumnResizer;
+Index: trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 991)
+@@ -394,9 +394,12 @@
+ 	}
+ 		
+ 	public boolean close() {
+-		Engine.fireApplicationEvent(
+-				new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE));
+-		return super.close();
++		ApplicationEvent e = new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE);
++		Engine.fireApplicationEvent(e);
++		if(e.doit) {
++			return super.close();
++		}
++		return false;
+ 	}
+ 	
+ 	VPathwaySwingComposite swingPathwayComposite;
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/SwtInputBlocker.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/SwtInputBlocker.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/SwtInputBlocker.java	(revision 991)
+@@ -26,12 +26,12 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.FocusAdapter;
+-import org.eclipse.swt.events.FocusEvent;
+-import org.eclipse.swt.widgets.Dialog;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.FocusAdapter;
++import org.eclipse.swt.events.FocusEvent;
++import org.eclipse.swt.widgets.Dialog;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
+ 
+ 
+ 
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/AwtEnvironment.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/AwtEnvironment.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/AwtEnvironment.java	(revision 991)
+@@ -26,22 +26,22 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import java.awt.EventQueue;
+-import java.awt.Frame;
+-import java.lang.reflect.InvocationTargetException;
++import java.awt.EventQueue;
++import java.awt.Frame;
++import java.lang.reflect.InvocationTargetException;
++
++import javax.swing.UIManager;
++import javax.swing.UnsupportedLookAndFeelException;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.SWTException;
++import org.eclipse.swt.awt.SWT_AWT;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
+ 
+-import javax.swing.UIManager;
+-import javax.swing.UnsupportedLookAndFeelException;
+ 
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.SWTException;
+-import org.eclipse.swt.awt.SWT_AWT;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
+ 
+-
+-
+ /**
+  * An environment to enable the proper display of AWT/Swing windows within a SWT or RCP 
+  * application. This class extends the base {@link org.eclipse.swt.awt.SWT_AWT Eclipse SWT/AWT integration}
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/RecursiveContainerListener.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/RecursiveContainerListener.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/RecursiveContainerListener.java	(revision 991)
+@@ -26,11 +26,11 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import java.awt.Component;
+-import java.awt.Container;
+-import java.awt.EventQueue;
+-import java.awt.event.ContainerEvent;
+-import java.awt.event.ContainerListener;
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.EventQueue;
++import java.awt.event.ContainerEvent;
++import java.awt.event.ContainerListener;
+ 
+ class RecursiveContainerListener implements ContainerListener {
+     private final ContainerListener listener;
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/AwtDialogListener.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/AwtDialogListener.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/AwtDialogListener.java	(revision 991)
+@@ -26,20 +26,20 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import java.awt.AWTEvent;
+-import java.awt.Dialog;
+-import java.awt.EventQueue;
+-import java.awt.Toolkit;
+-import java.awt.Window;
+-import java.awt.event.AWTEventListener;
+-import java.awt.event.ComponentEvent;
+-import java.awt.event.ComponentListener;
+-import java.awt.event.WindowEvent;
+-import java.util.ArrayList;
+-import java.util.List;
++import java.awt.AWTEvent;
++import java.awt.Dialog;
++import java.awt.EventQueue;
++import java.awt.Toolkit;
++import java.awt.Window;
++import java.awt.event.AWTEventListener;
++import java.awt.event.ComponentEvent;
++import java.awt.event.ComponentListener;
++import java.awt.event.WindowEvent;
++import java.util.ArrayList;
++import java.util.List;
++
++import org.eclipse.swt.widgets.Display;
+ 
+-import org.eclipse.swt.widgets.Display;
+-
+ /**
+  * A listener that insures the proper modal behavior of Swing dialogs when running
+  * within a SWT environment. When initialized, it blocks and unblocks SWT input
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/EmbeddedChildFocusTraversalPolicy.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/EmbeddedChildFocusTraversalPolicy.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/EmbeddedChildFocusTraversalPolicy.java	(revision 991)
+@@ -27,12 +27,12 @@
+ package org.pathvisio.gui.swt.awt;
+ 
+ 
+-import java.awt.Component;
+-import java.awt.Container;
+-import java.awt.EventQueue;
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.EventQueue;
++
++import javax.swing.LayoutFocusTraversalPolicy;
+ 
+-import javax.swing.LayoutFocusTraversalPolicy;
+-
+ class EmbeddedChildFocusTraversalPolicy extends LayoutFocusTraversalPolicy {
+ 
+     private static final long serialVersionUID = -7708166698501335927L;
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/EmbeddedSwingComposite.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/EmbeddedSwingComposite.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/EmbeddedSwingComposite.java	(revision 991)
+@@ -26,30 +26,30 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import java.awt.Container;
+-import java.awt.EventQueue;
+-import java.awt.Frame;
+-import java.awt.Toolkit;
++import java.awt.Container;
++import java.awt.EventQueue;
++import java.awt.Frame;
++import java.awt.Toolkit;
++
++import javax.swing.JApplet;
++import javax.swing.JComponent;
++import javax.swing.RootPaneContainer;
++import javax.swing.SwingUtilities;
++import javax.swing.UIManager;
++import javax.swing.plaf.FontUIResource;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.SWTException;
++import org.eclipse.swt.awt.SWT_AWT;
++import org.eclipse.swt.graphics.Font;
++import org.eclipse.swt.graphics.FontData;
++import org.eclipse.swt.layout.FillLayout;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Event;
++import org.eclipse.swt.widgets.Listener;
++import org.eclipse.swt.widgets.Widget;
+ 
+-import javax.swing.JApplet;
+-import javax.swing.JComponent;
+-import javax.swing.RootPaneContainer;
+-import javax.swing.SwingUtilities;
+-import javax.swing.UIManager;
+-import javax.swing.plaf.FontUIResource;
+-
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.SWTException;
+-import org.eclipse.swt.awt.SWT_AWT;
+-import org.eclipse.swt.graphics.Font;
+-import org.eclipse.swt.graphics.FontData;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Event;
+-import org.eclipse.swt.widgets.Listener;
+-import org.eclipse.swt.widgets.Widget;
+-
+ /**
+  * A SWT composite widget for embedding Swing components in a SWT composite within an RCP or standalone-SWT application. The Eclipse platform 
+  * provides limited support for embedding Swing components through {@link org.eclipse.swt.awt.SWT_AWT}. 
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/Platform.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/Platform.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/Platform.java	(revision 991)
+@@ -26,7 +26,7 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import org.eclipse.swt.SWT;
++import org.eclipse.swt.SWT;
+ 
+ class Platform {
+     private static String platformString = SWT.getPlatform();
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/AwtFocusHandler.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/AwtFocusHandler.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/AwtFocusHandler.java	(revision 991)
+@@ -26,26 +26,26 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import java.awt.Component;
+-import java.awt.Container;
+-import java.awt.EventQueue;
+-import java.awt.FocusTraversalPolicy;
+-import java.awt.Frame;
+-import java.awt.Window;
+-import java.awt.event.ContainerEvent;
+-import java.awt.event.ContainerListener;
+-import java.awt.event.FocusEvent;
+-import java.awt.event.FocusListener;
+-import java.awt.event.WindowEvent;
+-import java.awt.event.WindowFocusListener;
+-import java.util.ArrayList;
+-import java.util.Iterator;
+-import java.util.List;
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.EventQueue;
++import java.awt.FocusTraversalPolicy;
++import java.awt.Frame;
++import java.awt.Window;
++import java.awt.event.ContainerEvent;
++import java.awt.event.ContainerListener;
++import java.awt.event.FocusEvent;
++import java.awt.event.FocusListener;
++import java.awt.event.WindowEvent;
++import java.awt.event.WindowFocusListener;
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++
++import javax.swing.JPopupMenu;
++import javax.swing.text.Caret;
++import javax.swing.text.JTextComponent;
+ 
+-import javax.swing.JPopupMenu;
+-import javax.swing.text.Caret;
+-import javax.swing.text.JTextComponent;
+-
+ class AwtFocusHandler implements FocusListener, ContainerListener, 
+                                       WindowFocusListener {
+ 
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/CleanResizeListener.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/CleanResizeListener.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/CleanResizeListener.java	(revision 991)
+@@ -26,12 +26,12 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import org.eclipse.swt.events.ControlAdapter;
+-import org.eclipse.swt.events.ControlEvent;
+-import org.eclipse.swt.graphics.GC;
+-import org.eclipse.swt.graphics.Rectangle;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.events.ControlAdapter;
++import org.eclipse.swt.events.ControlEvent;
++import org.eclipse.swt.graphics.GC;
++import org.eclipse.swt.graphics.Rectangle;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
+ 
+ class CleanResizeListener extends ControlAdapter {
+     private Rectangle oldRect = null;
+Index: trunk/src/swt/org/pathvisio/gui/swt/awt/SwtFocusHandler.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/awt/SwtFocusHandler.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/gui/swt/awt/SwtFocusHandler.java	(revision 991)
+@@ -26,21 +26,21 @@
+  *******************************************************************************/
+ package org.pathvisio.gui.swt.awt;
+ 
+-import java.awt.EventQueue;
++import java.awt.EventQueue;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.ControlAdapter;
++import org.eclipse.swt.events.ControlEvent;
++import org.eclipse.swt.events.DisposeEvent;
++import org.eclipse.swt.events.DisposeListener;
++import org.eclipse.swt.events.FocusEvent;
++import org.eclipse.swt.events.FocusListener;
++import org.eclipse.swt.events.KeyEvent;
++import org.eclipse.swt.events.KeyListener;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
+ 
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.ControlAdapter;
+-import org.eclipse.swt.events.ControlEvent;
+-import org.eclipse.swt.events.DisposeEvent;
+-import org.eclipse.swt.events.DisposeListener;
+-import org.eclipse.swt.events.FocusEvent;
+-import org.eclipse.swt.events.FocusListener;
+-import org.eclipse.swt.events.KeyEvent;
+-import org.eclipse.swt.events.KeyListener;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
+-
+ class SwtFocusHandler implements FocusListener, KeyListener {
+ 
+     private final Composite composite;
+Index: trunk/src/swt/org/pathvisio/data/ImportInformation.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/ImportInformation.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/data/ImportInformation.java	(revision 991)
+@@ -21,7 +21,6 @@
+ import java.io.FileReader;
+ import java.io.IOException;
+ 
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.Engine;
+ 
+ /**
+Index: trunk/src/swt/org/pathvisio/data/GpmlTransfer.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/GpmlTransfer.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/data/GpmlTransfer.java	(revision 991)
+@@ -28,8 +28,6 @@
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.GpmlFormat;
+ import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.model.GpmlFormat;
+-import org.pathvisio.gui.swt.SwtEngine;
+ 
+ /**
+    Clipboard Transfer Object, for transferring Gpml fragments
+Index: trunk/src/swt/org/pathvisio/util/swt/SwtUtils.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/util/swt/SwtUtils.java	(revision 990)
++++ trunk/src/swt/org/pathvisio/util/swt/SwtUtils.java	(revision 991)
+@@ -80,6 +80,7 @@
+ 	}
+ 	
+ 	public static RGB color2rgb(java.awt.Color c) {
++		if(c == null) c = java.awt.Color.BLACK;
+ 		return new RGB(c.getRed(), c.getGreen(), c.getBlue());
+ 	}
+ 	
+Index: trunk/webstart/pathvisio_v2.jnlp
+===================================================================
+--- trunk/webstart/pathvisio_v2.jnlp	(revision 990)
++++ trunk/webstart/pathvisio_v2.jnlp	(revision 991)
+@@ -51,7 +51,7 @@
+ 		<jar href="swt-mac-lib/swt.jar"/>
+ 		<nativelib href="swt-mac-lib.jar"/>	
+ 	</resources>
+-	<application-desc main-class="org.pathvisio.gui.GuiMain">
++	<application-desc main-class="org.pathvisio.gui.swt.GuiMain">
+ 		<argument>-ur</argument>
+ 	</application-desc>
+ 	<security>
+Index: trunk/webstart/pathvisio_v1.jnlp
+===================================================================
+--- trunk/webstart/pathvisio_v1.jnlp	(revision 990)
++++ trunk/webstart/pathvisio_v1.jnlp	(revision 991)
+@@ -48,7 +48,7 @@
+ 		<jar href="swt-mac-lib/swt.jar"/>
+ 		<nativelib href="swt-mac-lib.jar"/>	
+ 	</resources>
+-	<application-desc main-class="org.pathvisio.gui.GuiMain"/>
++	<application-desc main-class="org.pathvisio.gui.swt.GuiMain"/>
+ 	<security>
+ 		 <all-permissions/>
+ 	</security>
+Index: trunk/lib/JRI-lib/jri-2.4.so
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/JRI-lib/jri-2.4.so
+___________________________________________________________________
+Name: svn:executable
+   + *
+Name: svn:mime-type
+   + application/octet-stream
+

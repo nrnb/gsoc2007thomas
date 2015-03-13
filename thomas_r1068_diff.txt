@@ -1,0 +1,536 @@
+Index: trunk/src/wikipathways/org/pathvisio/Globals.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/Globals.java	(revision 1067)
++++ trunk/src/wikipathways/org/pathvisio/Globals.java	(revision 1068)
+@@ -26,6 +26,7 @@
+ 	public static final String APPLICATION_NAME = "PathVisio";
+ 	public static final String APPLICATION_VERSION_NAME = "PathVisio.WikiPathways";
+ 	public static final String HELP_URL = "http://wiki.bigcat.unimaas.nl/pathvisio/Help";
++	public static final String SERVER_NAME = "WikiPathways.org";
+ 	// for inclusion in certain error messages.
+ 	public static final String DEVELOPER_EMAIL = "thomas.kelder@bigcat.unimaas.nl";
+ }
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1068)
+@@ -0,0 +1,59 @@
++package org.pathvisio.gui.wikipathways;
++
++import java.awt.event.ActionEvent;
++import java.awt.event.KeyEvent;
++
++import javax.swing.AbstractAction;
++import javax.swing.Action;
++import javax.swing.ImageIcon;
++import javax.swing.KeyStroke;
++
++import org.pathvisio.Engine;
++import org.pathvisio.Globals;
++import org.pathvisio.wikipathways.WikiPathways;
++
++public class Actions {
++	static abstract class WikiAction extends AbstractAction {
++		AppletMain applet;
++		WikiPathways wiki;
++		public WikiAction(AppletMain a, WikiPathways w, String name, ImageIcon icon) {
++			super(name, icon);
++			applet = a;
++			wiki = w;
++		}
++	}
++	
++	class ExitAction extends WikiAction {
++		boolean doSave;
++		public ExitAction(AppletMain a, WikiPathways w, boolean save) {
++			super(a, w, "Finish", new ImageIcon(save ? Engine.getCurrent().getResourceURL("icons/apply.gif") : Engine.getCurrent().getResourceURL("icons/cancel.gif")));
++			doSave = save;
++			String descr = doSave ? "Save pathway and close editor" : "Discard pathway and close editor";
++			putValue(Action.SHORT_DESCRIPTION, descr);
++		}
++		public void actionPerformed(ActionEvent e) {
++			System.out.println("DEBUG: exit pressed, " + doSave);
++			boolean saved = true;
++			if(doSave) {
++				saved = wiki.saveUI();
++			}
++			if(saved) {
++				applet.endWithMessage("Please wait while you'll be redirected to the pathway page");
++			}
++		}
++	}
++	
++	
++	static class SaveToServerAction extends WikiAction {
++		public SaveToServerAction(AppletMain a, WikiPathways w) {
++			super(a, w, "Save to ", new ImageIcon(Engine.getCurrent().getResourceURL("icons/save.gif")));
++			putValue(Action.SHORT_DESCRIPTION, "Save the pathway to " + Globals.SERVER_NAME);
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_W, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			// TODO Auto-generated method stub
++			
++		}
++	}
++}
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1067)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1068)
+@@ -16,7 +16,9 @@
+ //
+ package org.pathvisio.gui.wikipathways;
+ 
++import java.awt.Component;
+ import java.awt.event.ActionEvent;
++import java.awt.event.KeyEvent;
+ import java.net.CookieHandler;
+ import java.net.URL;
+ import java.util.HashMap;
+@@ -29,6 +31,7 @@
+ import javax.swing.JApplet;
+ import javax.swing.JLabel;
+ import javax.swing.JOptionPane;
++import javax.swing.KeyStroke;
+ import javax.swing.SwingUtilities;
+ 
+ import org.pathvisio.ApplicationEvent;
+@@ -53,31 +56,38 @@
+ 	
+ 	public static final String PAR_PATHWAY_URL = "pathway.url";
+ 	public void init() {
++		for(Component c : getContentPane().getComponents()) {
++			System.out.println("COMPONENT: " + c);
++		}
++		SwingEngine.setCurrent(new SwingEngine());
++		Engine.setCurrent(new Engine());
++		
++		System.out.println("Engines: " + Engine.getCurrent().hashCode() + " | " + SwingEngine.getCurrent().hashCode());
+ 		System.out.println("INIT CALLED....");
+ 		Logger.log.trace("INIT CALLED....");
+ 				
+ 		uiHandler = new SwingUserInterfaceHandler(JOptionPane.getFrameForComponent(this));
+ 		
+-		try {
+-			SwingUtilities.invokeAndWait(new Runnable() {
+-				public void run() {
++//		try {
++//			SwingUtilities.invokeAndWait(new Runnable() {
++//				public void run() {
+ 					mainPanel = SwingEngine.getCurrent().getApplicationPanel();
++					System.out.println("MainPanel: " + mainPanel.hashCode());
++					Action saveAction = new Actions.ExitAction(this, wiki, true);
++					Action discardAction = new Actions.ExitAction(this, wiki, false);
+ 					
+-					Action saveAction = new ExitAction(true);
+-					Action discardAction = new ExitAction(false);
+-					
+ 					mainPanel.getToolBar().addSeparator();
+ 					mainPanel.addToToolbar(saveAction, MainPanel.TB_GROUP_HIDE_ON_EDIT);
+ 					mainPanel.addToToolbar(discardAction);
+ 
+ 					getContentPane().add(mainPanel);
+ 					mainPanel.setVisible(true);
+-				}
+-			});
+-		} catch (Exception e) {
+-			// TODO Auto-generated catch block
+-			e.printStackTrace();
+-		}
++//				}
++//			});
++//		} catch (Exception e) {
++//			// TODO Auto-generated catch block
++//			e.printStackTrace();
++//		}
+ 		System.out.println("INIT ENDED....");
+ 		Logger.log.trace("INIT ENDED....");
+ 	}
+@@ -93,15 +103,16 @@
+ 				wiki = new WikiPathways(uiHandler);
+ 				parseArguments();
+ 				loadCookies();
+-									
+-				try { 
++								
++				try {
+ 					wiki.init(SwingEngine.getCurrent().createWrapper());
+ 				} catch(Exception e) {
+ 					Logger.log.error("Unable to load pathway", e);
+ 					JOptionPane.showMessageDialog(
+ 							AppletMain.this, e.getClass() + ": " + e.getMessage(), "Error while initializing editor", JOptionPane.ERROR_MESSAGE);
+ 				};
+-															
++				System.out.println("VPathway: " + Engine.getCurrent().getActiveVPathway());
++				System.out.println(Engine.getCurrent() + " | " + SwingEngine.getCurrent());
+ 				return null;
+ 			}
+ 		};
+@@ -144,6 +155,14 @@
+ 		Logger.log.trace("DESTROY ENDED....");
+ 	}
+ 	
++	public void endWithMessage(String msg) {
++		JLabel label = new JLabel(msg, JLabel.CENTER);
++		getContentPane().add(label);
++		getContentPane().validate();
++		
++		getAppletContext().showDocument(getDocumentBase(), "_parent");
++	}
++	
+ 	void loadCookies() {
+ 		Logger.log.trace("Loading cookies");
+ 
+@@ -190,29 +209,4 @@
+ 			p.setValue(getParameter(p.getName()));
+ 		}
+ 	}
+-	
+-	class ExitAction extends AbstractAction {
+-		boolean doSave;
+-		public ExitAction(boolean save) {
+-			super("Finish", new ImageIcon(save ? Engine.getCurrent().getResourceURL("icons/apply.gif") : Engine.getCurrent().getResourceURL("icons/cancel.gif")));
+-			doSave = save;
+-			String descr = doSave ? "Save pathway and close editor" : "Discard pathway and close editor";
+-			putValue(Action.SHORT_DESCRIPTION, descr);
+-		}
+-		public void actionPerformed(ActionEvent e) {
+-			System.out.println("DEBUG: exit pressed, " + doSave);
+-			boolean saved = true;
+-			if(doSave) {
+-				saved = wiki.saveUI();
+-			}
+-			if(saved) {
+-				getContentPane().remove(mainPanel);
+-				JLabel label = new JLabel("Please wait while you'll be redirected to the pathway page", JLabel.CENTER);
+-				getContentPane().add(label);
+-				getContentPane().validate();
+-				
+-				getAppletContext().showDocument(getDocumentBase(), "_parent");
+-			}
+-		}
+-	}
+ }
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1067)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1068)
+@@ -39,21 +39,21 @@
+ import org.apache.xmlrpc.util.HttpUtil;
+ import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
++import org.pathvisio.Globals;
+ import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.data.DBConnector;
+ import org.pathvisio.data.DBConnectorDerbyServer;
+ import org.pathvisio.data.Gdb;
+ import org.pathvisio.debug.Logger;
+ import org.pathvisio.model.ConverterException;
++import org.pathvisio.model.Pathway;
+ import org.pathvisio.util.ProgressKeeper;
+ import org.pathvisio.util.RunnableWithProgress;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ import org.xml.sax.SAXException;
+ 
+-public class WikiPathways implements ApplicationEventListener {
+-	public static String SITE_NAME = "WikiPathways.org";
+-	
++public class WikiPathways implements ApplicationEventListener {	
+ 	UserInterfaceHandler uiHandler;
+ 	HashMap<String, String> cookie;
+ 	
+@@ -208,23 +208,22 @@
+ 
+ 	
+ 	public void applicationEvent(ApplicationEvent e) {
+-		/*
++		Pathway p = (Pathway)e.source;
+ 		switch(e.type) {
+-		case ApplicationEvent.APPLICATION_CLOSE:
+-			VPathway vPathway = Engine.getCurrent().getActiveVPathway();
+-			if(vPathway == null || vPathway.getGmmlData().hasChanged()) {
+-				int status  = uiHandler.askCancellableQuestion("", 
+-						"Do you want to save the changes to " + getPwName() + " on " + SITE_NAME + "?");
+-				if(status == UserInterfaceHandler.Q_TRUE) {
+-					saveUI();
+-				} else if(status == UserInterfaceHandler.Q_CANCEL) {
+-					e.doit = false;
+-				}
+-			} else {
+-				//Silently close
++		case ApplicationEvent.PATHWAY_NEW:
++			p.getMappInfo().setOrganism(getPwSpecies());
++		case ApplicationEvent.PATHWAY_OPENED:
++			//Force species name to be te same as on wikipathways
++			String impSpecies = p.getMappInfo().getOrganism();
++			if(!impSpecies.equals(impSpecies = getPwSpecies())) {
++				uiHandler.showError("Invalid species",
++						"The species of the pathway you imported differs from the" +
++						"species for this " + Globals.SERVER_NAME + " pathway.\n" +
++						"It will be changed from '" + impSpecies + "' to " + getPwSpecies());
++				p.getMappInfo().setOrganism(impSpecies);
+ 			}
++			break;
+ 		}
+-		*/
+ 	}
+ 
+ 	static class XmlRpcCookieTransportFactory implements XmlRpcTransportFactory {
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java	(revision 1067)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathwaysEngine.java	(revision 1068)
+@@ -19,11 +19,24 @@
+ import java.io.File;
+ 
+ import org.pathvisio.Globals;
++import org.pathvisio.model.PropertyType;
+ import org.pathvisio.preferences.GlobalPreference;
+ 
+ public class WikiPathwaysEngine {
+ 	public static void init() throws Exception {
+ 		GlobalPreference.FILE_LOG.setDefault(new File(getApplicationDir(), ".wikipathwaysLog").toString());
++		
++		PropertyType.CENTERX.setHidden(true);
++		PropertyType.CENTERY.setHidden(true);
++		PropertyType.ENDX.setHidden(true);
++		PropertyType.ENDY.setHidden(true);
++		PropertyType.HEIGHT.setHidden(true);
++		PropertyType.LAST_MODIFIED.setHidden(true);
++		PropertyType.ORGANISM.setHidden(true);
++		PropertyType.ROTATION.setHidden(true);
++		PropertyType.STARTX.setHidden(true);
++		PropertyType.STARTY.setHidden(true);
++		PropertyType.WIDTH.setHidden(true);
+ 	}
+ 		
+ 	private static File DIR_APPLICATION;
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1067)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1068)
+@@ -63,26 +63,45 @@
+ 			e.removeListener(this);
+ 		}
+ 		input.clear();
+-		refresh();
++		refresh(true);
+ 	}
+ 	
+ 	private void removeInput(PathwayElement pwElm) {
+ 		input.remove(pwElm);
+ 		pwElm.removeListener(this);
+-		refresh();
++		refresh(true);
+ 	}
+ 	
+ 	private void addInput(PathwayElement pwElm) {
+ 		input.add(pwElm);
+ 		pwElm.addListener(this);
+-		refresh();
++		refresh(true);
+ 	}
+ 	
+-	protected void refresh() {
+-		properties = generateProperties(input);
++	protected void refresh(boolean recreate) {
++		if(recreate) {
++			properties = generateProperties(input);
++		} else {
++			refreshPropertyValues();
++		}
+ 		fireTableDataChanged();
+ 	}
+ 	
++	protected void refresh() {
++		refresh(false);
++	}
++	
++	protected void refreshPropertyValues() {
++		for(TypedProperty p : properties) {
++			Object value = getAggregateValue(p.getType(), input);
++			if(value instanceof TypedProperty) {
++				p.setHasDifferentValues(true);
++			} else {
++				p.setValue(value, false);
++			}
++		}
++	}
++	
+ 	protected List<TypedProperty> generateProperties(Collection<PathwayElement> elements) {
+ 		List<TypedProperty> properties = new ArrayList<TypedProperty>();
+ 		List<PropertyType> propTypes = getProperties(elements);
+@@ -102,13 +121,12 @@
+ 				properties = new ArrayList<PropertyType>();
+ 				List<PropertyType> attr = e.getAttributes(GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES));
+ 				properties.addAll(attr);
+-				continue;
+ 			}
+ 			remove.clear();
+ 			List<PropertyType> attributes = e.getAttributes(
+ 					GlobalPreference.getValueBoolean(GlobalPreference.SHOW_ADVANCED_ATTRIBUTES));
+ 			for(PropertyType p : properties) {
+-				if(!attributes.contains(p)) {
++				if(!attributes.contains(p) || p.isHidden()) {
+ 					remove.add(p);
+ 				}
+ 			}
+@@ -118,7 +136,14 @@
+ 		return properties;
+ 	}
+ 	
+-	TypedProperty getAggregateProperty(PropertyType key, Collection<PathwayElement> elements) {
++	/**
++	 * Gets the aggregated value of the property of the given pathway element.
++	 * If te values are different, this method returns an object of class TypedProperty
++	 * @param key
++	 * @param elements
++	 * @return
++	 */
++	Object getAggregateValue(PropertyType key, Collection<PathwayElement> elements) {
+ 		Object value = null;
+ 		boolean first = true;
+ 		for(PathwayElement e : elements) {
+@@ -129,6 +154,12 @@
+ 			value = o;
+ 			first = false;
+ 		}
++		return value;
++	}
++	
++	TypedProperty getAggregateProperty(PropertyType key, Collection<PathwayElement> elements) {
++		Object value = getAggregateValue(key, elements);
++		if(value instanceof TypedProperty) return (TypedProperty)value;
+ 		return new TypedProperty(elements, value, key);
+ 	}
+ 		
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1067)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1068)
+@@ -76,8 +76,12 @@
+ 	}
+ 	
+ 	public void setValue(Object value) {
++		setValue(value, true);
++	}
++	
++	public void setValue(Object value, boolean setElement) {
+ 		this.value = value;
+-		if(value != null) {
++		if(value != null && setElement) {
+ 			for(PathwayElement e : elements) {
+ 				e.setProperty(type, value);
+ 			}
+@@ -227,7 +231,6 @@
+ 	private static class ColorEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
+ 		Color currentColor;
+ 		JButton button;
+-		JColorChooser colorChooser;
+ 		JDialog dialog;
+ 		protected static final String EDIT = "edit";
+ 
+@@ -236,26 +239,15 @@
+ 			button.setActionCommand("edit");
+ 			button.addActionListener(this);
+ 			button.setBorderPainted(false);
+-
+-			colorChooser = new JColorChooser();
+-			dialog = JColorChooser.createDialog(button,
+-					"Pick a Color",
+-					true,  //modal
+-					colorChooser,
+-					this,  //OK button handler
+-					null); //no CANCEL button handler
+ 		}
+ 
+ 		public void actionPerformed(ActionEvent e) {
+ 			if (EDIT.equals(e.getActionCommand())) {
+ 				button.setBackground(currentColor);
+-				colorChooser.setColor(currentColor);
+-				dialog.setVisible(true);
+ 
+-				fireEditingStopped(); //Make the renderer reappear.
+-
+-			} else {
+-				currentColor = colorChooser.getColor();
++				Color newColor = JColorChooser.showDialog(button, "Choose a color", currentColor);
++				if(newColor != null) currentColor = newColor;
++				fireEditingStopped(); //Make the renderer reappear
+ 			}
+ 		}
+ 
+Index: trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 1067)
++++ trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 1068)
+@@ -87,20 +87,6 @@
+ 		}
+ 	}
+ 	
+-	static class SaveToServerAction extends AbstractAction {
+-		public SaveToServerAction() {
+-			super("Save", new ImageIcon(IMG_SAVE));
+-			putValue(Action.SHORT_DESCRIPTION, "Save the pathway");
+-			putValue(Action.LONG_DESCRIPTION, "Save the pathway");
+-			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_W, ActionEvent.CTRL_MASK));
+-		}
+-
+-		public void actionPerformed(ActionEvent e) {
+-			// TODO Auto-generated method stub
+-			
+-		}
+-	}
+-	
+ 	static class ImportAction extends AbstractAction {
+ 		MainPanel mainPanel;
+ 		
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1067)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1068)
+@@ -30,7 +30,7 @@
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class SwingEngine {	
+-	private static MainPanel mainPanel;
++	private MainPanel mainPanel;
+ 	
+ 	private static SwingEngine current;
+ 	public static SwingEngine getCurrent() {
+@@ -38,6 +38,10 @@
+ 		return current;
+ 	}
+ 	
++	public static void setCurrent(SwingEngine engine) {
++		current = engine;
++	}
++	
+ 	public MainPanel getApplicationPanel() {
+ 		return getApplicationPanel(false);
+ 	}
+Index: trunk/src/core/org/pathvisio/model/PropertyType.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/PropertyType.java	(revision 1067)
++++ trunk/src/core/org/pathvisio/model/PropertyType.java	(revision 1068)
+@@ -133,11 +133,17 @@
+ 		return type;
+ 	}	
+ 
+-	public boolean hidden()
++	public boolean isHidden()
+ 	{
++		System.out.println("Is hidden? " + this + ", " + hidden);
+ 		return hidden;
+ 	}
+ 
++	public void setHidden(boolean hide) {
++		System.out.println("hiding " + this);
++		hidden = hide;
++	}
++	
+ 	public static PropertyType getByTag(String value)
+ 	{
+ 		return tagMapping.get (value);

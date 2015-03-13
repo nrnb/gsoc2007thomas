@@ -1,0 +1,103 @@
+Index: trunk/src/core/org/pathvisio/view/VPathwayElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayElement.java	(revision 971)
++++ trunk/src/core/org/pathvisio/view/VPathwayElement.java	(revision 972)
+@@ -20,13 +20,12 @@
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+-import java.awt.Stroke;
+ import java.awt.geom.Point2D;
+ import java.awt.geom.Rectangle2D;
+ 
+ public abstract class VPathwayElement implements Comparable<VPathwayElement>
+ {	
+-	protected Stroke defaultStroke = new BasicStroke();
++	protected BasicStroke defaultStroke = new BasicStroke();
+ 	
+ 	protected VPathway canvas;
+ 	
+@@ -194,7 +193,7 @@
+ 	/**
+ 	 * Get the rectangular boundary of this object
+ 	 */
+-	protected final Rectangle getVBounds()
++	protected Rectangle getVBounds()
+ 	{
+ 		return getVOutline().getBounds();
+ 	}
+Index: trunk/src/core/org/pathvisio/view/GraphicsShape.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 971)
++++ trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 972)
+@@ -17,6 +17,7 @@
+ package org.pathvisio.view;
+ 
+ import java.awt.Polygon;
++import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.geom.Area;
+ import java.awt.geom.Rectangle2D;
+@@ -465,6 +466,15 @@
+ 		return outline;
+ 	}
+ 	
++	protected Rectangle getVBounds() {
++		//Override VPathwayElement, because getVOutline is too slow
++		Rectangle b = getFillShape().getBounds();
++		float sw = defaultStroke.getLineWidth();
++		b.x -= sw; b.y -= sw;
++		b.width += sw; b.height += sw;
++		return b;
++	}
++	
+ 	private Shape getFillShape() {
+ 		int[] x = new int[4];
+ 		int[] y = new int[4];
+Index: trunk/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Handle.java	(revision 971)
++++ trunk/src/core/org/pathvisio/view/Handle.java	(revision 972)
+@@ -16,12 +16,10 @@
+ //
+ package org.pathvisio.view;
+ 
+-import java.awt.BasicStroke;
+ import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+-import java.awt.Stroke;
+ import java.awt.geom.Area;
+ import java.awt.geom.Ellipse2D;
+ import java.awt.geom.Rectangle2D;
+@@ -218,16 +216,25 @@
+ 		return outline;
+ 	}
+ 	
++	protected Rectangle getVBounds() {
++		//Override VPathwayElement, because getVOutline is too slow
++		return getFillShape((int)defaultStroke.getLineWidth()).getBounds();
++	}
++	
+ 	private Shape getFillShape() {
++		return getFillShape(0);
++	}
++	
++	private Shape getFillShape(int sw) {
+ 		Shape s = null;
+ 		switch(direction) {
+ 		case DIRECTION_ROT:
+-			s = new Ellipse2D.Double(getVCenterX() - WIDTH/2, getVCenterY() - HEIGHT/2, 
+-					WIDTH, HEIGHT);
++			s = new Ellipse2D.Double(getVCenterX() - WIDTH/2 - sw, getVCenterY() - HEIGHT/2 - sw, 
++					WIDTH + sw, HEIGHT + sw);
+ 			break;
+ 		default:
+-			s = new Rectangle2D.Double(getVCenterX() - WIDTH/2, getVCenterY() - HEIGHT/2, 
+-					WIDTH, HEIGHT);
++			s = new Rectangle2D.Double(getVCenterX() - WIDTH/2 - sw, getVCenterY() - HEIGHT/2 - sw, 
++					WIDTH + sw, HEIGHT + sw);
+ 			break;
+ 		}
+ 		return s;

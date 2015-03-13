@@ -1,0 +1,64 @@
+Index: trunk/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 910)
++++ trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 911)
+@@ -29,6 +29,7 @@
+ import org.jdom.Document;
+ import org.jdom.Element;
+ import org.jdom.Namespace;
++import org.jdom.filter.Filter;
+ import org.pathvisio.gui.Engine;
+ 
+ /**
+@@ -825,8 +826,15 @@
+ 			List<Content> content = bp.getRootElement().cloneContent();
+ 			for(Content c : content) {
+ 				if(c instanceof Element) {
+-					if(((Element)c).getNamespace() == BIOPAX) {
++					Element elm = (Element)c;
++					if(elm.getNamespace().equals(BIOPAX)) {
+ 						e.addContent(c);
++					} else if(elm.getName().equals("RDF") && elm.getNamespace().equals(RDF)) {
++						for(Object ce : elm.getChildren()) {
++							if(((Element)ce).getNamespace().equals(BIOPAX)) {
++								e.addContent((Element)ce);
++							}
++						}
+ 					} else {
+ 						Engine.log.info("Skipped non-biopax element" + c);
+ 					}
+Index: trunk/src/core/org/pathvisio/model/Pathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/Pathway.java	(revision 910)
++++ trunk/src/core/org/pathvisio/model/Pathway.java	(revision 911)
+@@ -133,6 +133,11 @@
+ 		return biopax;
+ 	}
+ 	
++	public void createBiopax() {
++		biopax = new PathwayElement(ObjectType.BIOPAX);
++		this.add(biopax);
++	}
++		
+ 	/**
+ 	 * Add a PathwayElement to this Pathway.
+ 	 * takes care of setting parent and removing from possible previous
+@@ -330,8 +335,6 @@
+ 		this.add (mappInfo);
+ 		infoBox = new PathwayElement(ObjectType.INFOBOX);
+ 		this.add (infoBox);
+-		biopax = new PathwayElement(ObjectType.BIOPAX);
+-		this.add(biopax);
+ 	}
+ 	
+ 	static final double M_INITIAL_BOARD_WIDTH = 18000;
+@@ -378,6 +381,9 @@
+ 			} catch (JDOMException je) {
+ 				log.error("Document is invalid according to the xml-schema definition!: " + 
+ 						je.getMessage(), je);
++				XMLOutputter xmlcode = new XMLOutputter(Format.getPrettyFormat());
++				
++				log.error("The invalid XML code:\n" + xmlcode.outputString(doc));
+ 				throw new ConverterException (je);
+ 			}
+ 		} else {

@@ -1,0 +1,13 @@
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1045)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1046)
+@@ -362,7 +362,7 @@
+ 		redraw();
+ 		int type = editMode ? VPathwayEvent.EDIT_MODE_ON
+ 				: VPathwayEvent.EDIT_MODE_OFF;
+-		fireVPathwayEvent(new VPathwayEvent(this, VPathwayEvent.EDIT_MODE_OFF));
++		fireVPathwayEvent(new VPathwayEvent(this, type));
+ 	}
+ 	
+ 	private double zoomFactor = 1.0/15.0;

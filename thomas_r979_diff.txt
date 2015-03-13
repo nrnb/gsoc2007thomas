@@ -1,0 +1,102 @@
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 978)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 979)
+@@ -527,6 +527,7 @@
+ 			g2d.fillRect(area.x, area.y, area.width, area.height);
+ 		}
+ 		
++		g2d.clip(area);
+ 		g2d.setColor(java.awt.Color.BLACK);
+ 		Collections.sort(drawingObjects);
+ 		
+Index: trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java	(revision 978)
++++ trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java	(revision 979)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.view.swing;
+ 
++import java.awt.Color;
+ import java.awt.Dimension;
+ import java.awt.Graphics;
+ import java.awt.Graphics2D;
+@@ -76,8 +77,6 @@
+ 	}
+ 
+ 	protected void paintComponent(Graphics g) {
+-		Dimension vps = getViewportSize();
+-		g.setClip(new Rectangle(0, 0, vps.width, vps.height));
+ 		child.draw((Graphics2D) g);
+ 	}
+ 
+@@ -149,7 +148,8 @@
+ 		if(e.getType() == VPathwayEvent.MODEL_LOADED) {
+ 			if(e.getSource() == child) {
+ 				container.setViewportView(this);
+-				revalidate();
++				container.getViewport().setBackground(Color.GRAY);
++				container.revalidate();
+ 			}
+ 		}
+ 	}
+Index: trunk/src/core/org/pathvisio/view/VPathwayElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayElement.java	(revision 978)
++++ trunk/src/core/org/pathvisio/view/VPathwayElement.java	(revision 979)
+@@ -53,7 +53,7 @@
+ 		Graphics2D g = (Graphics2D)g2d.create();
+ 				
+ 		//Prevent element from drawing outside its bounds
+-		g.setClip(getVBounds());
++		g.clip(getVBounds());
+ 		g.setStroke(defaultStroke);
+ 		//Perform the drawing
+ 		doDraw(g);
+Index: trunk/src/core/org/pathvisio/view/GraphicsShape.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 978)
++++ trunk/src/core/org/pathvisio/view/GraphicsShape.java	(revision 979)
+@@ -470,7 +470,7 @@
+ 		//Override VPathwayElement, because getVOutline is too slow
+ 		Rectangle b = getFillShape().getBounds();
+ 		float sw = defaultStroke.getLineWidth();
+-		b.x -= sw; b.y -= sw;
++		//b.x -= sw; b.y -= sw;
+ 		b.width += sw; b.height += sw;
+ 		return b;
+ 	}
+Index: trunk/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Handle.java	(revision 978)
++++ trunk/src/core/org/pathvisio/view/Handle.java	(revision 979)
+@@ -210,10 +210,12 @@
+ 	}
+ 			
+ 	public Shape getVOutline() {
+-		Shape fill = getFillShape();
+-		Area outline = new Area(fill);
+-		outline.add(new Area(defaultStroke.createStrokedShape(fill)));
+-		return outline;
++		//Override VPathwayElement, because getVOutline is too slow
++		Rectangle b = getFillShape().getBounds();
++		float sw = defaultStroke.getLineWidth();
++		//b.x -= sw; b.y -= sw;
++		b.width += sw; b.height += sw;
++		return b;
+ 	}
+ 	
+ 	protected Rectangle getVBounds() {
+Index: trunk/src/swt/org/pathvisio/view/swt/VPathwaySwtAwt.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/view/swt/VPathwaySwtAwt.java	(revision 978)
++++ trunk/src/swt/org/pathvisio/view/swt/VPathwaySwtAwt.java	(revision 979)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.view.swt;
+ 
++import java.awt.Color;
+ import java.awt.event.KeyEvent;
+ import java.awt.event.MouseEvent;
+ 

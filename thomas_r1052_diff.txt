@@ -1,0 +1,47 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/PathwayOfTheDay.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/PathwayOfTheDay.php	(revision 1051)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/PathwayOfTheDay.php	(revision 1052)
+@@ -183,7 +183,7 @@
+ 		//Pick a random pathway from all articles in namespace NS_PATHWAY
+ 		$res = $dbr->query(
+ 			"SELECT page_title FROM page WHERE page_namespace = " . NS_PATHWAY .
+-				" ORDER BY RAND() LIMIT 1" ,DB_SLAVE ); //RAND() only works in MySQL?
++				" AND page_is_redirect = 0 ORDER BY RAND() LIMIT 1" ,DB_SLAVE ); //RAND() only works in MySQL?
+ 		$row = $dbr->fetchRow($res);
+ 		wfDebug("Resulting pathway: " . $row[0] . "\n");
+ 		return $row[0];
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/siteStats.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/siteStats.php	(revision 1051)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/siteStats.php	(revision 1052)
+@@ -55,7 +55,7 @@
+ function howManyPathways($species) {
+ 	$dbr =& wfGetDB(DB_SLAVE);
+ 	//Fetch number of pathways for this species
+-	$res = $dbr->query("SELECT COUNT(*) FROM page WHERE page_namespace=" . NS_PATHWAY . " AND page_title LIKE '$species%'");
++	$res = $dbr->query("SELECT COUNT(*) FROM page WHERE page_namespace=" . NS_PATHWAY . " AND page_title LIKE '$species%' AND page_is_redirect = 0");
+ 	$row = $dbr->fetchRow($res);
+ 	$dbr->freeResult($res);
+ 	return $row[0];
+@@ -65,4 +65,4 @@
+ 	return Pathway::getAvailableSpecies();
+ }
+ 
+-?>
+\ No newline at end of file
++?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/includes/SpecialAllpages.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/includes/SpecialAllpages.php	(revision 1051)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/includes/SpecialAllpages.php	(revision 1052)
+@@ -270,7 +270,8 @@
+ 			array( 'page_namespace', 'page_title', 'page_is_redirect' ),
+ 			array(
+ 				'page_namespace' => $namespace,
+-				'page_title >= ' . $dbr->addQuotes( $fromKey )
++				'page_title >= ' . $dbr->addQuotes( $fromKey ),
++				'page_is_redirect' => 0
+ 			),
+ 			$fname,
+ 			array(

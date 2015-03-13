@@ -1,0 +1,17 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1036)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/editApplet.php	(revision 1037)
+@@ -68,8 +68,10 @@
+ 	$values = createJsArray(array_values($args));
+ 
+ 	return scriptTag(
+-		"elm = document.getElementById('{$idClick}');" . 
+-		"elm.addEventListener('click',function() { replaceWithApplet('{$idReplace}', 'applet', {$keys}, {$values}); }, false);"
++		"var elm = document.getElementById('{$idClick}');" . 
++		"var listener = function() { replaceWithApplet('{$idReplace}', 'applet', {$keys}, {$values}); };" .
++		"if(elm.attachEvent) elm.attachEvent('onclick',listener);" .
++		"else elm.addEventListener('click',listener, false);"
+ 	);
+ }
+ ?>

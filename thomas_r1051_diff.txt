@@ -1,0 +1,25 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/listPathways.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/listPathways.php	(revision 1050)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/listPathways.php	(revision 1051)
+@@ -1,7 +1,7 @@
+ <?php
+ require_once('wpi/wpi.php');
+ 
+-define('SEPARATOR', ' ');
++define('SEPARATOR', ',');
+ define('PAR_PATHWAYS', 'pathways');
+ 
+ $wgExtensionFunctions[] = 'wfListPathways';
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1050)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1051)
+@@ -170,6 +170,7 @@
+ 			break;
+ 	}
+ 	$fn = $pathway->getFileName($fileType);
++	ob_clean();
+ 	header("Content-Disposition: attachment; filename=\"$fn\"");
+ 	echo $content;
+ 	exit;

@@ -1,0 +1,412 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 947)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 948)
+@@ -17,7 +17,6 @@
+ import javax.swing.JToolBar;
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+-import javax.swing.table.TableColumn;
+ 
+ import org.pathvisio.Engine;
+ import org.pathvisio.gui.swing.CommonActions.CopyAction;
+@@ -61,6 +60,10 @@
+ 				TableCellRenderer r = model.getCellRenderer(row, column);
+ 				return r == null ? super.getCellRenderer(row, column) : r;
+ 			}
++			public TableCellEditor getCellEditor(int row, int column) {
++				TableCellEditor e = model.getCellEditor(row, column);
++				return e == null ? super.getCellEditor(row, column) : e;
++			}
+ 		};
+ 		
+ 		sidebarScrollPane.setViewportView(propertyTable);
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 947)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 948)
+@@ -1,12 +1,20 @@
+ package org.pathvisio.gui.swing.propertypanel;
+ 
++import java.awt.Component;
+ import java.util.ArrayList;
+-import java.util.Collection;
++import java.util.EventObject;
+ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Set;
+ 
++import javax.swing.DefaultCellEditor;
++import javax.swing.JTable;
++import javax.swing.JTextField;
++import javax.swing.event.CellEditorListener;
++import javax.swing.event.ChangeEvent;
++import javax.swing.event.EventListenerList;
+ import javax.swing.table.AbstractTableModel;
++import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
+ import org.pathvisio.model.PathwayElement;
+@@ -19,6 +27,8 @@
+ import org.pathvisio.view.SelectionBox.SelectionListener;
+ 
+ public class PathwayTableModel extends AbstractTableModel implements SelectionListener, PathwayListener {
++	TableCellEditor defaultEditor = new DefaultCellEditor(new JTextField());
++	
+ 	Set<PathwayElement> input;
+ 	List<TypedProperty> properties;
+ 	
+@@ -129,7 +139,7 @@
+ 	public boolean isCellEditable(int rowIndex, int columnIndex) {
+ 		return columnIndex == 1;
+ 	}
+-	
++		
+ 	public void drawingEvent(SelectionEvent e) {
+ 		switch(e.type) {
+ 		case SelectionEvent.OBJECT_ADDED:
+@@ -154,6 +164,14 @@
+ 		return null;
+ 	}
+ 
++	public TableCellEditor getCellEditor(int row, int column) {
++		if(column != 0) {
++			TypedProperty tp = getPropertyAt(row);
++			if(tp != null) return tp.getCellEditor();
++		}
++		return null;
++	}
++	
+ 	public void gmmlObjectModified(PathwayEvent e) {
+ 		refresh();
+ 	}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 947)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 948)
+@@ -2,13 +2,25 @@
+ 
+ import java.awt.Color;
+ import java.awt.Component;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
+ import java.util.Collection;
+ 
+-import javax.swing.JPanel;
++import javax.swing.AbstractCellEditor;
++import javax.swing.BorderFactory;
++import javax.swing.JButton;
++import javax.swing.JColorChooser;
++import javax.swing.JComboBox;
++import javax.swing.JDialog;
++import javax.swing.JLabel;
+ import javax.swing.JTable;
++import javax.swing.border.Border;
+ import javax.swing.table.DefaultTableCellRenderer;
++import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+ 
++import org.pathvisio.model.LineStyle;
++import org.pathvisio.model.LineType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PropertyType;
+ 
+@@ -17,14 +29,14 @@
+ 	T value;
+ 	PropertyType type;
+ 	boolean different;
+-	
++
+ 	private TypedProperty(Collection<PathwayElement> elements, T value, PropertyType type, boolean different) {
+ 		this.elements = elements;
+ 		this.value = value;
+ 		this.type = type;
+ 		this.different = different;
+ 	}
+-	
++
+ 	public void setValue(T value) {
+ 		//TODO: validate
+ 		this.value = value;
+@@ -34,49 +46,176 @@
+ 			}
+ 		}
+ 	}
+-	
++
++	public T getValue() {
++		return value;
++	}
++
+ 	public T getViewValue() {
+ 		return value;
+ 	}
+-	
++
+ 	public PropertyType getType() {
+ 		return type;
+ 	}
+-		
++
+ 	public boolean hasDifferentValues() { return different; }
+ 	public void setHasDifferentValues(boolean diff) { different = diff; }
+-	
++
+ 	public TableCellRenderer getCellRenderer() {
+-		return hasDifferentValues() ? differentRenderer : null;
++		if(hasDifferentValues()) return differentRenderer;
++		switch(type) {
++		case COLOR:
++			return colorRenderer;
++		case LINETYPE:
++			return lineTypeRenderer;
++		case LINESTYLE:
++			return lineStyleRenderer;
++		default: return null;
++		}
+ 	}
++
++	public TableCellEditor getCellEditor() {
++		switch(type) {
++		case COLOR:
++			return colorEditor;
++		default: return null;
++		}
++	}
+ 	
+-//	public TableEditor getCellEditor() {
+-//		
+-//	}
+-	
++	public Component getEditComponent() {
++		return (Component)getCellRenderer();
++	}
++
+ 	public static TypedProperty getInstance(Collection<PathwayElement> elements, Object value, PropertyType type) {
+ 		return getInstance(elements, value, type, false);
+ 	}
+-	
++
+ 	public static TypedProperty getInstance(Collection<PathwayElement> elements, PropertyType type) {
+ 		return getInstance(elements, null, type, true);
+ 	}
+-	
++
+ 	private static TypedProperty getInstance(Collection<PathwayElement> elements, Object value, PropertyType type, boolean different) {
+ 		switch(type.type()) {
+ 		case STRING:
+ 			return new TypedProperty<String>(elements, (String)value, type, different);
+ 		case COLOR:
+ 			return new TypedProperty<Color>(elements, (Color)value, type, different);
++		case LINETYPE:
++			return new TypedProperty<LineType>(elements, (LineType)value, type, different);
++		case LINESTYLE:
++			return new TypedProperty<Integer>(elements, (Integer)value, type, different);	
+ 		default:
+ 			return new TypedProperty<Object>(elements, value, type, different);
+ 		}
+ 	}
++
++	private ColorEditor colorEditor = new ColorEditor();
+ 	
++	private class ColorEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
++		Color currentColor;
++		JButton button;
++		JColorChooser colorChooser;
++		JDialog dialog;
++		protected static final String EDIT = "edit";
++
++		public ColorEditor() {
++			button = new JButton();
++			button.setActionCommand("edit");
++			button.addActionListener(this);
++			button.setBorderPainted(false);
++
++			colorChooser = new JColorChooser();
++			dialog = JColorChooser.createDialog(button,
++					"Pick a Color",
++					true,  //modal
++					colorChooser,
++					this,  //OK button handler
++					null); //no CANCEL button handler
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			if (EDIT.equals(e.getActionCommand())) {
++				button.setBackground(currentColor);
++				colorChooser.setColor(currentColor);
++				dialog.setVisible(true);
++
++				fireEditingStopped(); //Make the renderer reappear.
++
++			} else {
++				currentColor = colorChooser.getColor();
++			}
++		}
++
++		public Object getCellEditorValue() {
++			return currentColor;
++		}
++
++		public Component getTableCellEditorComponent(JTable table,
++				Object value,
++				boolean isSelected,
++				int row,
++				int column) {
++			currentColor = (Color)value;
++			return button;
++		}
++	}
++
++	private ColorRenderer colorRenderer = new ColorRenderer();
++	private ComboRenderer lineTypeRenderer = new ComboRenderer(LineType.getNames());
++	private ComboRenderer lineStyleRenderer = new ComboRenderer(LineStyle.getNames());
++
+ 	private DefaultTableCellRenderer differentRenderer = new DefaultTableCellRenderer() {
+ 		protected void setValue(Object value) {
+ 			value = "Different values";
+ 			super.setValue(value);
+ 		}
+ 	};
++
++	private class ComboRenderer extends JComboBox implements TableCellRenderer {
++		public ComboRenderer(Object[] items) {
++			super(items);
++		}
++
++		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
++			setSelectedItem(value);
++			return this;
++		}
++	}
++
++	private class ColorRenderer extends JLabel implements TableCellRenderer {
++		Border unselectedBorder = null;
++		Border selectedBorder = null;
++		boolean isBordered = true;
++
++		public ColorRenderer() {
++			setOpaque(true);
++		}
++
++		public Component getTableCellRendererComponent(
++				JTable table, Object color, boolean isSelected, boolean hasFocus, int row, int column) {
++			Color newColor = (Color)color;
++			setBackground(newColor);
++			if (isBordered) {
++				if (isSelected) {
++					if (selectedBorder == null) {
++						selectedBorder = BorderFactory.createMatteBorder(2,5,2,5,
++								table.getSelectionBackground());
++					}
++					setBorder(selectedBorder);
++				} else {
++					if (unselectedBorder == null) {
++						unselectedBorder = BorderFactory.createMatteBorder(2,5,2,5,
++								table.getBackground());
++					}
++					setBorder(unselectedBorder);
++				}
++			}
++
++			setToolTipText("RGB value: " + newColor.getRed() + ", "
++					+ newColor.getGreen() + ", "
++					+ newColor.getBlue());
++			return this;
++		}
++	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/model/LineStyle.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/LineStyle.java	(revision 947)
++++ branches/g2d-branch/src/core/org/pathvisio/model/LineStyle.java	(revision 948)
+@@ -16,7 +16,14 @@
+ //
+ package org.pathvisio.model;
+ 
++import java.util.ArrayList;
++import java.util.List;
++
+ public class LineStyle {
+ 	public static final int SOLID = 0;
+ 	public static final int DASHED = 1;
++	
++	public static String[] getNames() {
++		return new String[] {"Solid", "Dashed"};
++	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/model/LineType.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/LineType.java	(revision 947)
++++ branches/g2d-branch/src/core/org/pathvisio/model/LineType.java	(revision 948)
+@@ -16,7 +16,9 @@
+ //
+ package org.pathvisio.model;
+ 
++import java.util.ArrayList;
+ import java.util.HashMap;
++import java.util.List;
+ import java.util.Map;
+ 
+ public enum LineType 
+@@ -58,4 +60,15 @@
+ 	{
+ 		return gpmlMapping.get (value);
+ 	}
++	
++	static public String[] getNames()
++	{
++		List<String> result = new ArrayList<String>();		
++		for (LineType l : LineType.values())
++		{
++			result.add("" + l.gpmlName);
++		}
++		String [] resultArray = new String [result.size()];
++		return result.toArray(resultArray);
++	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/model/OrientationType.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/OrientationType.java	(revision 947)
++++ branches/g2d-branch/src/core/org/pathvisio/model/OrientationType.java	(revision 948)
+@@ -46,4 +46,7 @@
+ 		return (String)orientationMappings.get(value);
+ 	}
+ 
++	public static String[] getNames() {
++		return new String[] {"Top", "Right", "Bottom", "Left"};
++	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 947)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 948)
+@@ -46,9 +46,11 @@
+ import org.pathvisio.biopax.gui.BiopaxCellEditor;
+ import org.pathvisio.data.DataSources;
+ import org.pathvisio.model.DataNodeType;
++import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+ import org.pathvisio.model.MappFormat;
+ import org.pathvisio.model.ObjectType;
++import org.pathvisio.model.OrientationType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
+ import org.pathvisio.model.PathwayListener;
+@@ -243,13 +245,11 @@
+ 	 * a comboboxeditor will be set up with the proper values for
+ 	 * the drop down list.
+ 	 */
+-	final static String[] orientation_names = {"Top", "Right", "Bottom", "Left"};
+-	final static String[] linestyle_names = {"Solid", "Dashed"};
++	final static String[] orientation_names = OrientationType.getNames();
++	final static String[] linestyle_names = LineStyle.getNames();
+ 	final static String[] boolean_names = {"false", "true"};
+ 	final static String[] shape_names = ShapeType.getNames();
+-	final static String[] linetype_names = {
+-			"Line", "Arrow", "TBar", "Receptor", "LigandSquare", 
+-			"ReceptorSquare", "LigandRound", "ReceptorRound"}; 
++	final static String[] linetype_names = LineType.getNames(); 
+ 	final static String[] genetype_names = DataNodeType.getNames();
+ 	
+ 	private CellEditor getCellEditor(Object element)

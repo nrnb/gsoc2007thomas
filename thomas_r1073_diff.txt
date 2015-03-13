@@ -1,0 +1,184 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/editapplet.js
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/editapplet.js	(revision 1072)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/js/editapplet.js	(revision 1073)
+@@ -14,49 +14,53 @@
+ 		}
+ 	}
+ 
+-	image.class = 'thumbinner';
+-	table =	findEnclosingTable(image);
+-	
+-    var w = table.offsetWidth;
++	image.setAttribute('class', 'thumbinner');
+ 
+-    image.style.width = w + 'px';
+-    image.style.height = '500px';
++	var w = getParentWidth(image);
+ 
++	image.style.width = w + 'px';
++	image.style.height = '500px';
++
+ 	new Resizeable(idImg, {bottom: 10, right: 10, left: 0, top: 0});
+ 	ao.preload( idImg );
+ }
+ 
+ //Manually (doesn't work well, applet is started twice on firefox
+ function replaceWithApplet(idImg, idApplet, keys, values) {
+-    var image = document.getElementById(idImg);
+-    var applet = createObjectElement(idApplet, keys, values);
++	var image = document.getElementById(idImg);
++	var applet = createObjectElement(idApplet, keys, values);
+ 
+-	image.class = 'thumbinner';
+-	table =	findEnclosingTable(image);
+-	
+-    var w = table.offsetWidth;
++	image.setAttribute('class', 'thumbinner');
+ 
+-    image.style.width = w + 'px';
+-    image.style.height = '500px';
++	var w = getParentWidth(image);
+ 
+-    new Resizeable(idImg, {bottom: 10, right: 10, left: 0, top: 0});
++	image.style.width = w + 'px';
++	image.style.height = '500px';
++
++	new Resizeable(idImg, {bottom: 10, right: 10, left: 0, top: 0});
+ 	image.innerHTML = applet;
+ }
+ 
++function getParentWidth(elm) {
++	var p = findEnclosingTable(elm);
++	return p.offsetWidth;	
++}
++
+ function findEnclosingTable(elm) {
+-    //find getWidth of enclosing element / table
+-    var parent = elm.parentNode;
+-    var nn = parent.nodeName.toLowerCase();
+-    if(nn == 'td' || nn == 'tr' || nn == 'tbody') {
+-       while(true) {
+-           if(parent.parentNode == null || parent.nodeName.toLowerCase() == 'table') {
+-               break;
+-           } else {
+-               parent = parent.parentNode;
+-           }
+-       }
+-    }
+-	return parent;
++	//find getWidth of enclosing element / table
++	var parent = elm.parentNode;
++	var nn = parent.nodeName.toLowerCase();
++	if(nn == 'td' || nn == 'tr' || nn == 'tbody') {
++		while(true) {
++			if(parent.parentNode == null || parent.nodeName.toLowerCase() == 'table') {
++				break;
++			} else {
++				parent = parent.parentNode;
++			}
++		}
++	}
++	if(parent.nodeName.toLowerCase() == 'table') return parent;
++	else return elm.parentNode; //Not in a table, just return the parent
+ }
+ 
+ function replaceElement(elmOld, elmNew) {
+@@ -67,56 +71,56 @@
+ 
+ function createObjectElement(id, keys, values) {
+ 	var tag = '<object classid="java:org.pathvisio.gui.wikipathways.AppletMain.class"'
+-				  + ' TYPE="application/x-java-applet"'
+- 				  + ' ARCHIVE="wikipathways.jar"'
+-            	  + ' CODEBASE="/wpi/applet"'
+-				  + ' WIDTH="100%"'
+-				  + ' HEIGHT="100%"'
+-				  + ' STANDBY="Loading applet..."'
+-				  + ' >';
++		+ ' TYPE="application/x-java-applet"'
++		+ ' ARCHIVE="wikipathways.jar"'
++		+ ' CODEBASE="/wpi/applet"'
++		+ ' WIDTH="100%"'
++		+ ' HEIGHT="100%"'
++		+ ' STANDBY="Loading applet..."'
++		+ ' >';
+ 	if(keys != null && values != null) {
+-  	  for(var i = 0; i < keys.length; i++) {
+- 	       tag += '<param  name="' + keys[i]  + '" ' + 
+- 	                     'value="' + values[i] + '" />';
+-	    }
++		for(var i = 0; i < keys.length; i++) {
++			tag += '<param  name="' + keys[i]  + '" ' + 
++				'value="' + values[i] + '" />';
++		}
+ 	}
+-    tag += '</object>';
+-    return tag;
++	tag += '</object>';
++		return tag;
+ }
+ 
+ function createAppletElement(id, keys, values) {
+ 	var tag = '<applet code="org.pathvisio.gui.wikipathways.AppletMain"'
+- 				  + 'ARCHIVE="wikipathways.jar"'
+-            	  + 'CODEBASE="/wpi/applet"'
+-				  + 'WIDTH="100%"'
+-				  + '"HEIGHT="100%"'
+-				  + '>';
++		+ 'ARCHIVE="wikipathways.jar"'
++		+ 'CODEBASE="/wpi/applet"'
++		+ 'WIDTH="100%"'
++		+ '"HEIGHT="100%"'
++		+ '>';
+ 	if(keys != null && values != null) {
+-  	  for(var i = 0; i < keys.length; i++) {
+- 	       tag += '<param  name="' + keys[i]  + '" ' + 
+- 	                     'value="' + values[i] + '" />';
+-	    }
++		for(var i = 0; i < keys.length; i++) {
++			tag += '<param  name="' + keys[i]  + '" ' + 
++				'value="' + values[i] + '" />';
++		}
+ 	}
+-    tag += '</applet>';
+-    return tag;
++	tag += '</applet>';
++		return tag;
+ 
+-/*
+-	var applet = document.createElement('applet');
+-	applet.setAttribute('CODEBASE', '/wpi/applet');
+-	applet.setAttribute('CODE', 'org.pathvisio.gui.wikipathways.AppletMain');
+-	applet.setAttribute('ARCHIVE', 'wikipathways.jar');
+-	applet.setAttribute('width', '100%');
+-	applet.setAttribute('height', '100%');
+-	if(keys != null && values != null) {
+-		for(i=0; i < keys.length; i++) {
+-			var param = document.createElement('PARAM');
+-			//param.setAttribute('NAME', keys[i]);
+-			//param.setAttribute('VALUE', values[i]);
+-			param.name = keys[i];
+-			param.value = values[i];
+-			applet.appendChild(param);
+-		}
++	/*
++	   var applet = document.createElement('applet');
++	   applet.setAttribute('CODEBASE', '/wpi/applet');
++	   applet.setAttribute('CODE', 'org.pathvisio.gui.wikipathways.AppletMain');
++	   applet.setAttribute('ARCHIVE', 'wikipathways.jar');
++	   applet.setAttribute('width', '100%');
++	   applet.setAttribute('height', '100%');
++	   if(keys != null && values != null) {
++	   for(i=0; i < keys.length; i++) {
++	   var param = document.createElement('PARAM');
++	//param.setAttribute('NAME', keys[i]);
++	//param.setAttribute('VALUE', values[i]);
++	param.name = keys[i];
++	param.value = values[i];
++	applet.appendChild(param);
+ 	}
++	}
+ 	return applet;
+-*/
++	 */
+ }

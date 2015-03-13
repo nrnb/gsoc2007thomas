@@ -1,0 +1,1304 @@
+Index: trunk/tools/GmmlVisio2R/JRI/version
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/version	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/version	(revision 988)
+@@ -0,0 +1,8 @@
++#!/bin/sh
++
++VER=`awk -v ORS= '/JRI v/ { print substr($6,2) }' src/jri.h`
++if test "$1" == "-f"; then 
++    echo "JRI_${VER}.tar.gz"
++else
++    echo "${VER}"
++fi
+Index: trunk/tools/GmmlVisio2R/JRI/src/rjava.c
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/rjava.c	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/src/rjava.c	(revision 988)
+@@ -0,0 +1,50 @@
++#include "rjava.h"
++#include <unistd.h>
++
++int ipcout;
++int resin;
++int *rjctrl = 0;
++
++typedef void(callbackfn)(void *);
++
++int RJava_request_lock() {
++  long buf[4];
++  int n;
++  if (rjctrl && *rjctrl) return 2;
++
++  buf[0] = IPCC_LOCK_REQUEST;
++  write(ipcout, buf, sizeof(long));
++  n = read(resin, buf, sizeof(long));
++  return (buf[0] == IPCC_LOCK_GRANTED)?1:0;
++}
++
++int RJava_clear_lock() {
++  long buf[4];
++  buf[0] = IPCC_CLEAR_LOCK;
++  write(ipcout, buf, sizeof(long));
++  return 1;
++}
++
++void RJava_request_callback(callbackfn *fn, void *data) {
++  long buf[4];
++  buf[0] = IPCC_CALL_REQUEST;
++  buf[1] = (long) fn;
++  buf[2] = (long) data;
++  write(ipcout, buf, sizeof(long)*3);
++}
++
++void RJava_setup(int _in, int _out) {
++  long buf[4];
++  ipcout = _out;
++  resin = _in;
++}
++
++void RJava_init_ctrl() {
++  long buf[4];
++  buf[0] = IPCC_CONTROL_ADDR;
++  write(ipcout, buf, sizeof(long));
++  read(resin, buf, sizeof(long)*2);
++  if (buf[0] == IPCC_CONTROL_ADDR) {
++    rjctrl= (int*) buf[1];
++  }
++}
+Index: trunk/tools/GmmlVisio2R/JRI/src/h2ic
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/h2ic	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/src/h2ic	(revision 988)
+@@ -0,0 +1,40 @@
++#!/usr/bin/perl
++
++$fn=shift;
++
++print "#include \"$fn\"\n#include <stdlib.h>\n\n";
++
++open IN, $fn;
++$fn=~s/\..*?$//;
++$fn=$1 if ($fn=~/\/([^\/]+)$/);
++$pre=$fn;
++while (<IN>) {
++    if (/^JNIEXPORT ([a-z]+) JNICALL ([a-zA-Z0-9_]+)/) {
++	$ret=$1; $fn=$2;
++	$a=<IN>;
++	if ($a=~/\((JNIEnv.*)\)/) {
++	    $par=$1;
++	    @p=split /,/,$par; $i=0; undef @pc;
++	    foreach (@p) { $_.=" par$i"; push @pc, "par$i"; $i++; }
++	    $parn=join ',',@p;
++	    $parc=join ', ',@pc;
++	    $rc = ($ret eq 'void')?'':'return ';
++	    print "typedef $ret(*c_${fn}_t)($par);\nc_${fn}_t Call_$fn;\n";
++	    print "JNIEXPORT $ret JNICALL $fn\n  ($parn) {\n    $rc Call_$fn($parc);\n  }\n\n";
++	    push @fnl, $fn;
++	}
++    }
++}
++
++print "void Setup_$pre(void **ptrs) {\n";
++$i=0;
++foreach (@fnl) { print "Call_$_ = (c_${_}_t) ptrs[$i];\n"; $i++; }
++print "}\n\n";
++
++$i=0;
++print "void **GetRef_$pre() {
++  void **ptrs = (void**) malloc(sizeof(void*) * ( $#fnl + 2 ) );
++";
++foreach (@fnl) { print "ptrs[$i] = (void*) Call_$_;\n"; $i++; }
++print "ptrs[$i] = (void*) 0;\nreturn ptrs;\n}\n";
++
+Index: trunk/tools/GmmlVisio2R/JRI/src/rjava.h
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/rjava.h	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/src/rjava.h	(revision 988)
+@@ -0,0 +1,20 @@
++#ifndef __CALLBACK_H__
++#define __CALLBACK_H__
++
++#define RJavaActivity 16
++
++/* all IPC messages are long-alligned */
++#define IPCC_LOCK_REQUEST 1
++#define IPCC_LOCK_GRANTED 2 /* reponse on IPCC_LOCK_REQUEST */
++#define IPCC_CLEAR_LOCK   3
++#define IPCC_CALL_REQUEST 4 /* pars: <fn-ptr> <data-ptr> */
++#define IPCC_CONTROL_ADDR 5 /* ipc: request, res: <ctrl-ptr> */
++
++int RJava_request_lock();
++int RJava_clear_lock();
++/* void RJava_request_callback(callbackfn *fn, void *data); */
++void RJava_setup(int _in, int _out);
++void RJava_init_ctrl();
++
++#endif
++
+Index: trunk/tools/GmmlVisio2R/JRI/tools/getsp.class
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/tools/GmmlVisio2R/JRI/tools/getsp.class
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/tools/GmmlVisio2R/JRI/RConsoleOutputStream.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/RConsoleOutputStream.java	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/RConsoleOutputStream.java	(revision 988)
+@@ -0,0 +1,43 @@
++// RConsoleOutputStream, part of Java/R Interface
++//
++// (C)Copyright 2007 Simon Urbanek
++//
++// For licensing terms see LICENSE in the root if the JRI distribution
++
++package org.rosuda.JRI;
++
++import java.io.OutputStream;
++import java.io.IOException;
++
++/** RConsoleOutputStream provides an OutputStream which causes its output to be written to the R console. It is a pseudo-stream as there is no real descriptor connected to the R console and thusly it is legal to have multiple console streams open. The synchonization happens at the RNI level.<p>Note that stdout/stderr are not connected to the R console by default, so one way of using this stream is to re-route Java output to R console:<pre>
++System.setOut(new PrintStream(new RConsoleOutputStream(engine, 0)));
++System.setErr(new PrintStream(new RConsoleOutputStream(engine, 1)));
++</pre>
++
++@since JRI 0.4-0
++*/
++public class RConsoleOutputStream extends OutputStream {
++	Rengine eng;
++	int oType;
++	boolean isOpen;
++	
++	/** opens a new output stream to R console
++		@param eng R engine
++		@param oType output type (0=regular, 1=error/warning) */
++	public RConsoleOutputStream(Rengine eng, int oType) {
++		this.eng = eng;
++		this.oType = oType;
++		isOpen = true;
++	}
++	
++	public void write(byte[] b, int off, int len) throws IOException {
++		if (!isOpen) throw new IOException("cannot write to a closed stream");
++		if (eng == null) throw new IOException("missing R engine");
++		String s = new String(b, off, len);
++		eng.rniPrint(s, oType);
++	}
++	
++	public void write(byte[] b) throws IOException { write(b, 0, b.length); }
++	public void write(int b) throws IOException { write(new byte[] { (byte)(b&255) }); }
++	public void close() throws IOException { isOpen=false; eng=null; }
++}
+Index: trunk/tools/GmmlVisio2R/JRI/NEWS
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/NEWS	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/NEWS	(revision 988)
+@@ -0,0 +1,84 @@
++ NEWS/ChangeLog for JRI
++--------------------------
++
++0.4-0	(under development)
++    o	adapt to changes in R-devel
++
++    o	add -I. to CFLAGS for compatibility (thanks to BDR)
++
++    o	added RConsoleOuputStream class
++
++    o	API 1.8: added rniPrint, added int oType parameter to the
++	rWriteConsole callback
++
++    o	work around broken MinGW runtimes
++
++    o	allow JRI to hook into a running R process (and thusly provide
++	rJava with callbacks)
++
++    o	added: inMainRThread(), isStandAlone()
++
++    o	include configure in SVN and don't rebuild it on mkdist
++
++0.3-7	2006-01-14
++    o	make sure rniJavaToXref creates a global reference
++
++    o	API 1.7: rniCons can accept two new arguments: tag and lang
++	rniLCons was added
++
++    o	assign now supports raw REXPs (XT_NONE)
++
++    o	createRJavaRef was added to create jobjRef R objects from
++	Java objects
++
++0.3-6	2006-11-29
++    o	adapted to API change in R-devel
++
++    o	fixed double-inclusion of JFLAGS which throws off GIJ
++
++0.3-5	2006-10-06
++    o	remove variadic macros to be compatible with compilers
++	that don't support C99
++
++0.3-4	2006-09-14
++    o	updated Makefiles to force 1.4 target and sources
++
++0.3-3	2006-09-12
++    o	fixed API version in Java sources and added version check
++	to examples
++
++0.3-2	2006-09-11
++    o	New API (1.6): add handling of boolean type
++
++0.3-1	2006-08-31
++
++0.3-0	2006-05-31
++    o	New API (1.5) entries: rniGetTAG, rniInherits,
++	rniGetSymbolName, rniInstallName
++	allows handling of symbols, named lists and inheritance
++
++    o	fixed/improved REXP, RList and RFactor
++
++0.2-5	2006-05-08
++    o	Use configure to detect CStackXXX and R_SignalHandlers
++	set the latter to 0 if present (solves threading issues)
++
++0.2-4	2006-05-03
++    o	added support for pre-configuration passed from rJava
++
++0.2-3	2006-04-20
++    o	fix warnings and issues with R 2.3.0
++
++0.2-2	2006-04-11
++    o	licensed under LGPL
++
++0.2-1	2006-03-07
++    o	fixed Java detection, fixed eval double-unlock,
++	use R shlib flags, added FreeBSD support
++
++0.2-0	2005-12-19
++    o	switched to autoconf process for configuration/installation 
++
++0.1-0
++    o	First JRI release
++
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIClassLoader.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIClassLoader.java	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIClassLoader.java	(revision 988)
+@@ -0,0 +1,121 @@
++import java.net.URLClassLoader;
++import java.net.URL;
++import java.util.HashMap;
++import java.util.Vector;
++import java.util.Enumeration;
++import java.io.File;
++
++public class JRIClassLoader extends URLClassLoader {
++	HashMap libMap;
++
++	Vector children;
++
++	static JRIClassLoader mainLoader;
++
++	public static JRIClassLoader getMainLoader() {
++		if (mainLoader == null) mainLoader = new JRIClassLoader();
++		return mainLoader;
++	}
++
++	public JRIClassLoader() {
++		super(new URL[]{});
++		children = new Vector();
++		libMap = new HashMap();
++		System.out.println("JRIClassLoader: new loader "+this);
++	}
++
++	public void registerLoader(DelegatedClassLoader cl) {
++		if (!children.contains(cl))
++			children.add(cl);
++	}
++
++	public void unregisterLoader(DelegatedClassLoader cl) {
++		children.removeElement(cl);
++	}
++
++	public void registerLibrary(String name, File f) {
++		libMap.put(name, f);
++	}
++
++	/** add path to the class path list
++		@param path string denoting the path to the file or directory */
++	public void addClassPath(String path) {
++		try {
++			File f = new File(path);
++			if (f.exists()) addURL(f.toURL());
++		} catch (Exception x) {}
++	}
++
++	/** add path to the class path list
++		@param f file/directory to add to the list */
++	public void addClassPath(File f) {
++		try {
++			if (f.exists()) addURL(f.toURL());
++		} catch (Exception x) {}
++	}
++
++	protected String findLibrary(String name) {
++		String s = null;
++		System.out.println("boot findLibrary(\""+name+"\")");
++		try {
++			for (Enumeration e = children.elements() ; e.hasMoreElements() ;) {
++				DelegatedClassLoader cl = (DelegatedClassLoader)e.nextElement();
++				if (cl != null) {
++					s = cl.delegatedFindLibrary(name);
++					if (s != null) {
++						System.out.println(" - found delegated answer "+s+" from "+cl);
++						return s;
++					}
++				}
++			}
++		} catch (Exception ex) {}
++
++		File u = (File) libMap.get(name);
++		if (u!=null && u.exists()) s=u.getAbsolutePath();
++		System.out.println(" - mapping to "+((s==null)?"<none>":s));
++
++		return s;
++	}
++
++	public Class findAndLinkClass(String name) throws ClassNotFoundException {
++		Class c = findClass(name);
++		resolveClass(c);
++		return c;
++	}
++
++	protected Class findClass(String name) throws ClassNotFoundException {
++		Class cl = null;
++		System.out.println("boot findClass(\""+name+"\")");
++		for (Enumeration e = children.elements() ; e.hasMoreElements() ;) {
++			DelegatedClassLoader ldr = (DelegatedClassLoader)e.nextElement();
++			if (ldr != null) {
++				try {
++					cl = ldr.delegatedFindClass(name);
++					if (cl != null) {
++						System.out.println(" - found delegated answer "+cl+" from "+ldr);
++						return cl;
++					}
++				} catch (Exception ex) {}
++			}
++		}
++		return super.findClass(name);
++	}
++
++	public URL findResource(String name) {
++		URL u = null;
++		System.out.println("boot findResource(\""+name+"\")");
++		for (Enumeration e = children.elements() ; e.hasMoreElements() ;) {
++			DelegatedClassLoader ldr = (DelegatedClassLoader)e.nextElement();
++			if (ldr != null) {
++				try {
++					u = ldr.delegatedFindResource(name);
++					if (u != null) {
++						System.out.println(" - found delegated answer "+u+" from "+ldr);
++						return u;
++					}
++				} catch (Exception ex) {}
++			}
++		}
++		return super.findResource(name);
++	}
++}
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.java	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.java	(revision 988)
+@@ -0,0 +1,398 @@
++import java.io.File;
++import java.io.PrintStream;
++import java.io.FileOutputStream;
++import java.io.BufferedReader;
++import java.io.FileReader;
++import java.lang.reflect.Constructor;
++import java.lang.reflect.Method;
++import java.util.StringTokenizer;
++
++public class JRIBootstrap {
++	//--- global constants ---
++	public static final int HKLM = 0; // HKEY_LOCAL_MACHINE
++	public static final int HKCU = 1; // HKEY_CURRENT_USER
++
++	//--- native methods ---
++	public static native String getenv(String var);
++	public static native void setenv(String var, String val);
++
++	public static native String regvalue(int root, String key, String value);
++	public static native String[] regsubkeys(int root, String key);
++
++	public static native String expand(String val);
++
++	public static native boolean hasreg();
++
++	public static native String arch();
++
++	//--- helper methods ---	
++	static void fail(String msg) {
++		System.err.println("ERROR: "+msg);
++		System.exit(1);
++	}
++
++        public static String findInPath(String path, String fn, boolean mustBeFile) {
++                StringTokenizer st = new StringTokenizer(path, File.pathSeparator);
++                while (st.hasMoreTokens()) {
++                        String dirname=st.nextToken();
++                        try {
++                                File f = new File(dirname+File.separator+fn);
++				System.out.println(" * "+f+" ("+f.exists()+", "+f.isFile()+")");
++                                if (f.exists() && (!mustBeFile || f.isFile())) return f.getPath();
++                        } catch (Exception fex) {}
++                }
++                return null;
++        }
++
++    // set ONLY after findR was run
++    public static boolean isWin32 = false;
++    public static boolean isMac = false;
++
++    static String findR(boolean findAllSettings) {
++	String ip = null;
++	try {
++	    if (hasreg()) {
++		isWin32 = true;
++		int rroot = HKLM;
++		System.out.println("has registry, trying to find R");
++		ip = regvalue(HKLM, "SOFTWARE\\R-core\\R","InstallPath");
++		if (ip == null)
++		    ip = regvalue(rroot=HKCU, "SOFTWARE\\R-core\\R","InstallPath");
++		if (ip == null) {
++		    System.out.println(" - InstallPath not present (possibly uninstalled R)");
++		    String[] vers = regsubkeys(rroot=HKLM, "SOFTWARE\\R-core\\R");
++		    if (vers == null)
++			vers = regsubkeys(rroot=HKCU, "SOFTWARE\\R-core\\R");
++		    if (vers!=null) {
++			String lvn = ""; // FIXME: we compare versions lexicographically which may fail if we really reach R 2.10
++			int i = 0; while (i<vers.length) {
++			    if (vers[i] != null && lvn.compareTo(vers[i]) < 0)
++				lvn = vers[i];
++			    i++;
++			}
++			if (!lvn.equals(""))
++			    ip = regvalue(rroot, "SOFTWARE\\R-core\\R\\"+lvn, "InstallPath");
++		    }
++		}
++		if (ip == null) {
++		    ip = getenv("R_HOME");
++		    if (ip==null || ip.length()<1) ip = getenv("RHOME");
++		    if (ip==null || ip.length()<1) ip=null;
++		}
++		if (ip != null) rs_home = ip;
++		return ip;
++	    }
++	    isMac = System.getProperty("os.name").startsWith("Mac");
++	    File f = null;
++	    ip = getenv("R_HOME");
++	    if (ip == null || ip.length()<1)
++		ip = getenv("RHOME");
++	    if (ip == null || ip.length()<1) {
++		if (isMac) {
++		    f=new File("/Library/Frameworks/R.framework/Resources/bin/R");
++		    if (!f.exists())
++			f=new File(getenv("HOME")+"/Library/Frameworks/R.framework/Resources/bin/R");
++		    if (!f.exists())
++			f=null;
++		}
++		if (f==null) {
++		    String fn = findInPath(getenv("PATH"), "R", true);
++		    if (fn == null)
++			fn = findInPath("/usr/bin:/usr/local/bin:/sw/bin:/opt/bin:/usr/lib/R/bin:/usr/local/lib/R/bin", "R", true);
++		    if (fn != null) f = new File(fn);
++		}
++		if (!findAllSettings) {
++		    String s = f.getAbsolutePath();
++		    if (s.length()>6) ip = s.substring(0, s.length()-6);
++		}
++	    }
++	    if (findAllSettings) {
++		if (f==null && ip!=null) f=new File(u2w(ip+"/bin/R"));
++		if (f!=null) ip = getRSettings(f.getAbsolutePath());
++	    }
++
++	} catch (Exception e) {
++	}
++	return ip;
++    }
++
++    public static String rs_home = "";
++    public static String rs_arch = "";
++    public static String rs_docdir = "";
++    public static String rs_incdir = "";
++    public static String rs_sharedir = "";
++    public static String rs_ldp = "";
++    public static String rs_dyldp = "";
++    public static String rs_unzip = "";
++    public static String rs_latex = "";
++    public static String rs_paper = "";
++    public static String rs_print = "";
++    public static String rs_libs = "";
++
++    public static void setREnv() {
++	if (rs_home!=null && rs_home.length()>0) setenv("R_HOME", rs_home);
++	if (rs_arch!=null && rs_arch.length()>0) setenv("R_ARCH", rs_arch);
++	if (rs_docdir!=null && rs_docdir.length()>0) setenv("R_DOC_DIR", rs_docdir);
++	if (rs_incdir!=null && rs_incdir.length()>0) setenv("R_INCLUDE_DIR", rs_incdir);
++	if (rs_sharedir!=null && rs_sharedir.length()>0) setenv("R_SHARE_DIR", rs_sharedir);
++	if (rs_ldp!=null && rs_ldp.length()>0) setenv("LD_LIBRARY_PATH", rs_ldp);
++	if (rs_dyldp!=null && rs_dyldp.length()>0) setenv("DYLD_LIBRARY_PATH", rs_dyldp);
++	if (rs_libs!=null && rs_libs.length()>0) setenv("R_LIBS", rs_libs);
++    }
++
++    public static int execR(String cmd) {
++	try {
++	    String binR = u2w(rs_home+"/bin/R");
++	    if (isWin32) {
++		binR+=".exe";
++		File fin = File.createTempFile("rboot",".R");
++		File fout = File.createTempFile("rboot",".tmp");
++		PrintStream p = new PrintStream(new FileOutputStream(fin));
++		p.println(cmd);
++		p.close();
++		Process rp = Runtime.getRuntime().exec(new String[] {
++			binR,"CMD","BATCH","--no-restore","--no-save","--slave",fin.getAbsolutePath(),
++			fout.getAbsolutePath()});
++		int i = rp.waitFor();
++		if (!fin.delete()) fin.deleteOnExit();
++		if (!fout.delete()) fout.deleteOnExit();
++		return i;
++	    } else {
++		Process rp = Runtime.getRuntime().exec(new String[] {
++			"/bin/sh","-c","echo \""+cmd+"\" |"+binR+" --no-restore --no-save --slave >/dev/null 2>&1" });
++		return rp.waitFor();
++	    }
++	} catch (Exception e) {
++	    lastError = e.toString();
++	    return -1;
++	}
++    }
++
++    public static String getRSettings(String binR) {
++	try {
++	    File fin = File.createTempFile("rboot",".R");
++	    File fout = File.createTempFile("rboot",".tmp");
++	    PrintStream p = new PrintStream(new FileOutputStream(fin));
++	    p.println("cat(unlist(lapply(c('R_HOME','R_ARCH','R_DOC_DIR','R_INCLUDE_DIR','R_SHARE_DIR','LD_LIBRARY_PATH','DYLD_LIBRARY_PATH','R_UNZIPCMD','R_LATEXCMD','R_PAPERSIZE','R_PRINTCMD'),Sys.getenv)),sep='\n')");
++	    p.println("cat(paste(.libPaths(),collapse=.Platform$path.sep),'\n',sep='')");
++	    p.close();
++	    Process rp = Runtime.getRuntime().exec(new String[] {
++		    "/bin/sh","-c",binR+" --no-restore --no-save --slave < \""+fin.getAbsolutePath()+"\" > \""+fout.getAbsolutePath()+"\"" });
++	    int i = rp.waitFor();
++	    System.out.println("getRSettings, i="+i);
++	    BufferedReader r = new BufferedReader(new FileReader(fout));
++	    rs_home = r.readLine();
++	    rs_arch = r.readLine();
++	    rs_docdir = r.readLine();
++	    rs_incdir = r.readLine();
++	    rs_sharedir = r.readLine();
++	    rs_ldp = r.readLine();
++	    rs_dyldp = r.readLine();
++	    rs_unzip = r.readLine();
++	    rs_latex = r.readLine();
++	    rs_paper = r.readLine();
++	    rs_print = r.readLine();
++	    rs_libs = r.readLine();
++	    r.close();
++	    if (!fin.delete()) fin.deleteOnExit();
++	    //if (!fout.delete()) fout.deleteOnExit();
++	    System.out.println(" - retrieved R settings, home: "+rs_home+" (arch="+rs_arch+", libs="+rs_libs+")");
++	} catch (Exception e) {
++	    System.err.println("Failed to get R settings: "+e);
++	}
++	return rs_home;
++    }
++
++    public static String u2w(String fn) {
++	return (java.io.File.separatorChar != '/')?fn.replace('/',java.io.File.separatorChar):fn;
++    }
++
++    public static Object bootRJavaLoader = null;
++
++    public static Object getBootRJavaLoader() {
++	System.out.println("JRIBootstrap.bootRJavaLoader="+bootRJavaLoader);
++	return bootRJavaLoader;
++    }
++
++    static void addClassPath(String s) {
++	if (bootRJavaLoader==null) return;
++	try {
++	    Method m = bootRJavaLoader.getClass().getMethod("addClassPath", new Class[] { String.class });
++	    m.invoke(bootRJavaLoader, new Object[] { s });
++	} catch (Exception e) {
++	    System.err.println("FAILED: JRIBootstrap.addClassPath");
++	}
++    }
++
++    static String lastError = "";
++
++    static String findPackage(String name) {
++	String pd = null;
++	if (rs_libs!=null && rs_libs.length()>0)
++	    pd = findInPath(rs_libs, name, false);
++	if (pd == null) {
++	    pd = u2w(rs_home+"/library/"+name);
++	    if (!(new File(pd)).exists()) pd = null;
++	}
++	return pd;	
++    }
++
++    static Object createRJavaLoader(String rhome, String[] cp, boolean addJRI) {
++	String rJavaRoot = null;
++	if (rs_libs!=null && rs_libs.length()>0)
++	    rJavaRoot = findInPath(rs_libs, "rJava", false);
++	if (rJavaRoot == null)
++	    rJavaRoot = u2w(rhome+"/library/rJava");
++
++	if (!(new File(rJavaRoot)).exists()) {
++	    lastError="Unable to find rJava";
++	    return null;
++	}
++
++	File f = new File(u2w(rJavaRoot+"/java/boot"));
++	if (!f.exists()) {
++	    // try harder ...
++	    lastError = "rJava too old";
++	    return null;
++	}
++	String rJavaHome = u2w(rJavaRoot);
++	File lf = null;
++	if (rs_arch!=null && rs_arch.length()>0) lf = new File(u2w(rJavaRoot+"/libs"+rs_arch));
++	if (lf == null || !lf.exists()) lf = new File(u2w(rJavaRoot+"/libs/"+arch()));
++	if (!lf.exists()) lf = new File(u2w(rJavaRoot+"/libs"));
++	String rJavaLibs = lf.toString();
++	JRIClassLoader mcl = JRIClassLoader.getMainLoader();
++	mcl.addClassPath(f.toString()); // add rJava boot to primary CP
++	try {
++	    // force the use of the MCL even if the system loader could find it
++	    Class rjlclass = mcl.findAndLinkClass("RJavaClassLoader");
++	    Constructor c = rjlclass.getConstructor(new Class[] { String.class, String.class });
++	    Object rjcl = c.newInstance(new Object[] { rJavaHome, rJavaLibs });
++	    System.out.println("RJavaClassLoader: "+rjcl);
++	    if (addJRI) {
++		if (cp==null || cp.length==0)
++		    cp = new String[] { u2w(rJavaRoot+"/jri/JRI.jar") };
++		else {
++		    String[] ncp = new String[cp.length+1];
++		    System.arraycopy(cp, 0, ncp, 1, cp.length);
++		    ncp[0] = u2w(rJavaRoot+"/jri/JRI.jar");
++		    cp = ncp;
++		}
++	    }
++	    if (cp==null || cp.length==0)
++		cp = new String[] { u2w(rJavaRoot+"/java/boot") };
++	    else {
++		String[] ncp = new String[cp.length+1];
++		System.arraycopy(cp, 0, ncp, 1, cp.length);
++		ncp[0] = u2w(rJavaRoot+"/java/boot");
++		cp = ncp;
++	    }
++	    if (cp != null) {
++		System.out.println(" - adding class paths");
++		Method m = rjlclass.getMethod("addClassPath", new Class[] { String[].class });
++		m.invoke(rjcl, new Object[] { cp });
++	    }
++	    return rjcl;
++	} catch (Exception rtx) {
++	    System.err.println("ERROR: Unable to create new RJavaClassLoader in JRIBootstrap! ("+rtx+")");
++	    rtx.printStackTrace();
++	    System.exit(2);
++	}
++	return null;
++    }
++	
++	//--- main bootstrap method ---
++	public static void bootstrap(String[] args) {
++		System.out.println("JRIBootstrap("+args+")");
++		try {
++			System.loadLibrary("boot");
++		} catch (Exception e) {
++			fail("Unable to load boot library!");
++		}
++		
++		// just testing from now on
++		String rhome = findR(true);
++		if (rhome == null) fail("Unable to find R!");
++		if (isWin32) {
++		    String path = getenv("PATH");
++		    if (path==null || path.length()<1) path=rhome+"\\bin";
++		    else path=rhome+"\\bin;"+path;
++		    setenv("PATH",path);
++		}
++		setREnv();
++
++		System.out.println("PATH="+getenv("PATH")+"\nR_LIBS="+getenv("R_LIBS"));
++
++		if (!isMac && !isWin32) {
++		    String stage = System.getProperty("stage");
++		    if (stage==null || stage.length()<1) {
++			File jl = new File(u2w(System.getProperty("java.home")+"/bin/java"));
++			if (jl.exists()) {
++			    try {
++				System.out.println(jl.toString()+" -cp "+System.getProperty("java.class.path")+" -Xmx512m -Dstage=2 Boot");
++				Process p = Runtime.getRuntime().exec(new String[] {
++				    jl.toString(), "-cp", System.getProperty("java.class.path"),
++				    "-Xmx512m", "-Dstage=2", "Boot" });
++				System.out.println("Started stage 2 ("+p+"), waiting for it to finish...");
++				System.exit(p.waitFor());
++			    } catch (Exception re) {
++			    }
++			}
++		    }
++		}
++
++		String needPkg = null;
++		String rj = findPackage("rJava");
++		if (rj == null) {
++		    System.err.println("**ERROR: rJava is not installed");
++		    if (needPkg==null) needPkg="'rJava'"; else needPkg+=",'rJava'";
++		}
++		String ipl = findPackage("iplots");
++		if (ipl == null) {
++		    System.err.println("**ERROR: iplots is not installed");
++		    if (needPkg==null) needPkg="'iplots'"; else needPkg+=",'iplots'";
++		}
++		String jgr = findPackage("JGR");
++		if (jgr == null) {
++		    System.err.println("**ERROR: JGR is not installed");
++		    if (needPkg==null) needPkg="'JGR'"; else needPkg+=",'JGR'";
++		}
++		if (needPkg != null) {
++		    if (!isWin32 && !isMac) {
++			System.err.println("*** Please run the following in R as root to install missing packages:\n install.packages(c("+needPkg+"),,'http://www.rforge.net/')");
++			System.exit(4);
++		    }
++		    if (execR("install.packages(c("+needPkg+"),,c('http://www.rforge.net/','http://cran.r-project.org'))")!=0) {
++			System.err.println("*** ERROR: failed to install necessary packages");
++			System.exit(4);
++		    }
++		    rj = findPackage("rJava");
++		    ipl = findPackage("iplots");
++		    jgr = findPackage("JGR");
++		    if (rj==null || ipl==null || jgr==null) {
++			System.err.println("*** ERROR: failed to find installed packages");
++			System.exit(5);
++		    }
++		}
++
++		Object o = bootRJavaLoader = createRJavaLoader(rhome, new String[] { "main" }, true);
++
++		addClassPath(u2w(jgr+"/cont/JGR.jar"));
++		addClassPath(u2w(ipl+"/cont/iplots.jar"));
++		String mainClass = "org.rosuda.JGR.JGR";
++
++		try {
++		    Method m = o.getClass().getMethod("bootClass", new Class[] { String.class, String.class, String[].class });
++		    m.invoke(o, new Object[] { mainClass, "main", args });
++		} catch(Exception ie) {		    
++		    System.out.println("cannot boot the final class: "+ie);
++		    ie.printStackTrace();
++		}
++	}
++
++	public static void main(String[] args) {
++		System.err.println("*** WARNING: JRIBootstrap.main should NOT be called directly, it is intended for debugging use ONLY. Use Boot wrapper instead.");
++		// just for testing
++		bootstrap(args);
++	}
++}
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/Boot.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/Boot.java	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/Boot.java	(revision 988)
+@@ -0,0 +1,133 @@
++import java.io.File;
++import java.io.InputStream;
++import java.io.FileOutputStream;
++import java.util.StringTokenizer;
++import java.util.zip.ZipFile;
++import java.util.zip.ZipEntry;
++import java.lang.reflect.Method;
++
++public class Boot {
++    public static String bootFile = null;
++
++	public static String findInPath(String path, String fn) {
++		StringTokenizer st = new StringTokenizer(path, File.pathSeparator);
++		while (st.hasMoreTokens()) {
++			String dirname=st.nextToken();
++			try {
++				File f = new File(dirname+File.separator+fn);
++				if (f.isFile()) return f.getPath();
++			} catch (Exception fex) {}
++		}
++		return null;
++	}
++
++	public static String findNativeLibrary(String basename, boolean internalFirst) {
++		String libName = "lib"+basename;
++		String ext = ".so";
++		String os = System.getProperty("os.name");
++		if (os.startsWith("Win")) {
++			os = "Win";
++			ext= ".dll";
++			libName=basename;
++		}
++		if (os.startsWith("Mac")) {
++			os = "Mac";
++			ext= ".jnilib";
++		}
++		String fullName = libName+ext;
++
++		// first, try the system path unless instructed otherwise
++		if (!internalFirst) {
++			try {
++				String r = findInPath("."+File.pathSeparator+System.getProperty("java.library.path"),
++									  fullName);
++				if (r != null) return r;
++			} catch (Exception ex1) {}
++		}
++
++		// second, try to locate in on the class path (in the JAR file or in one of the directories)
++		String cp = System.getProperty("java.class.path");
++		StringTokenizer st = new StringTokenizer(cp, File.pathSeparator);
++		while (st.hasMoreTokens()) {
++			String dirname=st.nextToken();
++			try {
++				File f = new File(dirname);
++				if (f.isFile()) {
++					// look in a JAR file and extract it if necessary
++					ZipFile jf = new ZipFile(f);
++					ZipEntry ze = jf.getEntry(fullName);
++					if (ze != null) { // found it inside a JAR file						
++						try {
++						    bootFile = f.toString();
++							File tf = File.createTempFile(basename,ext);
++							System.out.println("Boot.findNativeLibrary: found in a JAR ("+jf+"), extracting into "+tf);
++							InputStream zis = jf.getInputStream(ze);
++							FileOutputStream fos = new FileOutputStream(tf);
++							byte b[] = new byte[65536];
++							while (zis.available()>0) {
++								int n = zis.read(b);
++								if (n>0) fos.write(b, 0, n);
++							}
++							zis.close();
++							fos.close();
++							tf.deleteOnExit();
++							return tf.getPath();
++						} catch (Exception foo) {
++						}
++					}
++				} else if (f.isDirectory()) {
++					File ff = new File(dirname+File.separator+fullName);
++					if (ff.isFile()) return ff.getPath();
++				}
++			} catch(Exception ex2) {}
++		}
++
++		// third, try the system path if we didn't look there before
++		if (internalFirst) {
++			try {
++				String r = findInPath("."+File.pathSeparator+System.getProperty("java.library.path"),
++									  fullName);
++				if (r != null) return r;
++			} catch (Exception ex3) {}
++		}
++		return null;
++	}
++
++	public static void main(String[] args) {
++		// 1) instantiate master class loader
++		JRIClassLoader mcl = JRIClassLoader.getMainLoader();
++
++		// 2) locate boot JNI library
++		String nl = findNativeLibrary("boot", false);
++		
++		if (nl == null) {
++			System.err.println("ERROR: Unable to locate native bootstrap library.");
++			System.exit(1);
++		}
++		
++		// register boot library with MCL
++		mcl.registerLibrary("boot", new File(nl));
++
++		// add path necessary for loading JRIBootstrap to MCL
++		String cp = System.getProperty("java.class.path");
++		StringTokenizer st = new StringTokenizer(cp, File.pathSeparator);
++		while (st.hasMoreTokens()) {
++		    String p = st.nextToken();
++		    mcl.addClassPath(p);
++		    // we assume that the first file on the CP is us (FIXME: verify this!)
++		    if (bootFile==null && (new File(p)).isFile()) bootFile=p;
++		}
++		
++		// call static bootstrap method
++		try {
++			// force the use of the MCL even if the system loader could find it
++			Class stage2class = mcl.findAndLinkClass("JRIBootstrap");
++			Method m = stage2class.getMethod("bootstrap", new Class[] { String[].class });
++			m.invoke(null, new Object[] { args });
++		} catch (Exception rtx) {
++			System.err.println("ERROR: Unable to invoke bootstrap method in JRIBootstrap! ("+rtx+")");
++			rtx.printStackTrace();
++			System.exit(2);
++		}
++	}
++}
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.c
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.c	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.c	(revision 988)
+@@ -0,0 +1,166 @@
++#include "JRIBootstrap.h"
++
++#if defined WIN32 || defined Win32
++
++#include <windows.h>
++#include <winreg.h>
++
++static const HKEY keyDB[2] = { HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER };
++
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_getenv
++(JNIEnv *env, jclass cl, jstring sVar) {
++  char cVal[1024];
++  int res;
++  const char *cVar = (*env)->GetStringUTFChars(env, sVar, 0);
++  if (!cVar) return 0;
++  *cVal=0; cVal[1023]=0;
++  res = GetEnvironmentVariable(cVar, cVal, 1023);
++  (*env)->ReleaseStringUTFChars(env, sVar, cVar);
++  return res?((*env)->NewStringUTF(env, cVal)):0;
++}
++
++JNIEXPORT void JNICALL Java_JRIBootstrap_setenv
++(JNIEnv *env, jclass cl, jstring sVar, jstring sVal) {
++  const char *cVar = sVar?(*env)->GetStringUTFChars(env, sVar, 0):0;
++  const char *cVal = sVal?(*env)->GetStringUTFChars(env, sVal, 0):0;
++  if (cVar) SetEnvironmentVariable(cVar, cVal?cVal:"");
++  if (cVar) (*env)->ReleaseStringUTFChars(env, sVar, cVar);
++  if (cVal) (*env)->ReleaseStringUTFChars(env, sVal, cVal);
++  return;
++}
++
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_regvalue
++(JNIEnv *env, jclass cl, jint iRoot, jstring sKey, jstring sVal) {
++  const char *cKey = sKey?(*env)->GetStringUTFChars(env, sKey, 0):0;
++  const char *cVal = sVal?(*env)->GetStringUTFChars(env, sVal, 0):0;
++  jstring res = 0;
++  if (cKey && cVal) {
++    HKEY key;
++    if (RegOpenKeyEx(keyDB[iRoot], cKey, 0, KEY_QUERY_VALUE, &key) == ERROR_SUCCESS) {
++      char buf[1024];
++      DWORD t, s = 1023;
++      *buf=0; buf[1023]=0;
++      if (RegQueryValueEx(key, cVal, 0, &t, buf, &s) == ERROR_SUCCESS) {
++	res = (*env)->NewStringUTF(env, buf);
++      }
++      RegCloseKey(key);
++    }
++  }
++  if (cVal) (*env)->ReleaseStringUTFChars(env, sVal, cVal);
++  if (cKey) (*env)->ReleaseStringUTFChars(env, sKey, cKey);
++  
++  return res;
++}
++
++JNIEXPORT jobjectArray JNICALL Java_JRIBootstrap_regsubkeys
++(JNIEnv *env, jclass cl, jint iRoot, jstring sKey) {
++  const char *cKey = sKey?(*env)->GetStringUTFChars(env, sKey, 0):0;
++  jobjectArray res = 0;
++  if (cKey) {
++    HKEY key;
++    if (RegOpenKeyEx(keyDB[iRoot], cKey, 0, KEY_ENUMERATE_SUB_KEYS|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS) {
++      int n = 0, i = 0;
++      char buf[256];
++      jclass cStr;
++      *buf=0;
++      buf[255]=0;
++      /* pass 1: count the entries */
++      while (RegEnumKey(key, n, buf, 254) == ERROR_SUCCESS) n++;
++      /* pass 2: get the values */
++      cStr = (*env)->FindClass(env, "java/lang/String");
++      res = (*env)->NewObjectArray(env, n, cStr, 0);
++      (*env)->DeleteLocalRef(env, cStr);
++      while (i<n && RegEnumKey(key, i, buf, 254) == ERROR_SUCCESS)
++	(*env)->SetObjectArrayElement(env, res, i++,
++				      (*env)->NewStringUTF(env, buf));
++      RegCloseKey(key);
++    }
++    (*env)->ReleaseStringUTFChars(env, sKey, cKey);
++  }
++  return res;
++}
++
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_expand
++(JNIEnv *env, jclass cl, jstring sVal) {
++  jstring res = sVal;
++  const char *cVal = sVal?(*env)->GetStringUTFChars(env, sVal, 0):0;
++  char buf[1024];
++  *buf=0; buf[1023]=0;
++  if (cVal) {
++    if (ExpandEnvironmentStrings(cVal, buf, 1023))
++      res = (*env)->NewStringUTF(env, buf);
++  }
++  if (cVal) (*env)->ReleaseStringUTFChars(env, sVal, cVal);
++  return res;
++}
++
++JNIEXPORT jboolean JNICALL Java_JRIBootstrap_hasreg
++(JNIEnv *env, jclass cl) {
++  return JNI_TRUE;
++}
++
++#else
++
++#include <stdlib.h>
++
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_getenv
++(JNIEnv *env, jclass cl, jstring sVar) {
++  char *cVal;
++  const char *cVar = sVar?(*env)->GetStringUTFChars(env, sVar, 0):0;
++  if (!cVar) return 0;
++  cVal=getenv(cVar);
++  (*env)->ReleaseStringUTFChars(env, sVar, cVar);
++  return cVal?((*env)->NewStringUTF(env, cVal)):0;
++}
++
++JNIEXPORT void JNICALL Java_JRIBootstrap_setenv
++(JNIEnv *env, jclass cl, jstring sVar, jstring sVal) {
++  const char *cVar = sVar?(*env)->GetStringUTFChars(env, sVar, 0):0;
++  const char *cVal = sVal?(*env)->GetStringUTFChars(env, sVal, 0):0;
++  if (cVar) setenv(cVar, cVal?cVal:"", 1);
++  if (cVar) (*env)->ReleaseStringUTFChars(env, sVar, cVar);
++  if (cVal) (*env)->ReleaseStringUTFChars(env, sVal, cVal);
++  return;
++}
++
++/* no registry on unix, so always return null */
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_regvalue
++(JNIEnv *env, jclass cl, jint iRoot, jstring sKey, jstring sVal) {
++  return 0;
++}
++
++JNIEXPORT jobjectArray JNICALL Java_JRIBootstrap_regsubkeys
++(JNIEnv *env, jclass cl, jint iRoot, jstring sKey) {
++  return 0;
++}
++
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_expand
++(JNIEnv *env, jclass cl, jstring sVal) {
++  return sVal;
++}
++
++JNIEXPORT jboolean JNICALL Java_JRIBootstrap_hasreg
++(JNIEnv *env, jclass cl) {
++  return JNI_FALSE;
++}
++
++#endif
++
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_arch
++(JNIEnv *env, jclass cl) {
++  const char *ca = "unknown";
++  /* this is mainly for Macs so we can determine the correct arch ... */
++#ifdef __ppc__
++  ca = "ppc";
++#endif
++#ifdef __i386__
++  ca = "i386";
++#endif
++#ifdef __x86_64__
++  ca = "x86_64";
++#endif
++#ifdef __ppc64__
++  ca = "ppc64";
++#endif
++  return (*env)->NewStringUTF(env, ca);
++}
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/mft
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/mft	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/mft	(revision 988)
+@@ -0,0 +1 @@
++Main-Class: Boot
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.h
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.h	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/JRIBootstrap.h	(revision 988)
+@@ -0,0 +1,57 @@
++/* DO NOT EDIT THIS FILE - it is machine generated */
++#include <jni.h>
++/* Header for class JRIBootstrap */
++
++#ifndef _Included_JRIBootstrap
++#define _Included_JRIBootstrap
++#ifdef __cplusplus
++extern "C" {
++#endif
++#undef JRIBootstrap_HKLM
++#define JRIBootstrap_HKLM 0L
++#undef JRIBootstrap_HKCU
++#define JRIBootstrap_HKCU 1L
++/*
++ * Class:     JRIBootstrap
++ * Method:    getenv
++ * Signature: (Ljava/lang/String;)Ljava/lang/String;
++ */
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_getenv
++  (JNIEnv *, jclass, jstring);
++
++/*
++ * Class:     JRIBootstrap
++ * Method:    setenv
++ * Signature: (Ljava/lang/String;Ljava/lang/String;)V
++ */
++JNIEXPORT void JNICALL Java_JRIBootstrap_setenv
++  (JNIEnv *, jclass, jstring, jstring);
++
++/*
++ * Class:     JRIBootstrap
++ * Method:    regvalue
++ * Signature: (ILjava/lang/String;Ljava/lang/String;)Ljava/lang/String;
++ */
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_regvalue
++  (JNIEnv *, jclass, jint, jstring, jstring);
++
++/*
++ * Class:     JRIBootstrap
++ * Method:    regsubkeys
++ * Signature: (ILjava/lang/String;)[Ljava/lang/String;
++ */
++JNIEXPORT jobjectArray JNICALL Java_JRIBootstrap_regsubkeys
++  (JNIEnv *, jclass, jint, jstring);
++
++/*
++ * Class:     JRIBootstrap
++ * Method:    expand
++ * Signature: (Ljava/lang/String;)Ljava/lang/String;
++ */
++JNIEXPORT jstring JNICALL Java_JRIBootstrap_expand
++  (JNIEnv *, jclass, jstring);
++
++#ifdef __cplusplus
++}
++#endif
++#endif
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/DelegatedClassLoader.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/DelegatedClassLoader.java	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/DelegatedClassLoader.java	(revision 988)
+@@ -0,0 +1,7 @@
++import java.net.URL;
++
++public interface DelegatedClassLoader {
++    public String delegatedFindLibrary(String name);
++    public Class delegatedFindClass(String name) throws ClassNotFoundException;
++    public URL delegatedFindResource(String name);
++}
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/Makefile
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/Makefile	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/Makefile	(revision 988)
+@@ -0,0 +1,69 @@
++# Makefile for JRI bootstrap
++# Win/OSX should be ok, Linux will need some tweaking
++
++all: boot.jar
++
++OSKIND=$(shell if echo "${OS}"|grep -i windows >/dev/null 2>&1; then echo win32; else uname -s; fi)
++
++ifeq ($(OSKIND),win32)
++ifeq ($(JAVA_HOME),)
++JAVA_HOME=N:/java/jdk1.5.0
++endif
++JSO_PREFIX=
++JSO_SUFFIX=.dll
++JCPPFLAGS=-DWIN32 -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/win32
++JLDFLAGS=-shared -Wl,--add-stdcall-alias -mno-cygwin
++JLIBS=-L$(JAVA_HOME)/jre/bin/client -L$(JAVA_HOME)/jre/bin -ljvm
++PATHSEP=\;
++KNOWNOS=yes
++OSNAME=Windows
++JAVA=$(JAVA_HOME)/bin/java
++JAVAC=$(JAVA_HOME)/bin/javac
++JAR=$(JAVA_HOME)/bin/jar
++endif
++ifeq ($(OSKIND),Darwin)
++JSO_PREFIX=lib
++JSO_SUFFIX=.jnilib
++JLDFLAGS=-dynamiclib
++JLIBS=-framework JavaVM
++JCPPFLAGS=-I/System/Library/Frameworks/JavaVM.framework/Headers
++PATHSEP=:
++KNOWNOS=yes
++OSNAME=MacOSX
++JAVA=java
++JAVAC=javac
++JAR=jar
++endif
++ifneq ($(KNOWNOS),yes)
++ifeq ($(JAVA_HOME),)
++JAVA_HOME=/usr/lib/java
++endif
++JSO_PREFIX=lib
++JSO_SUFFIX=.so
++JCPPFLAGS=-I$(JAVA_HOME)/include -I$(shell dirname `find $(JAVA_HOME)/include -name jni_md.h|sed -n -e 1p`)
++JLDFLAGS=-shared
++JLIBS=-L$(JAVA_HOME)/lib -ljvm
++PATHSEP=:
++OSNAME="generic unix"
++JAVA=java
++JAVAC=javac
++JAR=jar
++endif
++
++$(JSO_PREFIX)boot$(JSO_SUFFIX): JRIBootstrap.o
++	$(CC) $(JLDFLAGS) -o $@ $^ #$(JLIBS)
++
++JRIBootstrap.o: JRIBootstrap.c JRIBootstrap.h
++	$(CC) -c -o $@ $< $(JCPPFLAGS)
++
++run: boot.jar
++	$(JAVA) -jar $<
++
++clean:
++	rm -f JRIBootstrap.o $(JSO_PREFIX)boot$(JSO_SUFFIX) *.class *~
++
++boot.jar: $(JSO_PREFIX)boot$(JSO_SUFFIX)
++	$(JAVAC) -source 1.2 -target 1.2 *.java
++	$(JAR) fcm $@ mft *.class $^
++
++.PHONY: clean run all
+Index: trunk/tools/GmmlVisio2R/JRI/bootstrap/DelegatedURLClassLoader.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/bootstrap/DelegatedURLClassLoader.java	(revision 0)
++++ trunk/tools/GmmlVisio2R/JRI/bootstrap/DelegatedURLClassLoader.java	(revision 988)
+@@ -0,0 +1,22 @@
++/* An extension of URLClassLoader that implements DelegatedClassLoader */
++
++import java.net.URL;
++import java.net.URLClassLoader;
++
++public class DelegatedURLClassLoader extends URLClassLoader implements DelegatedClassLoader {
++    public DelegatedURLClassLoader() {
++	super(new URL[]{});
++    }
++    public DelegatedURLClassLoader(URL[] urls) {
++	super(urls);
++    }
++    public String delegatedFindLibrary(String name) {
++	return super.findLibrary(name);
++    }
++    public Class delegatedFindClass(String name) throws ClassNotFoundException {
++	return super.findClass(name);
++    }
++    public URL delegatedFindResource(String name) {
++	return super.findResource(name);
++    }
++}

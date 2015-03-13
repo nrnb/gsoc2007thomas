@@ -1,0 +1,1074 @@
+Index: trunk/tools/GmmlVisio2R/JRI/RMainLoopCallbacks.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/RMainLoopCallbacks.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/RMainLoopCallbacks.java	(revision 987)
+@@ -1,35 +1,21 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ /** Interface which must be implmented by any class that wants to pose as the call-back handler for R event loop callbacks. It is legal to return immediately except when user interaction is required: @link{#rReadConsole} and @link{#rChooseFile} are expected to block until the user performs the desired action. */
+ public interface RMainLoopCallbacks {
+     /** called when R prints output to the console
+ 	@param re calling engine
+-	@param text text to display in the console */
+-    public void   rWriteConsole (Rengine re, String text);
++	@param text text to display in the console
++	@param oType output type (0=regular, 1=error/warning)
++    */
++    public void   rWriteConsole (Rengine re, String text, int oType);
+     /** called when R enters or exist a longer evaluation. It is usually a good idea to signal this state to the user, e.g. by changing the cursor to a "hourglass" and back.
+ 	@param re calling engine
+-	@param which identifies whether R enters or exist the busy state */
++	@param which identifies whether R enters (1) or exist (0) the busy state */
+     public void   rBusy         (Rengine re, int which);
+     /** called when R waits for user input. During the duration of this callback it is safe to re-enter R, and very often it is also the only time. The implementation is free to block on this call until the user hits Enter, but it is a good idea to call @{link #rniIdle} occasionally to allow other event handlers (e.g graphics device UIs) to run. Implementations should NEVER return immediately even if there is no input - such behavior will result in a fast cycling event loop which makes the use of R pretty much impossible.
+ 	@param re calling engine
+ 	@param propmt prompt to be displayed at the console prior to user's input
+-	@param addToHistory flags telling the handler whether the input should be considered for adding to history or not
++	@param addToHistory flag telling the handler whether the input should be considered for adding to history (!=0) or not (0)
+ 	@return user's input to be passed to R for evaluation */
+     public String rReadConsole  (Rengine re, String prompt, int addToHistory);
+     /** called when R want to show a warning/error message (not to be confused with messages displayed in the console output)
+Index: trunk/tools/GmmlVisio2R/JRI/RFactor.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/RFactor.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/RFactor.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ // JRclient library - client interface to Rserve, see http://www.rosuda.org/Rserve/
+@@ -27,7 +11,7 @@
+     attribute. The parser code of REXP converts such constructs directly into
+     the RFactor objects and defines an own XT_FACTOR type 
+     
+-    @version $Id: RFactor.java,v 1.2 2006/05/31 01:23:41 urbaneks Exp $
++    @version $Id: RFactor.java 2720 2007-03-15 17:35:42Z urbanek $
+ */    
+ public class RFactor extends Object {
+     /** IDs (content: Integer) each entry corresponds to a case, ID specifies the category */
+Index: trunk/tools/GmmlVisio2R/JRI/configure
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/configure	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/configure	(revision 987)
+@@ -274,7 +274,7 @@
+ PACKAGE_BUGREPORT='simon.urbanek@r-project.org'
+ 
+ ac_unique_file="src/jri.h"
+-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os R_HOME R_SHARE_DIR R_DOC_DIR R_INCLUDE_DIR CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT CPP EGREP JAVA_PROG JAVAC JAVAH JAR JAVA_HOME JAVA_LD_PATH JAVA_LIBS JAVA_INC JNILD JNISO JNIPREFIX CPICF RINC RLD DEFFLAGS LIBOBJS LTLIBOBJS'
++ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS build build_cpu build_vendor build_os host host_cpu host_vendor host_os R_HOME R_SHARE_DIR R_DOC_DIR R_INCLUDE_DIR CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT CPP EGREP JAVA_PROG JAVAC JAVAH JAR JAVA_HOME JAVA_LD_PATH JAVA_LIBS JAVA_INC JAVA_CFLAGS JNILD JNISO JNIPREFIX CPICF RINC RLD DEFFLAGS LIBOBJS LTLIBOBJS'
+ ac_subst_files=''
+ 
+ # Initialize some variables set by options.
+@@ -3148,6 +3148,7 @@
+ 
+ 
+ JAVA_INC="-I${JNI_H}"
++: ${JAVA_CFLAGS=-D_REENTRANT}
+ 
+ # Sun's JDK needs jni_md.h in in addition to jni.h and unfortunately it's stored somewhere else ...
+ # this should be become more general at some point - so far we're checking linux and solaris only
+@@ -3181,7 +3182,7 @@
+ done
+ 
+ LIBS="${LIBS} ${JAVA_LIBS}"
+-CFLAGS="${CFLAGS} ${JAVA_INC}"
++CFLAGS="${CFLAGS} ${JAVA_CFLAGS} ${JAVA_INC}"
+ 
+ echo "$as_me:$LINENO: checking whether JNI programs can be compiled" >&5
+ echo $ECHO_N "checking whether JNI programs can be compiled... $ECHO_C" >&6
+@@ -3468,6 +3469,7 @@
+ 
+ 
+ 
++
+           ac_config_files="$ac_config_files src/Makefile"
+ 
+           ac_config_files="$ac_config_files Makefile"
+@@ -4116,6 +4118,7 @@
+ s,@JAVA_LD_PATH@,$JAVA_LD_PATH,;t t
+ s,@JAVA_LIBS@,$JAVA_LIBS,;t t
+ s,@JAVA_INC@,$JAVA_INC,;t t
++s,@JAVA_CFLAGS@,$JAVA_CFLAGS,;t t
+ s,@JNILD@,$JNILD,;t t
+ s,@JNISO@,$JNISO,;t t
+ s,@JNIPREFIX@,$JNIPREFIX,;t t
+@@ -4614,3 +4617,4 @@
+   # would make configure fail if this is the last instruction.
+   $ac_cs_success || { (exit 1); exit 1; }
+ fi
++
+Index: trunk/tools/GmmlVisio2R/JRI/Mutex.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/Mutex.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/Mutex.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ /** This class implements a (not so) simple mutex. The initial state of the mutex is unlocked. */
+Index: trunk/tools/GmmlVisio2R/JRI/LICENSE
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/LICENSE	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/LICENSE	(revision 987)
+@@ -1,5 +1,5 @@
+     JRI - Java/R Interface
+-    Copyright (C) 2006  Simon Urbanek  <simon.urbanek@r-project.org>
++    Copyright (C) 2004-2007 Simon Urbanek  <simon.urbanek@r-project.org>
+ 
+     This library is free software; you can redistribute it and/or
+     modify it under the terms of the GNU Lesser General Public
+Index: trunk/tools/GmmlVisio2R/JRI/src/Makefile.in
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Makefile.in	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Makefile.in	(revision 987)
+@@ -5,7 +5,7 @@
+ CFLAGS+=-g
+ 
+ CC=@CC@
+-CFLAGS+=-Iinclude @DEFFLAGS@ @CFLAGS@
++CFLAGS+=-Iinclude @DEFFLAGS@ @CFLAGS@ @JAVA_CFLAGS@
+ LDFLAGS+=@LDFLAGS@
+ 
+ CC=@CC@
+Index: trunk/tools/GmmlVisio2R/JRI/src/Rcallbacks.c
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Rcallbacks.c	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Rcallbacks.c	(revision 987)
+@@ -15,33 +15,18 @@
+ #ifdef Win32
+ #include <R_ext/RStartup.h>
+ #else
+-/* from Defn.h */
+-extern Rboolean R_Interactive;   /* TRUE during interactive use*/
+-
+-extern FILE*    R_Consolefile;   /* Console output file */
+-extern FILE*    R_Outputfile;   /* Output file */
+-extern char*    R_TempDir;   /* Name of per-session dir */
+-
+-/* from src/unix/devUI.h */
+-
+-extern void (*ptr_R_Suicide)(char *);
+-extern void (*ptr_R_ShowMessage)();
+-extern int  (*ptr_R_ReadConsole)(char *, unsigned char *, int, int);
+-extern void (*ptr_R_WriteConsole)(char *, int);
+-extern void (*ptr_R_ResetConsole)();
+-extern void (*ptr_R_FlushConsole)();
+-extern void (*ptr_R_ClearerrConsole)();
+-extern void (*ptr_R_Busy)(int);
+-/* extern void (*ptr_R_CleanUp)(SA_TYPE, int, int); */
+-extern int  (*ptr_R_ShowFiles)(int, char **, char **, char *, Rboolean, char *);
+-extern int  (*ptr_R_ChooseFile)(int, char *, int);
+-extern void (*ptr_R_loadhistory)(SEXP, SEXP, SEXP, SEXP);
+-extern void (*ptr_R_savehistory)(SEXP, SEXP, SEXP, SEXP);
++/* from Defn.h (do we still need it? Re_CleanUp is commented out ...)
++   extern Rboolean R_Interactive; */
+ #endif
+ 
++#if R_VERSION < R_Version(2,6,0)
+ #ifndef checkArity
+ #define checkArity               Rf_checkArity
+ #endif
++#else
++#define checkArity(X,Y)
++#endif
++
+ #ifndef errorcall
+ #define errorcall                Rf_errorcall
+ #endif
+@@ -129,24 +114,30 @@
+     jri_checkExceptions(lenv, 1);
+ }
+ 
+-void Re_WriteConsole(char *buf, int len)
++void Re_WriteConsoleEx(char *buf, int len, int oType)
+ {
+     JNIEnv *lenv=checkEnvironment();
+     jri_checkExceptions(lenv, 1);
+     {
+       jstring s=(*lenv)->NewStringUTF(lenv, buf);
+-      jmethodID mid=(*lenv)->GetMethodID(lenv, engineClass, "jriWriteConsole", "(Ljava/lang/String;)V");
++      jmethodID mid=(*lenv)->GetMethodID(lenv, engineClass, "jriWriteConsole", "(Ljava/lang/String;I)V");
+       jri_checkExceptions(lenv, 0);
+ #ifdef JRI_DEBUG
+       printf("jriWriteConsole mid=%x\n", mid);
+ #endif
+       if (!mid) return;
+-      (*lenv)->CallVoidMethod(lenv, engineObj, mid, s);
++      (*lenv)->CallVoidMethod(lenv, engineObj, mid, s, oType);
+       jri_checkExceptions(lenv, 1);
+       (*lenv)->DeleteLocalRef(lenv, s);
+     }
+ }
+ 
++/* old-style WriteConsole (for old R versions only) */
++void Re_WriteConsole(char *buf, int len)
++{
++    Re_WriteConsoleEx(buf, len, 0);
++}
++
+ /* Indicate that input is coming from the console */
+ void Re_ResetConsole()
+ {
+@@ -161,7 +152,7 @@
+       jmethodID mid=(*lenv)->GetMethodID(lenv, engineClass, "jriFlushConsole", "()V");
+       jri_checkExceptions(lenv, 0);
+ #ifdef JRI_DEBUG
+-      printf("jriWriteconsole mid=%x\n", mid);
++      printf("jriFlushConsole mid=%x\n", mid);
+ #endif
+       if (!mid) return;
+       (*lenv)->CallVoidMethod(lenv, engineObj, mid);
+@@ -265,13 +256,13 @@
+ 
+ 	{
+ 		SEXP sfile;
+-		char *p;
++		const char *p;
+ 
+ 		checkArity(op, args);
+ 		sfile = CAR(args);
+ 		if (!isString(sfile) || LENGTH(sfile) < 1)
+ 			errorcall(call, "invalid file argument");
+-		p = R_ExpandFileName(CHAR(STRING_ELT(sfile, 0)));
++		p = R_ExpandFileName((char*)CHAR(STRING_ELT(sfile, 0)));
+ 		if(strlen(p) > PATH_MAX - 1)
+ 			errorcall(call, "file argument is too long");
+ 		s=(*lenv)->NewStringUTF(lenv, p);
+@@ -299,7 +290,7 @@
+ 
+ 	{
+ 		SEXP sfile;
+-		char *p;
++		const char *p;
+ 		
+ 		checkArity(op, args);
+ 		sfile = CAR(args);
+Index: trunk/tools/GmmlVisio2R/JRI/src/Makefile.all
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Makefile.all	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Makefile.all	(revision 987)
+@@ -17,21 +17,24 @@
+ 	$(JAVAH) -d . -classpath . org.rosuda.JRI.Rengine
+ 
+ Rcallbacks.o: Rcallbacks.c Rcallbacks.h globals.h
+-	$(CC) -c -o $@ Rcallbacks.c $(CFLAGS) $(CPICF) $(JAVAINC) $(RINC)
++	$(CC) -c -o $@ $< $(CFLAGS) $(CPICF) $(JAVAINC) $(RINC)
+ 
+ Rinit.o: Rinit.c Rinit.h Rcallbacks.h
+-	$(CC) -c -o $@ Rinit.c $(CFLAGS) $(CPICF) $(RINC)
++	$(CC) -c -o $@ $< $(CFLAGS) $(CPICF) $(RINC)
+ 
+ globals.o: globals.c globals.h
+-	$(CC) -c -o $@ globals.c $(CFLAGS) $(CPICF) $(JAVAINC)
++	$(CC) -c -o $@ $< $(CFLAGS) $(CPICF) $(JAVAINC)
+ 
++rjava.o: rjava.c rjava.h
++	$(CC) -c -o $@ $< $(CFLAGS) $(CPICF) $(JAVAINC)
++
+ Rengine.o: Rengine.c org_rosuda_JRI_Rengine.h globals.h Rcallbacks.h Rinit.h
+ 	$(CC) -c -o $@ Rengine.c $(CFLAGS) $(CPICF) $(JAVAINC) $(RINC)
+ 
+ jri.o: jri.c
+ 	$(CC) -c -o $@ jri.c $(CFLAGS) $(CPICF) $(JAVAINC) $(RINC)
+ 
+-$(JNIPREFIX)jri$(JNISO): Rengine.o jri.o Rcallbacks.o Rinit.o globals.o $(JRIDEPS)
++$(JNIPREFIX)jri$(JNISO): Rengine.o jri.o Rcallbacks.o Rinit.o globals.o rjava.o $(JRIDEPS)
+ 	$(CC) -o $@ $^ $(LDFLAGS) $(JNILD) $(RLD)
+ 
+ win32/libjvm.dll.a:
+Index: trunk/tools/GmmlVisio2R/JRI/src/Rinit.c
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Rinit.c	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Rinit.c	(revision 987)
+@@ -113,7 +113,12 @@
+     /* ptr_R_CleanUp = Re_CleanUp; */
+     ptr_R_ShowMessage = Re_ShowMessage;
+     ptr_R_ReadConsole = Re_ReadConsole;
++#if (R_VERSION >=R_Version(2,5,0))
++    ptr_R_WriteConsole = NULL;
++    ptr_R_WriteConsoleEx = Re_WriteConsoleEx;
++#else
+     ptr_R_WriteConsole = Re_WriteConsole;
++#endif
+     ptr_R_ResetConsole = Re_ResetConsole;
+     ptr_R_FlushConsole = Re_FlushConsole;
+     ptr_R_ClearerrConsole = Re_ClearerrConsole;
+@@ -136,6 +141,13 @@
+     return 0;
+ }
+ 
++void initRinside() {
++#if (R_VERSION >= R_Version(2,3,0))
++    /* disable stack checking, because threads will thow it off */
++    R_CStackLimit = (uintptr_t) -1;
++#endif
++}
++
+ #else
+ 
+ /*-------------------------------------------------------------------*
+@@ -146,6 +158,7 @@
+ #include <windows.h>
+ #include <winreg.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ #include "Rversion.h"
+ #if R_VERSION < R_Version(2,1,0)
+ #include <config.h>
+@@ -157,8 +170,8 @@
+ 
+ #if (R_VERSION >= R_Version(2,3,0))
+ /* according to fixed/config.h Windows has uintptr_t, my windows hasn't */
+-#if !defined(HAVE_UINTPTR_T) && !defined(uintptr_t)
+-typedef unsigned long uintptr_t;
++#if !defined(HAVE_UINTPTR_T) && !defined(uintptr_t) && !defined(_STDINT_H)
++typedef unsigned uintptr_t;
+ #endif
+ extern uintptr_t R_CStackLimit; /* C stack limit */
+ extern uintptr_t R_CStackStart; /* Initial stack address */
+@@ -279,7 +292,12 @@
+     if (*p == '/' || *p == '\\') *p = '\0';
+     Rp->home = RUser;
+     Rp->ReadConsole = Re_ReadConsole;
++#if R_VERSION >= R_Version(2,5,0)
++    Rp->WriteConsole = NULL;
++    Rp->WriteConsoleEx = Re_WriteConsoleEx;
++#else
+     Rp->WriteConsole = Re_WriteConsole;
++#endif
+ 
+ #if R_VERSION >= R_Version(2,1,0)
+     Rp->Busy = Re_Busy;
+@@ -324,4 +342,13 @@
+ 
+     return 0;
+ }
++
++void initRinside() {
++#if (R_VERSION >= R_Version(2,3,0))
++    /* disable stack checking, because threads will thow it off */
++    R_CStackLimit = (uintptr_t) -1;
+ #endif
++}
++
++#endif
++
+Index: trunk/tools/GmmlVisio2R/JRI/src/Rcallbacks.h
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Rcallbacks.h	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Rcallbacks.h	(revision 987)
+@@ -9,6 +9,7 @@
+ int  Re_ReadConsole(char *prompt, unsigned char *buf, int len, int addtohistory);
+ void Re_Busy(int which);
+ void Re_WriteConsole(char *buf, int len);
++void Re_WriteConsoleEx(char *buf, int len, int oType);
+ void Re_ResetConsole();
+ void Re_FlushConsole();
+ void Re_ClearerrConsole();
+Index: trunk/tools/GmmlVisio2R/JRI/src/Rengine.c
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Rengine.c	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Rengine.c	(revision 987)
+@@ -3,8 +3,17 @@
+ 
+ #include "jri.h"
+ #include "org_rosuda_JRI_Rengine.h"
++#include "rjava.h"
++#include <Rversion.h>
+ #include <R_ext/Parse.h>
+ 
++/* the # of arguments to R_ParseVector changed since R 2.5.0 */
++#if R_VERSION < R_Version(2,5,0)
++#define RS_ParseVector R_ParseVector
++#else
++#define RS_ParseVector(A,B,C) R_ParseVector(A,B,C,R_NilValue)
++#endif
++
+ #include "Rcallbacks.h"
+ #include "Rinit.h"
+ #include "globals.h"
+@@ -94,6 +103,12 @@
+               argv[argc]=0;
+           }
+       }
++
++      if (argc==2 && !strcmp(argv[1],"--zero-init")) {/* special case for direct embedding (exp!) */
++	initRinside();
++	return 0;
++      }
++      
+       initRes=initR(argc, argv);
+       /* we don't release the argv in case R still needs it later (even if it shouldn't), but it's not really a significant leak */
+       
+@@ -110,7 +125,7 @@
+ #ifdef JRI_DEBUG
+       printf("parsing \"%s\"\n", CHAR(STRING_ELT(cv,0)));
+ #endif
+-      pstr=R_ParseVector(cv, parts, &ps);
++      pstr=RS_ParseVector(cv, parts, &ps);
+ #ifdef JRI_DEBUG
+       printf("parse status=%d, result=%x, type=%d\n", ps, (int) pstr, (pstr!=0)?TYPEOF(pstr):0);
+ #endif
+@@ -178,7 +193,8 @@
+ (JNIEnv *env, jobject this, jobject o)
+ {
+   /* this is pretty much from Rglue.c of rJava */
+-	return SEXP2L(R_MakeExternalPtr(o, R_NilValue, R_NilValue));
++  jobject go = (*env)->NewGlobalRef(env, o);
++  return SEXP2L(R_MakeExternalPtr(go, R_NilValue, R_NilValue));
+ }
+ 
+ JNIEXPORT jstring JNICALL Java_org_rosuda_JRI_Rengine_rniGetString
+@@ -331,9 +347,16 @@
+ }
+ 
+ JNIEXPORT jlong JNICALL Java_org_rosuda_JRI_Rengine_rniCons
+-(JNIEnv *env, jobject this, jlong head, jlong tail)
++(JNIEnv *env, jobject this, jlong head, jlong tail, jlong tag, jboolean lang)
+ {
+-    return SEXP2L(CONS((head==0)?R_NilValue:L2SEXP(head), (tail==0)?R_NilValue:L2SEXP(tail)));
++  SEXP l;
++  if (lang)
++    l = LCONS((head==0)?R_NilValue:L2SEXP(head), (tail==0)?R_NilValue:L2SEXP(tail));
++  else
++    l = CONS((head==0)?R_NilValue:L2SEXP(head), (tail==0)?R_NilValue:L2SEXP(tail));
++  
++  if (tag) SET_TAG(l, L2SEXP(tag));
++  return SEXP2L(l);
+ }
+ 
+ JNIEXPORT jlong JNICALL Java_org_rosuda_JRI_Rengine_rniCAR
+@@ -472,6 +495,36 @@
+ 
+ #endif
+ 
++JNIEXPORT jint JNICALL Java_org_rosuda_JRI_Rengine_rniSetupRJava
++(JNIEnv *env, jobject this, jint _in, jint _out) {
++  RJava_setup(_in, _out);
++  return 0;
++}
++
++JNIEXPORT jint JNICALL Java_org_rosuda_JRI_Rengine_rniRJavaLock
++(JNIEnv *env, jobject this) {
++  return RJava_request_lock();
++}
++
++JNIEXPORT jint JNICALL Java_org_rosuda_JRI_Rengine_rniRJavaUnlock
++(JNIEnv *env, jobject this) {
++  return RJava_clear_lock();
++}
++
++JNIEXPORT void JNICALL Java_org_rosuda_JRI_Rengine_rniPrint
++(JNIEnv *env, jobject this, jstring s, jint oType) {
++  if (s) {
++    const char *c = (*env)->GetStringUTFChars(env, s, 0);
++    if (c) {
++      if (oType)
++	REprintf("%s", c);
++      else
++	Rprintf("%s", c);
++    }
++    (*env)->ReleaseStringUTFChars(env, s, c);
++  }
++}
++
+ JNIEXPORT jint JNICALL Java_org_rosuda_JRI_Rengine_rniStop
+ (JNIEnv *env, jobject this, jint flag) {
+ #ifdef Win32
+Index: trunk/tools/GmmlVisio2R/JRI/src/jri.h
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/jri.h	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/jri.h	(revision 987)
+@@ -5,11 +5,12 @@
+ #include <R.h>
+ #include <Rinternals.h>
+ #include <Rdefines.h>
++#include <Rversion.h>
+ 
+ /* the viewpoint is from R, i.e. "get" means "Java->R" whereas "put" means "R->Java" */
+ 
+-#define JRI_VERSION 0x0306 /* JRI v0.3-6 */
+-#define JRI_API     0x0106 /* API-version 1.6 */
++#define JRI_VERSION 0x0400 /* JRI v0.4-0 */
++#define JRI_API     0x0108 /* API-version 1.8 */
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -62,6 +63,11 @@
+        + rniInherits
+        + rniGetSymbolName
+        + rniInstallSymbol
++       + rniJavaToXref, rniXrefToJava
+    1.6 JRI 0.3-2
+        + rniPutBoolArray, rniPutBoolArrayI, rniGetBoolArrayI
++   1.7 JRI 0.3-7
++       + rniCons(+2 args)
++   1.8 JRI 0.4-0
++       + rniPrint
+ */
+Index: trunk/tools/GmmlVisio2R/JRI/src/Rinit.h
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/src/Rinit.h	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/src/Rinit.h	(revision 987)
+@@ -2,5 +2,6 @@
+ #define __R_INIT__H__
+ 
+ int initR(int argc, char **argv);
++void initRinside();
+ 
+ #endif
+Index: trunk/tools/GmmlVisio2R/JRI/RBool.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/RBool.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/RBool.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ // JRclient library - client interface to Rserve, see http://www.rosuda.org/Rserve/
+@@ -25,7 +9,7 @@
+     value, you'll need to use {@link #isTRUE} or {@link #isFALSE} since there is
+     no canonical representation of RBool in boolean
+ 
+-    @version $Id: RBool.java,v 1.1 2006/05/29 15:29:19 helbigm Exp $
++    @version $Id: RBool.java 2720 2007-03-15 17:35:42Z urbanek $
+ */
+ public class RBool extends Object {
+     int val;
+Index: trunk/tools/GmmlVisio2R/JRI/REXP.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/REXP.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/REXP.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ import java.util.Vector;
+@@ -254,7 +238,7 @@
+ 			cont = re.rniGetSymbolName(xp);
+ 			Xt = XT_SYM;
+ 		} else
+-			Xt = 0;
++			Xt = XT_NULL;
+ 		
+ 		//System.out.println("new REXP: "+toString());
+ 	}
+@@ -273,7 +257,7 @@
+ 
+ 	/** construct a new, empty (NULL) expression w/o attribute */
+ 	public REXP() {
+-		Xt = 0;
++		Xt = XT_NULL;
+ 		attr = null;
+ 		cont = null;
+ 	}
+Index: trunk/tools/GmmlVisio2R/JRI/tools/getsp.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/tools/getsp.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/tools/getsp.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ public class getsp {
+     public static void main(String[] args) {
+ 	if (args!=null && args.length>0) {
+Index: trunk/tools/GmmlVisio2R/JRI/configure.ac
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/configure.ac	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/configure.ac	(revision 987)
+@@ -174,6 +174,7 @@
+ ])
+ 
+ JAVA_INC="-I${JNI_H}"
++: ${JAVA_CFLAGS=-D_REENTRANT}
+ 
+ # Sun's JDK needs jni_md.h in in addition to jni.h and unfortunately it's stored somewhere else ...
+ # this should be become more general at some point - so far we're checking linux and solaris only
+@@ -186,7 +187,7 @@
+ done
+ 
+ LIBS="${LIBS} ${JAVA_LIBS}"
+-CFLAGS="${CFLAGS} ${JAVA_INC}"
++CFLAGS="${CFLAGS} ${JAVA_CFLAGS} ${JAVA_INC}"
+ 
+ AC_MSG_CHECKING([whether JNI programs can be compiled])
+ AC_LINK_IFELSE([
+@@ -281,6 +282,7 @@
+ AC_SUBST(JAVA_LD_PATH)
+ AC_SUBST(JAVA_LIBS)
+ AC_SUBST(JAVA_INC)
++AC_SUBST(JAVA_CFLAGS)
+ AC_SUBST(JAVAC)
+ AC_SUBST(JAVAH)
+ AC_SUBST(JAR)
+@@ -299,4 +301,4 @@
+ AC_CONFIG_FILES([Makefile])
+ AC_CONFIG_FILES([run], [chmod +x run])
+ 
+-AC_OUTPUT
+\ No newline at end of file
++AC_OUTPUT
+Index: trunk/tools/GmmlVisio2R/JRI/RVector.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/RVector.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/RVector.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ import java.util.Vector;
+Index: trunk/tools/GmmlVisio2R/JRI/Rengine.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/Rengine.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/Rengine.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ import java.lang.*;
+@@ -37,7 +21,6 @@
+             System.exit(1);
+         }
+     }*/
+-       
+     /**
+      * Initiates an R generic vector (aka list) with given length l
+      * @param l	the length of the generic vector to initiate
+@@ -57,10 +40,12 @@
+      * end of modifications
+      */
+ 
++    static Thread mainRThread = null;
++
+ 	/**	API version of the Rengine itself; see also rniGetVersion() for binary version. It's a good idea for the calling program to check the versions of both and abort if they don't match. This should be done using {@link #versionCheck}
+ 		@return version number as <code>long</code> in the form <code>0xMMmm</code> */
+     public static long getVersion() {
+-        return 0x0106;
++        return 0x0108;
+     }
+ 
+     /** check API version of this class and the native binary. This is usually a good idea to ensure consistency.
+@@ -84,6 +69,22 @@
+ 	@return current instance of the R engine or <code>null</code> if no R engine was started yet. */
+     public static Rengine getMainEngine() { return mainEngine; }
+ 
++    /* public static Thread getMainRThread() { return mainRThread; } */
++
++    /** returns <code>true</code> if the current thread is the main R thread, <code>false</code> otherwise
++	@since JRI 0.4
++     */
++    public static boolean inMainRThread() {
++	return (mainRThread != null && mainRThread.equals(Thread.currentThread()));
++    }
++
++    boolean standAlone = true;
++
++    /** returns <code>true</code> if this engine was started as a stand-alone Java application or <code>false</code> if this engine was hooked into an existing R instance
++	@since JRI 0.4
++    */
++    public boolean isStandAlone() { return standAlone; }
++
+     boolean died, alive, runLoop, loopRunning;
+     /** arguments used to initialize R, set by the constructor */
+ 	String[] args;
+@@ -107,16 +108,47 @@
+         this.args=args;
+         callback=initialCallbacks;
+         mainEngine=this;
++	mainRThread=this;
+         start();
+         while (!alive && !died) yield();
+     }
+ 
++    /** create a new engine by hooking into an existing, initialized R instance which is calling this constructor. Currently JRI won't influence this R instance other than disabling stack checks (i.e. no callbacks can be registered etc.). It is *not* the designated constructor and it should be used *only* from withing rJava.
++	@since JRI 0.4
++     */
++    public Rengine() {
++	super();
++	Rsync=new Mutex();
++	died=false;
++	alive=true;
++	runLoop=false;
++	loopRunning=true;
++	standAlone=false;
++	args=new String[] { "--zero-init"};
++	callback=null;
++	mainEngine=this;
++	mainRThread=Thread.currentThread();
++	rniSetupR(args);
++    }
++
+     /** RNI: setup R with supplied parameters (should <b>not</b> be used directly!).
+ 	@param args arguments
+ 	@return result code
+      */
+     native int rniSetupR(String[] args);
+     
++    /** RNI: setup IPC with RJava. This method is used by rJava to pass the IPC information to the JRI engine for synchronization
++	@since experimental, not in the public API!
++     */
++    public native int rniSetupRJava(int _in, int _out);
++
++    /** RNI: lock rJava to allow callbacks - this interrupts R event loop until @link{rniRJavaUnlock} is called.
++	@return 0 = lock failed, 1 = locked via IPC (you must use rniRJavaUnlock subsequently), 2 = rJava is already locked */
++    public native int rniRJavaLock();
++
++    /** RNI: unlock rJava - resumes R event loop. Please note that unlocking without a previously successful lock may cause fatal errors, because it may release a lock issued by another thread which may not have finished yet. */
++    public native int rniRJavaUnlock();
++
+     synchronized int setupR() {
+         return setupR(null);
+     }
+@@ -226,11 +258,30 @@
+ 		@return <code>true</code> if <code>cName</code> inherits from class <code>cName</code> (see <code>inherits</code> in R) */ 
+ 	public synchronized native boolean rniInherits(long exp, String cName);
+ 
++    /** RNI: create a dotted-pair list (LISTSXP or LANGSXP)
++	@param head CAR
++	@param tail CDR (must be a reference to LISTSXP or 0)
++	@param tag TAG
++	@param lang if <code>true</code> then LANGSXP is created, otherwise LISTSXP.
++	@return reference to the newly created LISTSXP/LANGSXP
++	@since API 1.7, JRI 0.3-7
++*/
++    public synchronized native long rniCons(long head, long tail, long tag, boolean lang);
++
+     /** RNI: create a dotted-pair list (LISTSXP)
+ 	@param head CAR
+ 	@param tail CDR (must be a reference to LISTSXP or 0)
+-	@return reference to the newly created LISTSXP */
+-    public synchronized native long rniCons(long head, long tail);
++	@return reference to the newly created LISTSXP
++    */
++    public long rniCons(long head, long tail) { return rniCons(head, tail, 0, false); }
++    /** RNI: create a dotted-pair language list (LANGSXP)
++	@param head CAR
++	@param tail CDR (must be a reference to LANGSXP or 0)
++	@return reference to the newly created LANGSXP
++	@since API 1.7, JRI 0.3-7
++    */
++    public long rniLCons(long head, long tail) { return rniCons(head, tail, 0, true); }
++
+     /** RNI: get CAR of a dotted-pair list (LISTSXP)
+ 	@param exp reference to the list
+ 	@return reference to CAR of the list (head) */
+@@ -263,6 +314,12 @@
+ 		@return reference to SYMSXP referencing the symbol */
+ 	public synchronized native long rniInstallSymbol(String sym);
+ 
++	/** RNI: print.<p><i>Note:</i> May NOT be called inside any WriteConsole callback as it would cause an infinite loop.
++		@since API 1.8, JRI 0.4
++		@param s string to print (as-is)
++		@param oType output type (see R for exact references, but 0 should be regular output and 1 error/warning) */
++	public synchronized native void rniPrint(String s, int oType);
++
+ 	//--- was API 1.4 but it only caused portability problems, so we got rid of it
+     //public static native void rniSetEnv(String key, String val);
+     //public static native String rniGetEnv(String key);
+@@ -322,9 +379,9 @@
+ 
+     /** JRI: R_WriteConsole call-back from R
+ 	@param text text to disply */
+-    public void jriWriteConsole(String text)
++    public void jriWriteConsole(String text, int oType)
+     {
+-        if (callback!=null) callback.rWriteConsole(this, text);
++        if (callback!=null) callback.rWriteConsole(this, text, oType);
+     }
+ 
+     /** JRI: R_Busy call-back from R
+@@ -346,7 +403,7 @@
+         String s=(callback==null)?null:callback.rReadConsole(this, prompt, addToHistory);
+         if (!Rsync.safeLock()) {
+             String es="\n>>JRI Warning: jriReadConsole detected a possible deadlock ["+Rsync+"]["+Thread.currentThread()+"]. Proceeding without lock, but this is inherently unsafe.\n";
+-            jriWriteConsole(es);
++            jriWriteConsole(es, 1);
+             System.err.print(es);
+         }
+ 		if (DEBUG>1)
+@@ -544,6 +601,10 @@
+ 		@since JRI 0.3
+         */
+     public void assign(String sym, REXP r) {
++	if (r.Xt == REXP.XT_NONE) {
++	    rniAssign(sym, r.xp, 0);
++	    return;
++	}
+     	if (r.Xt == REXP.XT_INT || r.Xt == REXP.XT_ARRAY_INT) {
+     		int[] cont = r.rtype == REXP.XT_INT?new int[]{((Integer)r.cont).intValue()}:(int[])r.cont;
+     		long x1 = rniPutIntArray(cont);
+@@ -608,4 +669,27 @@
+ 	public void assign(String sym, String[] val) {
+         assign(sym,new REXP(val));
+     }
++
++    /** creates a <code>jobjRef</code> reference in R via rJava.<br><b>Important:</b> rJava must be loaded and intialized in R (e.g. via <code>eval("{library(rJava);.jinit()}",false)</code>, otherwise this will fail. Requires rJava 0.4-13 or higher!
++	@param o object to push
++	@return Pure REXP reference of the newly created <code>jobjRef</code> object or <code>null</code> upon failure. It will have the type <code>XT_NONE</code> such that it can be used in @link{assign(String, REXP)}.
++	@since JRI 0.3-7
++    */
++    public REXP createRJavaRef(Object o) {
++	if (o == null) return null;
++	String klass = o.getClass().getName();
++	long l = rniEval(
++			 rniLCons(
++				  rniInstallSymbol(".jmkref"),
++				  rniLCons(
++					   rniJavaToXref(o),
++					   rniLCons(
++						    rniPutString(klass), 0
++						    )
++					   )
++				  )
++			 , 0);
++	if (l == 0) return null;
++	return new REXP(this, l, false);	
++    }
+ }
+Index: trunk/tools/GmmlVisio2R/JRI/RList.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/RList.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/RList.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ package org.rosuda.JRI;
+ 
+ // JRclient library - client interface to Rserve, see http://www.rosuda.org/Rserve/
+@@ -34,7 +18,7 @@
+     parsed according to the structure - in that case "head" and "body" have to be evaluated
+     separately according to their meaning in that context.
+ 
+-    @version $Id: RList.java,v 1.3 2006/05/31 15:25:35 urbaneks Exp $
++    @version $Id: RList.java 2720 2007-03-15 17:35:42Z urbanek $
+ */
+ public class RList extends Object {
+     /** xpressions containing head, body and tag. 
+Index: trunk/tools/GmmlVisio2R/JRI/examples/rtest.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/examples/rtest.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/examples/rtest.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ import java.io.*;
+ import java.awt.Frame;
+ import java.awt.FileDialog;
+@@ -28,7 +12,7 @@
+ 
+ class TextConsole implements RMainLoopCallbacks
+ {
+-    public void rWriteConsole(Rengine re, String text) {
++    public void rWriteConsole(Rengine re, String text, int oType) {
+         System.out.print(text);
+     }
+     
+Index: trunk/tools/GmmlVisio2R/JRI/examples/rtest2.java
+===================================================================
+--- trunk/tools/GmmlVisio2R/JRI/examples/rtest2.java	(revision 986)
++++ trunk/tools/GmmlVisio2R/JRI/examples/rtest2.java	(revision 987)
+@@ -1,19 +1,3 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+ import java.io.*;
+ 
+ import java.awt.*;
+@@ -22,6 +6,7 @@
+ import org.rosuda.JRI.Rengine;
+ import org.rosuda.JRI.REXP;
+ import org.rosuda.JRI.RMainLoopCallbacks;
++import org.rosuda.JRI.RConsoleOutputStream;
+ 
+ class TextConsole2 implements RMainLoopCallbacks
+ {
+@@ -36,7 +21,7 @@
+         f.show();
+     }
+ 
+-    public void rWriteConsole(Rengine re, String text) {
++    public void rWriteConsole(Rengine re, String text, int oType) {
+         textarea.append(text);
+     }
+     
+@@ -84,13 +69,16 @@
+         System.out.println("Press <Enter> to continue (time to attach the debugger if necessary)");
+         try { System.in.read(); } catch(Exception e) {};
+         System.out.println("Creating Rengine (with arguments)");
+-	Rengine re=new Rengine(args, true, new TextConsole2());
++		Rengine re=new Rengine(args, true, new TextConsole2());
+         System.out.println("Rengine created, waiting for R");
+         if (!re.waitForR()) {
+             System.out.println("Cannot load R");
+             return;
+         }
+-	
+-	System.out.println("Letting go; use main loop from now on");
++		System.out.println("re-routing stdout/err into R console");
++		System.setOut(new PrintStream(new RConsoleOutputStream(re, 0)));
++		System.setErr(new PrintStream(new RConsoleOutputStream(re, 1)));
++		
++		System.out.println("Letting go; use main loop from now on");
+     }
+ }

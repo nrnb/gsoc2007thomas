@@ -1,0 +1,4079 @@
+Index: trunk/src/wikipathways/org/pathvisio/Globals.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/Globals.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/Globals.java	(revision 1022)
+@@ -0,0 +1,31 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio;
++
++/**
++ * This class is mainly intended for globals that differ between v1 and v2!
++ * 
++ * @author martijn.vaniersel
++ *
++ */
++public class Globals {
++	public static final String APPLICATION_NAME = "PathVisio";
++	public static final String APPLICATION_VERSION_NAME = "PathVisio - WikiPathways";
++	public static final String HELP_URL = "http://wiki.bigcat.unimaas.nl/pathvisio/Help";
++	// for inclusion in certain error messages.
++	public static final String DEVELOPER_EMAIL = "thomas.kelder@bigcat.unimaas.nl"; 
++}
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1021)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1022)
+@@ -16,6 +16,13 @@
+ //
+ package org.pathvisio.gui.wikipathways;
+ 
++import java.net.CookieHandler;
++import java.net.URL;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++
+ import javax.swing.JApplet;
+ 
+ import org.pathvisio.ApplicationEvent;
+@@ -23,6 +30,7 @@
+ import org.pathvisio.gui.swing.GuiInit;
+ import org.pathvisio.gui.swing.MainPanel;
+ import org.pathvisio.gui.swing.SwingEngine;
++import org.pathvisio.wikipathways.Parameter;
+ import org.pathvisio.wikipathways.WikiPathways;
+ 
+ public class AppletMain extends JApplet {
+@@ -59,18 +67,40 @@
+ 		}
+ 	}
+ 	
++	void loadCookies() {
++		CookieHandler handler = CookieHandler.getDefault();
++		if (handler != null)    {
++			URL url = getDocumentBase();
++			try {
++				Map<String, List<String>> headers = handler.get(url.toURI(), new HashMap<String, List<String>>());
++				List<String> values = headers.get("Cookie");
++				for (Iterator<String> iter=values.iterator(); iter.hasNext();) {
++					String v = iter.next();
++					String[] vstr = v.split("=");
++					if(vstr.length == 2) {
++						wiki.addCookie(vstr[0].trim(), vstr[1].trim());
++					}
++				}
++			} catch(Exception e) {
++				Engine.log.error("Unable to load cookies", e);
++			}
++			
++		}
++//		JSObject myBrowser = (JSObject) JSObject.getWindow(this);
++//	        JSObject myDocument =  (JSObject) myBrowser.getMember("document");
++//	        String cookie = (String)myDocument.getMember("cookie");
++//	        String[] cstr = cookie.split(";");
++//	        for(String c : cstr) {
++//	        	String[] vstr = c.split("=");
++//	        	if(vstr.length == 2) {
++//	        		wiki.addCookie(vstr[0].trim(), vstr[1].trim());
++//	        	}
++//	        }
++	}
++	
+ 	void parseArguments() {
+-		String pwURL = getParameter("pathwayUrl");
+-		String pwName = getParameter("pwName");
+-		String rpcUrl = getParameter("rpcUrl");
+-		String pwSpecies = getParameter("pwSpecies");
+-		String user = getParameter("user");
+-		boolean pwNew = Boolean.parseBoolean(getParameter("new"));
+-		wiki = new WikiPathways();
+-		wiki.setUser(user);
+-		wiki.setPwName(pwName);
+-		wiki.setPwSpecies(pwSpecies);
+-		wiki.setPwURL(pwURL);
+-		wiki.setRpcURL(rpcUrl);
++		for(Parameter p : Parameter.values()) {
++			p.setValue(getParameter(p.getName()));
++		}
+ 	}
+ }
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/Parameter.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/Parameter.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/Parameter.java	(revision 1022)
+@@ -0,0 +1,53 @@
++package org.pathvisio.wikipathways;
++
++public enum Parameter {
++	PW_NAME("pwName"),
++	PW_URL("pathwayUrl", false),
++	PW_SPECIES("pwSpecies"),
++	PW_NEW("new", "false"),
++	USER("user"),
++	RPC_URL("prcUrl"),
++	;
++	
++	String name;
++	String defaultValue;
++	boolean required;
++	String value;
++	
++	private Parameter(String name, boolean isRequired) {
++		this.name = name;
++		required = isRequired;
++	}
++	private Parameter(String name) {
++		this(name, true);
++	}
++	
++	private Parameter(String name, String defaultValue) {
++		this(name, false);
++		this.defaultValue = defaultValue;
++	}
++	
++	public String getDefaultValue() {
++		return defaultValue;
++	}
++	
++	public String getName() {
++		return name;
++	}
++	
++	public boolean isRequired() {
++		return required;
++	}
++	
++	public void setValue(String value) {
++		this.value = value;
++	}
++	
++	public String getValue() {
++		if(value == null && !isRequired()) {
++			return defaultValue;
++		} else {
++			return value;
++		}
++	}
++}
+\ No newline at end of file
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1021)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1022)
+@@ -20,11 +20,16 @@
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.RandomAccessFile;
++import java.net.CookieHandler;
+ import java.net.HttpURLConnection;
+ import java.net.MalformedURLException;
++import java.net.URI;
++import java.net.URISyntaxException;
+ import java.net.URL;
+ import java.net.URLConnection;
+ import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
+ 
+ import javax.swing.JOptionPane;
+ 
+@@ -51,6 +56,7 @@
+ 
+ public class WikiPathways implements ApplicationEventListener {
+ 	public static String SITE_NAME = "WikiPathways.org";
++	
+ 	HashMap<String, String> cookie;
+ 	String rpcURL;
+ 	String pwName;
+@@ -67,7 +73,7 @@
+ 		cookie = new HashMap<String, String>();
+ 		Engine.addApplicationEventListener(this);
+ 	}
+-
++	
+ 	public String getPwName() {
+ 		return pwName;
+ 	}
+@@ -96,10 +102,22 @@
+ 		return rpcURL;
+ 	}
+ 
++	public void setRpcURL(String rpcURL) {
++		this.rpcURL = rpcURL;
++	}
++
+ 	public String getUser() {
+ 		return user;
+ 	}
+ 
++	public void setUser(String user) {
++		this.user = user;
++	}
++
++	public void addCookie(String key, String value) {
++		cookie.put(key, value);
++	}
++	
+ 	public void openPathwayURL() throws MalformedURLException, ConverterException {
+ 		localFile = SwingEngine.openPathway(new URL(pwURL));
+ 		Engine.getActiveVPathway().setEditMode(true);
+@@ -124,14 +142,6 @@
+ 		return localFile;
+ 	}
+ 	
+-	public void setRpcURL(String rpcURL) {
+-		this.rpcURL = rpcURL;
+-	}
+-	
+-	public void setUser(String user) {
+-		this.user = user;
+-	}
+-		
+ 	protected void saveToWiki(String description) throws XmlRpcException, IOException, ConverterException {		
+ 		//TODO: check if changed
+ 		if(ovrChanged || Engine.getActivePathway().hasChanged()) {
+Index: trunk/src/core/org/pathvisio/preferences/GlobalPreference.java
+===================================================================
+--- trunk/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 1022)
+@@ -18,6 +18,7 @@
+ 
+ import java.awt.Color;
+ 
++import org.pathvisio.Engine;
+ import org.pathvisio.util.ColorConverter;
+ 
+ public enum GlobalPreference implements Preference {
+@@ -30,8 +31,13 @@
+ 	COLOR_SELECTED(Color.RED),
+ 	COLOR_HIGHLIGHTED(Color.GREEN),
+ 	
++	DB_ENGINE_GDB("org.pathvisio.data.DBConnDerby"),
++	DB_ENGINE_GEX("org.pathvisio.data.DBConnDerby"),
++	DB_GDB_CURRENT("none"),
++	
+ 	SHOW_ADVANCED_ATTRIBUTES(Boolean.toString(false));
+ 	
++	
+ 	GlobalPreference(String defaultValue) {
+ 		this.defaultValue = defaultValue;
+ 	}
+@@ -53,6 +59,7 @@
+ 	
+ 	public void setValue(String newValue) {
+ 		value = newValue;
++		Engine.savePreferences();
+ 	}
+ 	
+ 	public String getValue() {
+Index: trunk/src/core/org/pathvisio/Engine.java
+===================================================================
+--- trunk/src/core/org/pathvisio/Engine.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/Engine.java	(revision 1022)
+@@ -18,21 +18,22 @@
+ 
+ import java.awt.Color;
+ import java.io.File;
++import java.io.IOException;
+ import java.net.URL;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
+ 
+-import org.pathvisio.data.DBConnectorSwt;
++import org.pathvisio.data.DBConnector;
+ import org.pathvisio.debug.Logger;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayExporter;
+ import org.pathvisio.model.PathwayImporter;
+-import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
++import org.pathvisio.preferences.GlobalPreference;
++import org.pathvisio.preferences.PreferenceCollection;
+ import org.pathvisio.util.FileUtils;
+-import org.pathvisio.util.Utils;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ 
+@@ -83,6 +84,26 @@
+ 		return pathway;
+ 	}
+ 	
++	static PreferenceCollection preferences;
++	
++	public static void savePreferences() {
++		if(preferences != null) {
++			try {
++				preferences.save();
++			} catch(IOException e) {
++				log.error("Unable to save preferences", e);
++			}
++		}
++	}
++	
++	public static void setPreferenceCollection(PreferenceCollection pc) {
++		preferences = pc;
++	}
++	
++	public static PreferenceCollection getPreferenceCollection() {
++		return preferences;
++	}
++	
+ 	/**
+ 	 * application global clipboard.
+ 	 */
+@@ -258,23 +279,23 @@
+ 		return importers;
+ 	}
+ 	
+-	public static DBConnectorSwt getDbConnector(int type) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+-		DBConnectorSwt connector = null;
++	public static DBConnector getDbConnector(int type) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
++		DBConnector connector = null;
+ 		String className = null;
+ 		switch(type) {
+-		case DBConnectorSwt.TYPE_GDB:
+-			className = SwtPreference.SWT_DB_ENGINE_GDB.getValue();
++		case DBConnector.TYPE_GDB:
++			className = GlobalPreference.DB_ENGINE_GDB.getValue();
+ 			break;
+-		case DBConnectorSwt.TYPE_GEX:
+-			className = SwtPreference.SWT_DB_ENGINE_GDB.getValue();
++		case DBConnector.TYPE_GEX:
++			className = GlobalPreference.DB_ENGINE_GEX.getValue();
+ 			break;
+ 		}
+ 		if(className == null) return null;
+ 		
+ 		Class dbc = Class.forName(className);
+-		
+-		if(Utils.isSubClass(dbc, DBConnectorSwt.class)) {
+-			connector = (DBConnectorSwt)dbc.newInstance();
++		Object o = dbc.newInstance();
++		if(o instanceof DBConnector) {
++			connector = (DBConnector)dbc.newInstance();
+ 			connector.setDbType(type);
+ 		}
+ 	
+Index: trunk/src/core/org/pathvisio/data/CachedData.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/CachedData.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/data/CachedData.java	(revision 1022)
+@@ -1,228 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.data;
+-
+-import java.sql.Types;
+-import java.util.ArrayList;
+-import java.util.HashMap;
+-import java.util.List;
+-
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.data.Gex.Sample;
+-
+-/**
+- * This class represents cached expression data for a pathway.
+- * The caching of expression data will occur when a pathway is opened and an expression dataset is loaded.
+- * The cache will be refreshed when another dataset is selected, another gene database is selected or another
+- * pathway is opened.
+- * A CachedData object will contain a list of {@link Data} object for every gene-product on the pathway for 
+- * which data is available in the expression dataset
+- * @author Thomas
+- * @see Gex#cacheData
+- */
+-public class CachedData {
+-	
+-	HashMap<IdCodePair, List<Data>> data; //Data objects for gene-products on the pathway
+-		
+-	protected CachedData() {
+-		data = new HashMap<IdCodePair, List<Data>>();
+-	}
+-	
+-	/**
+-	 * Check whether the cached data contains data for the given gene-product
+-	 * @param pwId The IdCodePair that represents the gene-product
+-	 * @return true if data is available for the gene-product, false if not
+-	 */
+-	public boolean hasData(IdCodePair pwId) {
+-		return data.containsKey(pwId);
+-	}
+-	
+-	/**
+-	 * Check whether the cached data contains multiple data instances for the given gene-product.
+-	 * This can occur when multiple reporters in the dataset correspond to the same gene-product.
+-	 * @param pwId The IdCodePair that represents the gene-product
+-	 * @return true if multiple data is available for the gene-product, false if not
+-	 */
+-	public boolean hasMultipleData(IdCodePair pwId) {
+-		List<Data> d = data.get(pwId);
+-		if(d != null) {
+-			return d.size() > 1;
+-		} else {
+-			return false;
+-		}
+-	}
+-	
+-	/**
+-	 * Get the cached data the given gene-product
+-	 * @param idc The IdCodePair that represents the gene-product for which the data has to be returned
+-	 * @return a list of {@link Data} object containing the cached data, or null when no data is available
+-	 */
+-	public List<Data> getData(IdCodePair idc) {
+-		return data.get(idc);
+-	}
+-	
+-	/**
+-	 * Get the first {@link Data} instance of the cached data for this gene-product.
+-	 * @param idc The IdCodePair that represents the gene-product for which the data has to be returned
+-	 * @return a {@link Data} instance that contains the cached data
+-	 */
+-	public Data getSingleData(IdCodePair idc) {
+-		List<Data> dlist = data.get(idc);
+-		if(dlist != null && dlist.size() > 0) return dlist.get(0);
+-		return null;
+-	}
+-	
+-	/**
+-	 * Add cached data for the given gene-product
+-	 * @param idc The IdCodePair that represents the gene-product for which the data has to be added
+-	 * @param d The data that has to be added
+-	 */
+-	protected void addData(IdCodePair idc, Data d) {
+-		List<Data> dlist = data.get(idc);
+-		if(dlist == null) 
+-			data.put(idc, dlist = new ArrayList<Data>());
+-		dlist.add(d);
+-	}
+-	
+-	/**
+-	 * Get the averaged sample data for the given gene-product
+-	 * @param idc The IdCodePair that represents the gene-product to get the data for
+-	 * @return a HashMap where the keys represent the sample ids and the values the averaged data
+-	 * @see Data#getSampleData()
+-	 */
+-	public HashMap<Integer, Object> getAverageSampleData(IdCodePair idc)
+-	{
+-		HashMap<Integer, Object> averageData = new HashMap<Integer, Object>();
+-		List<Data> dlist = data.get(idc);
+-		if(dlist != null) {
+-			HashMap<Integer, Sample> samples = Gex.getSamples();
+-			for(int idSample : samples.keySet())
+-			{
+-				int dataType = samples.get(idSample).getDataType();
+-				if(dataType == Types.REAL) {
+-					averageData.put(idSample, averageDouble(dlist, idSample));
+-				} else {
+-					averageData.put(idSample, averageString(dlist, idSample));
+-				}
+-			}
+-		}
+-		return averageData;
+-	}
+-	
+-	
+-	private Object averageDouble(List<Data> dlist, int idSample)
+-	{
+-		double avg = 0;
+-		int n = 0;
+-		for(Data d : dlist) {
+-			try { 
+-				Double value = (Double)d.getSampleData(idSample);
+-				if( !value.isNaN() ) {
+-					avg += value;
+-					n++;
+-				}
+-			} catch(Exception e) { }
+-		}
+-		if(n > 0) {
+-			return avg / n;
+-		} else {
+-			return Double.NaN;
+-		}
+-	}
+-	
+-	private Object averageString(List<Data> dlist, int idSample)
+-	{
+-		StringBuilder sb = new StringBuilder();
+-		for(Data d : dlist) {
+-			sb.append(d.getSampleData(idSample) + ", ");
+-		}
+-		int end = sb.lastIndexOf(", ");
+-		return end < 0 ? "" : sb.substring(0, end).toString();
+-	}
+-	
+-	/**
+-	 * This class represents cached expression data for a reporter in the dataset.
+-	 * The data is stored in a {@link HashMap} where the keys are the sample ids and the value
+-	 * is an object of class {@link String} or {@link Double} for text and numeric data respectively.
+-	 * @author Thomas
+-	 */
+-	public static class Data {
+-		IdCodePair idc;
+-		int group;
+-		HashMap<Integer, Object> sampleData;
+-		
+-		/**
+-		 * Constructor for this class. Creates a new {@link Data} object for the given reporter
+-		 * @param ref The IdCodePair that represents the reporter
+-		 * @param groupId An id that groups the expression data from duplicate reporters
+-		 */
+-		protected Data(IdCodePair ref, int groupId) {
+-			idc = ref;
+-			group = groupId;
+-			sampleData = new HashMap<Integer, Object>();
+-		}
+-		
+-		/**
+-		 * Get the reporter this object contains data for
+-		 * @return The IdCodePair that represents the reporter this object contains data for
+-		 */
+-		public IdCodePair getIdCodePair() { return idc; }
+-		
+-		/**
+-		 * Get the group id for this object
+-		 * @return a group id that can be used to distinct identical reporters that occur more
+-		 * than once in the dataset
+-		 */
+-		public int getGroup() { return group; }
+-		
+-		/**
+-		 * Get the data for each sample
+-		 * @return A {@link HashMap} that contains the data for each sample. The key is a sampleId and value
+-		 * is an object of class {@link String} or {@link Double}, depending on the data type of the sample.
+-		 * @see Sample#getDataType()
+-		 * @see Sample#getId()
+-		 */
+-		public HashMap<Integer, Object> getSampleData() {
+-			return sampleData;
+-		}
+-		
+-		/**
+-		 * Get the cached data for the given sample (shortcut for getSampleData().get(sampleId))
+-		 * @param sampleId The id of the sample to get the data for
+-		 * @return An object of class {@link String} or {@link Double}, depending on the datatype of the sample.
+-		 * @see Sample#getDataType()
+-		 * @see Sample#getId()
+-		 */
+-		public Object getSampleData(int sampleId) {
+-			return sampleData.get(sampleId);
+-		}
+-		
+-		/**
+-		 * Set the data for the given sample. Data will be parsed to double if possible
+-		 * @param sampleId The id of the sample to set the data for
+-		 * @param data The {@link String} representation of the data to add
+-		 * @see Gex#cacheData
+-		 */
+-		protected void setSampleData(int sampleId, String data) {
+-			Object parsedData = null;
+-			try { parsedData = Double.parseDouble(data); }
+-			catch(Exception e) { parsedData = data; }
+-			sampleData.put(sampleId, parsedData);
+-		}
+-		
+-	}
+-}
+Index: trunk/src/core/org/pathvisio/data/Gex.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/Gex.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/data/Gex.java	(revision 1022)
+@@ -1,865 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.data;
+-
+-import java.io.BufferedReader;
+-import java.io.File;
+-import java.io.FileInputStream;
+-import java.io.FileOutputStream;
+-import java.io.FileReader;
+-import java.io.FileWriter;
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.io.OutputStream;
+-import java.io.PrintStream;
+-import java.io.PrintWriter;
+-import java.sql.Connection;
+-import java.sql.DriverManager;
+-import java.sql.PreparedStatement;
+-import java.sql.ResultSet;
+-import java.sql.ResultSetMetaData;
+-import java.sql.Statement;
+-import java.sql.Types;
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.EventObject;
+-import java.util.HashMap;
+-import java.util.List;
+-
+-import org.jdom.Document;
+-import org.jdom.Element;
+-import org.jdom.input.SAXBuilder;
+-import org.jdom.output.Format;
+-import org.jdom.output.XMLOutputter;
+-import org.pathvisio.ApplicationEvent;
+-import org.pathvisio.Engine;
+-import org.pathvisio.Engine.ApplicationEventListener;
+-import org.pathvisio.data.CachedData.Data;
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.debug.StopWatch;
+-import org.pathvisio.util.FileUtils;
+-import org.pathvisio.util.ProgressKeeper;
+-import org.pathvisio.visualization.VisualizationManager;
+-import org.pathvisio.visualization.colorset.ColorSetManager;
+-
+-/**
+- * This class handles everything related to the Expression Data. It contains the database connection,
+- * several methods to query data and write data and methods to convert a GenMAPP Expression Dataset
+- * to hsqldb format
+- */
+-public class Gex implements ApplicationEventListener {
+-	public static final String XML_ELEMENT = "expression-data-visualizations";
+-	public static final int COMPAT_VERSION = 1;
+-	
+-	private static Connection con;
+-	
+-	public static CachedData cachedData;
+-	
+-	/**
+-	 * Get the {@link Connection} to the Expression-data database
+-	 */
+-	public static Connection getCon() { return con; }
+-	/**
+-	 * Check whether a connection to the database exists
+-	 * @return	true is a connection exists, false if not
+-	 */
+-	public static boolean isConnected() { return con != null; }
+-	
+-	private static String dbName;
+-	/**
+-	 * Get the database name of the expression data currently loaded
+-	 */
+-	public static String getDbName() { return dbName; }
+-	
+-	/**
+-	 * Set the database name of the expression data currently loaded
+-	 * (Connection is not reset)
+-	 */
+-	public static void setDbName(String name) { dbName = name; }
+-				
+-	public static InputStream getXmlInput() {
+-		File xmlFile = new File(dbName + ".xml");
+-		try {
+-			if(!xmlFile.exists()) xmlFile.createNewFile();
+-			InputStream in = new FileInputStream(xmlFile);
+-			return in;
+-		} catch(Exception e) {
+-			e.printStackTrace();
+-			return null;
+-		}
+-	}
+-	
+-	public static OutputStream getXmlOutput() {
+-		try {
+-			File f = new File(dbName + ".xml");
+-			OutputStream out = new FileOutputStream(f);
+-			return out;
+-		} catch(Exception e) {
+-			e.printStackTrace();
+-			return null;
+-		}
+-	}
+-	
+-	public static void saveXML() {
+-		if(!isConnected()) return;
+-		
+-		OutputStream out = getXmlOutput();
+-		
+-		Document xmlDoc = new Document();
+-		Element root = new Element(XML_ELEMENT);
+-		xmlDoc.setRootElement(root);
+-		
+-		root.addContent(VisualizationManager.getNonGenericXML());
+-		root.addContent(ColorSetManager.getXML());
+-		
+-		XMLOutputter xmlOut = new XMLOutputter(Format.getPrettyFormat());
+-		try {
+-			xmlOut.output(xmlDoc, out);
+-			out.close();
+-		} catch(IOException e) {
+-			Engine.log.error("Unable to save visualization settings", e);
+-		}
+-	}
+-	
+-	public static void loadXML() {
+-		Document doc = getXML();
+-		Element root = doc.getRootElement();
+-		Element vis = root.getChild(VisualizationManager.XML_ELEMENT);
+-		VisualizationManager.loadNonGenericXML(vis);
+-		Element cs = root.getChild(ColorSetManager.XML_ELEMENT);
+-		ColorSetManager.fromXML(cs);
+-	}
+-	
+-	public static Document getXML() {
+-		InputStream in = Gex.getXmlInput();
+-		Document doc;
+-		Element root;
+-		try {
+-			SAXBuilder parser = new SAXBuilder();
+-			doc = parser.build(in);
+-			in.close();
+-			
+-			root = doc.getRootElement();
+-		} catch(Exception e) {
+-			doc = new Document();
+-			root = new Element(XML_ELEMENT);
+-			doc.setRootElement(root);
+-			
+-		}
+-		
+-		return doc;
+-	}
+-		    
+-	private static HashMap<Integer, Sample> samples;
+-	/**
+-	 * Loads the samples used in the expression data (Sample table) in memory
+-	 */
+-	public static void setSamples()
+-	{		
+-		try {
+-			ResultSet r = con.createStatement().executeQuery(
+-					"SELECT idSample, name, dataType FROM samples"
+-			);
+-			samples = new HashMap<Integer, Sample>();
+-			while(r.next())
+-			{
+-				int id = r.getInt(1);
+-				samples.put(id, new Sample(id, r.getString(2), r.getInt(3)));					
+-			}
+-		} catch (Exception e) {
+-			Engine.log.error("while loading data from the 'samples' table: " + e.getMessage(), e);
+-		}
+-	}
+-	
+-	public static Sample getSample(int id) {
+-		return getSamples().get(id);
+-	}
+-	
+-	/**
+-	 * This class represents a record in the Sample table of the Expression database. 
+-	 */
+-	public static class Sample implements Comparable<Sample>
+-	{
+-		private int idSample;
+-		private String name;
+-		private int dataType;
+-		
+-		/**
+-		 * Constructor of this class
+-		 * @param idSample	represents the 'idSample' column in the Sample table, an unique identifier
+-		 * for this sample
+-		 * @param name		represents the 'name' column in the Sample table, the name of the
+-		 * sample
+-		 * @param dataType	represents the 'dataType' column in the Sample table, the data type of
+-		 * the values stored in the column (using the field contsants in {@link java.sql.Types})
+-		 */
+-		public Sample(int idSample, String name, int dataType)
+-		{
+-			this.idSample = idSample;
+-			this.name = name;
+-			this.dataType = dataType;
+-		}
+-		
+-		public String getName() { return name == null ? "" : name; }
+-		protected void setName(String nm) { name = nm; }
+-		public int getDataType() { return dataType; }
+-		protected void setDataType(int type) { dataType = type; }
+-		public int getId() { return idSample; }
+-		protected void setId(int id) { idSample = id; }
+-		/**
+-		 * Compares this object to another {@link Sample} object based on the idSample property
+-		 * @param o	The {@link Sample} object to compare with
+-		 * @return	integer that is zero if the objects are equal, negative if this object has a
+-		 * lower idSample, positive if this object has a higher idSample
+-		 * @throws ClassCastException
+-		 */
+-		public int compareTo(Sample o)
+-		{
+-			return idSample - o.idSample;
+-		}
+-		
+-		public int hashCode() {
+-			return idSample;
+-		}
+-		
+-		public boolean equals(Object o) {
+-			if(o instanceof Sample) return ((Sample) o).idSample == idSample;
+-			return false;
+-		}
+-		
+-		/**
+-		 * Returns a readable String representation of this object
+-		 */
+-		public String toString()
+-		{
+-			return Integer.toString(idSample);
+-		}
+-	}
+-		
+-	public static HashMap<Integer, Sample> getSamples()
+-	{
+-		if(samples == null) setSamples();
+-		return samples;
+-	}
+-	
+-	public static List<String> getSampleNames() {
+-		return getSampleNames(-1);
+-	}
+-	
+-	public static List<String> getSampleNames(int dataType) {
+-		List<String> names = new ArrayList<String>();
+-		List<Sample> sorted = new ArrayList<Sample>(samples.values());
+-		Collections.sort(sorted);
+-		for(Sample s : sorted) {
+-			if(dataType == s.dataType || dataType == -1)
+-				names.add(s.getName());
+-		}
+-		return names;
+-	}
+-	
+-	public static List<Sample> getSamples(int dataType) {
+-		List<Sample> smps = new ArrayList<Sample>();
+-		List<Sample> sorted = new ArrayList<Sample>(samples.values());
+-		Collections.sort(sorted);
+-		for(Sample s : sorted) {
+-			if(dataType == s.dataType || dataType == -1)
+-				smps.add(s);
+-		}
+-		return smps;
+-	}
+-	
+-	public static List<Data> getCachedData(IdCodePair idc)
+-	{
+-		if(cachedData != null) {
+-			return cachedData.getData(idc);
+-		} else {
+-			return null;
+-		}
+-	}
+-	
+-	public static CachedData getCachedData() {
+-		return cachedData;
+-	}
+-
+-	/**
+-	 * Gets all available expression data for the given gene id and returns a string
+-	 * containing this data in a HTML table
+-	 * @param idc	the {@link IdCodePair} containing the id and code of the geneproduct to look for
+-	 * @return		String containing the expression data in HTML format or a string displaying a
+-	 * 'no expression data found' message in HTML format
+-	 */
+-	public static String getDataString(IdCodePair idc)
+-	{
+-		String noDataFound = "<P><I>No expression data found";
+-		String exprInfo = "<P><B>Gene id on mapp: " + idc.getId() + "</B><TABLE border='1'>";
+-		
+-		String colNames = "<TR><TH>Sample name";
+-		if(		con == null //Need a connection to the expression data
+-				|| Gdb.getCon() == null //and to the gene database
+-		) return noDataFound;
+-		
+-		List<Data> pwData = cachedData.getData(idc);
+-		
+-		if(pwData == null) return noDataFound;
+-		
+-		for(Data d : pwData){
+-			colNames += "<TH>" + d.getIdCodePair().getId();
+-		}
+-		
+-		String dataString = "";
+-		for(Sample s : getSamples().values())
+-		{
+-			dataString += "<TR><TH>" + s.name;
+-			for(Data d : pwData)
+-			{
+-				dataString += "<TH>" + d.getSampleData(s.idSample);
+-			}
+-		}
+-		
+-		return exprInfo + colNames + dataString + "</TABLE>";
+-	}
+-	
+-	/**
+-	 * Loads expression data for all the given gene ids into memory
+-	 * @param ids	Gene ids to cache the expression data for
+-	 * @param code	Systemcodes of the gene identifiers
+-	 * (typically all genes in a pathway)
+-	 */
+-	protected static void cacheData(ArrayList<String> ids, ArrayList<String> codes, ProgressKeeper p)
+-	{	
+-		cachedData = new CachedData();
+-		StopWatch timer = new StopWatch();
+-		timer.start();
+-			
+-		for(int i = 0; i < ids.size(); i++)
+-		{
+-			String id = ids.get(i);
+-			String code = codes.get(i);
+-			IdCodePair pwIdc = new IdCodePair(id, code);
+-			
+-			if(cachedData.hasData(pwIdc)) continue;
+-			
+-			ArrayList<String> ensIds = Gdb.ref2EnsIds(id, code); //Get all Ensembl genes for this id
+-			
+-			HashMap<Integer, Data> groupData = new HashMap<Integer, Data>();
+-			
+-			if(ensIds.size() > 0) //Only create a Data object if the id maps to an Ensembl gene
+-			{				
+-				StopWatch tt = new StopWatch();
+-				StopWatch ts = new StopWatch();
+-				
+-				tt.start();
+-				
+-				groupData.clear();
+-				
+-				for(String ensId : ensIds)
+-				{	
+-					try {
+-						ts.start();
+-						
+-						ResultSet r = con.createStatement().executeQuery(
+-								"SELECT id, code, data, idSample, groupId FROM expression " +
+-								" WHERE ensId = '" + ensId + "'");
+-						//r contains all genes and data mapping to the Ensembl id
+-						while(r.next())
+-						{
+-							int group = r.getInt("groupId");
+-							IdCodePair ref = new IdCodePair(r.getString("id"), r.getString("code"));
+-							Data data = groupData.get(group);
+-							if(data == null) {
+-								groupData.put(group, data = new Data(ref, group));
+-								cachedData.addData(pwIdc, data);
+-							}
+-							
+-							int idSample = r.getInt("idSample");					
+-							data.setSampleData(idSample, r.getString("data"));
+-						}
+-						
+-						ts.stopToLog("Fetching data for ens id: " + ensId + "\t");
+-					} catch (Exception e)
+-					{
+-						Engine.log.error("while caching expression data: " + e.getMessage(), e);
+-					}
+-				}
+-				
+-				tt.stopToLog(id + ", " + code + ": adding data to cache\t\t");
+-			}			
+-			if(p.isCancelled()) //Check if the process is interrupted
+-			{
+-				return;
+-			}
+-			p.worked(p.getTotalWork() / ids.size()); //Update the progress
+-		}
+-		p.finished();
+-		timer.stopToLog("Caching expression data\t\t\t");
+-		Engine.log.trace("> Nr of ids queried:\t" + ids.size());
+-	}
+-		
+-
+-	
+-	/**
+-	 * Imports expression data from a text file and saves it to an hsqldb expression database
+-	 * @param info		{@link GexImportWizard.ImportInformation} object that contains the 
+-	 * information needed to import the data
+-	 * @param p	{@link ProgressKeeper} that reports the progress of the process and enables
+-	 * the user to cancel
+-	 */
+-	protected static void importFromTxt(ImportInformation info, ProgressKeeper p)
+-	{
+-		int importWork = (int)(p.getTotalWork() * 0.8);
+-		int finalizeWork = (int)(p.getTotalWork() * 0.2);
+-		
+-//		Open a connection to the error file
+-		String errorFile = info.dbName + ".ex.txt";
+-		int errors = 0;
+-		PrintStream error = null;
+-		try {
+-			File ef = new File(errorFile);
+-			ef.getParentFile().mkdirs();
+-			error = new PrintStream(errorFile);
+-		} catch(IOException ex) {
+-			p.report("Error: could not open exception file: " + ex.getMessage());
+-			error = System.out;
+-		}
+-		
+-		StopWatch timer = new StopWatch();
+-		try 
+-		{
+-			p.report("\nCreating expression dataset");
+-						
+-			//Create a new expression database (or overwrite existing)
+-			connect(info.dbName, true, false);
+-			
+-			p.report("Importing data");
+-			p.report("> Processing headers");
+-			
+-			timer.start();
+-			
+-			BufferedReader in = new BufferedReader(new FileReader(info.getTxtFile()));
+-			//Get the number of lines in the file (for progress)
+-			int nrLines = FileUtils.getNrLines(info.getTxtFile().toString());
+-			
+-			String[] headers = info.getColNames();
+-			//Parse sample names and add to Sample table
+-			PreparedStatement pstmt = con.prepareStatement(
+-					" INSERT INTO SAMPLES " +
+-					"	(idSample, name, dataType)  " +
+-			" VALUES (?, ?, ?)		  ");
+-			int sampleId = 0;
+-			ArrayList<Integer> dataCols = new ArrayList<Integer>();
+-			for(int i = 0; i < headers.length; i++) {
+-				if(p.isCancelled()) { close(true); error.close(); return; } //User pressed cancel
+-				if(i != info.idColumn && i != info.codeColumn) { //skip the gene and systemcode column
+-					try {
+-						pstmt.setInt(1, sampleId++);
+-						pstmt.setString(2, headers[i]);
+-						pstmt.setInt(3, info.isStringCol(i) ? Types.CHAR : Types.REAL);
+-						pstmt.execute();
+-						dataCols.add(i);
+-					} catch(Error e) { 
+-						errors = reportError(error, "Error in headerline, can't add column " + i + 
+-								" due to: " + e.getMessage(), errors);
+-						
+-					}
+-				}
+-			}
+-			
+-			p.report("> Processing lines");
+-			
+-			//Check ids and add expression data
+-			for(int i = 1; i < info.firstDataRow; i++) in.readLine(); //Go to line where data starts
+-			pstmt = con.prepareStatement(
+-					"INSERT INTO expression			" +
+-					"	(id, code, ensId,			" + 
+-					"	 idSample, data, groupId)	" +
+-			"VALUES	(?, ?, ?, ?, ?, ?)			");
+-			String line = null;
+-			int n = info.firstDataRow - 1;
+-			int added = 0;
+-			int worked = importWork / nrLines;
+-			while((line = in.readLine()) != null) 
+-			{
+-				if(p.isCancelled()) { close(); error.close(); return; } //User pressed cancel
+-				String[] data = line.split(ImportInformation.DELIMITER, headers.length);
+-				n++;
+-				if(n == info.headerRow) continue; //Don't add header row (very unlikely that this will happen)
+-				if(data.length < headers.length) {
+-					errors = reportError(error, "Number of columns in line " + n + 
+-							"doesn't match number of header columns",
+-							errors);
+-					continue;
+-				}
+-				p.setTaskName("Importing expression data - processing line " + n + "; " + errors + " exceptions");
+-				//Check id and add data
+-				String id = data[info.idColumn].trim();
+-				String code = data[info.codeColumn].trim();
+-				ArrayList<String> ensIds = Gdb.ref2EnsIds(id, code); //Find the Ensembl genes for current gene
+-				
+-				if(ensIds.size() == 0) //No Ensembl gene found
+-				{
+-					errors = reportError(error, "Line " + n + ": " + id + "\t" + code + 
+-							"\t No Ensembl gene found for this identifier", errors);
+-				} else { //Gene maps to an Ensembl id, so add it
+-					boolean success = true;
+-					for( String ensId : ensIds) //For every Ensembl id add the data
+-					{
+-						for(int col : dataCols)
+-						{
+-							if(!info.isStringCol(col) 
+-									&& (data[col] == null || data[col].equals(""))) {
+-								data[col] = "NaN";
+-							}
+-							try {
+-								pstmt.setString(1,id);
+-								pstmt.setString(2,code);
+-								pstmt.setString(3, ensId);
+-								pstmt.setString(4, Integer.toString(dataCols.indexOf(col)));
+-								pstmt.setString(5, data[col]);
+-								pstmt.setInt(6, added);
+-								pstmt.execute();
+-							} catch (Exception e) {
+-								errors = reportError(error, "Line " + n + ":\t" + line + "\n" + 
+-										"\tException: " + error, errors);
+-								success = false;
+-							}
+-						}
+-					}
+-					if(success) added++;
+-				}
+-				p.worked(worked);
+-			}
+-			p.report(added + " genes were added succesfully to the expression dataset");
+-			if(errors > 0) {
+-				p.report(errors + " exceptions occured, see file '" + errorFile + "' for details");
+-			} else {
+-				new File(errorFile).delete(); // If no errors were found, delete the error file
+-			}
+-			p.setTaskName("Closing database connection");
+-			close(true);
+-			p.worked(finalizeWork);
+-			
+-			error.println("Time to create expression dataset: " + timer.stop());
+-			error.close();
+-			
+-			try {
+-				connect(); //re-connect and use the created expression dataset
+-			} catch(Exception e) {
+-				Engine.log.error("Exception on connecting expression dataset from import thread", e);
+-			}
+-			
+-			p.finished();
+-		} catch(Exception e) { 
+-			p.report("Import aborted due to error: " + e.getMessage());
+-			Engine.log.error("Expression data import error", e);
+-			close(true);
+-			error.close();
+-		}
+-	}
+-	
+-	private static int reportError(PrintStream out, String message, int nrError) 
+-	{
+-		out.println(message);
+-		nrError++;
+-		return nrError;
+-	}
+-	/**
+-	 * {@link Connection} to the GenMAPP Expression Dataset
+-	 */
+-	private static Connection conGmGex;
+-
+-	private static File gmGexFile;
+-	/**
+-	 * Returns the file that contains the GenMAPP Expression Dataset
+-	 */
+-	public static File getGmGexFile() { return gmGexFile; }
+-	/**
+-	 * Sets the file that contains the GenMAPP Expression Dataset
+-	 */
+-	public static void setGmGexFile(File file) { gmGexFile = file; }
+-	
+-	/**
+-	 * Converts the GenMAPP Expression Dataset to a expression database
+-	 * in Hsqldb format as used by this program.
+-	 * <BR><BR>This method reports all errors occured during the conversion to a file named 'convert_gex_error.txt'
+-	 */
+-	public static void convertGex(ProgressKeeper p)
+-	{
+-		//Open a connection to the error file
+-		PrintWriter error = null;
+-		try {
+-			error = new PrintWriter(new FileWriter("convert_gex_error.txt"));
+-		} catch(IOException ex) {
+-			Engine.log.error("Unable to open error file for gdb conversion: " + ex.getMessage(), ex);
+-		}
+-		
+-		try {
+-			connect(null, true, false); //Connect and delete the old database if exists
+-			connectGmGex(gmGexFile); //Connect to the GenMAPP gex
+-			
+-			con.setAutoCommit(false); //Keep control over when to commit, should increase speed
+-			Statement s = conGmGex.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+-			
+-			PreparedStatement pstmtExpr = con.prepareStatement(
+-					"INSERT INTO expression			" +
+-					"	(id, code, ensId,			" + 
+-					"	 idSample, data)			" +
+-			"VALUES	(?, ?, ?, ?, ?)			");
+-			
+-			ResultSet r = s.executeQuery("SELECT * FROM Expression");
+-			r.last();
+-			int nrRows = r.getRow(); //Get the number of rows for keeping track of the progress
+-			r.beforeFirst(); //Set the cursor back to the start
+-			
+-			// Fill the Sample table
+-			ResultSetMetaData rsmd = r.getMetaData(); 
+-			int nCols = rsmd.getColumnCount();
+-			for(int i = 4; i < nCols - 1; i++) // Column 4 to 2 before last contain expression data
+-			{
+-				int dataType = rsmd.getColumnType(i);
+-				String sampleName = rsmd.getColumnName(i);
+-				// Add new sample
+-				con.createStatement().execute("INSERT INTO SAMPLES" +
+-						"	(idSample, name, dataType)" + 
+-						"VALUES ( " + (i - 4) + ",'" + sampleName + "', " + dataType + " )");
+-			}
+-			
+-			//Fill the Expression table
+-			int nq = 0; //The number of queries excecuted
+-			String id = "";
+-			String code = "";
+-			while(r.next()) { //Process all rows of the expression data
+-				if(p.isCancelled()) //Check if the user cancelled the conversion
+-				{
+-					closeGmGex();
+-					close();
+-					return;
+-				}
+-				
+-				id = r.getString("ID");
+-				code = r.getString("SystemCode");
+-				ArrayList<String> ensIds = Gdb.ref2EnsIds(id, code); //Find the Ensembl genes for current gene
+-				
+-				if(ensIds.size() == 0) //No Ensembl gene found
+-				{
+-					error.println(id + "\t" + code + "\t No Ensembl gene found for this identifier");
+-				} else { //Gene maps to an Ensembl id, so add it
+-					ArrayList<String> data = new ArrayList<String>();
+-					for(int i = 4; i < nCols - 1; i++) { // Column 4 to 2 before last contain expression data
+-						data.add(r.getString(i));
+-					}
+-					for( String ensId : ensIds) //For every Ensembl id add the data
+-					{
+-						int i = 0;
+-						for(String str : data)
+-						{
+-							try {
+-								pstmtExpr.setString(1,id);
+-								pstmtExpr.setString(2,code);
+-								pstmtExpr.setString(3, ensId);
+-								pstmtExpr.setInt(4,i);
+-								pstmtExpr.setString(5,str);
+-								pstmtExpr.execute();
+-							} catch (Exception e) {
+-								error.println(id + ", " + code + ", " + i + "\t" + e.getMessage());
+-							}
+-							i++;
+-						}
+-					}
+-				}
+-				nq++;
+-				if(nq % 1000 == 0) //Commit every 1000 queries
+-					con.commit();
+-				p.worked(p.getTotalWork()/nrRows); //Report progress
+-			}
+-			con.commit();	
+-		} catch(Exception e) {
+-			error.println("Error: " + e.getMessage());
+-		}
+-		error.println("END");
+-		error.close();
+-		closeGmGex();
+-		close();
+-		
+-//		setGexReadOnly(true);
+-		
+-		p.finished();
+-	}
+-	
+-	public static DBConnectorSwt getDBConnector() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+-		return Engine.getDbConnector(DBConnectorSwt.TYPE_GEX);
+-	}
+-	
+-	/**
+-	 * Connects to the Expression database with
+-	 * option to remove the old database
+-	 * @param 	create true if the old database has to be removed, false for just connecting
+-	 */
+-	public static void connect(String dbName, boolean create, boolean fireEvent) throws Exception
+-	{
+-		close();
+-		
+-		if(dbName != null) setDbName(dbName);
+-		
+-		DBConnectorSwt connector = getDBConnector();
+-		
+-		if(create) {
+-			con = connector.createNewDatabase(getDbName());
+-		} else {
+-			con = connector.createConnection(getDbName());
+-			setSamples();
+-			loadXML();
+-		}
+-
+-		con.setReadOnly( !create );
+-		
+-		if(fireEvent)
+-			fireExpressionDataEvent(new ExpressionDataEvent(Gex.class, ExpressionDataEvent.CONNECTION_OPENED));
+-	}
+-	
+-	/**
+-	 * Connects to the Expression database 
+-	 */
+-	public static void connect() throws Exception
+-	{
+-		connect(null, false, true);
+-	}
+-	
+-	public static void connect(String dbName) throws Exception
+-	{
+-		connect(dbName, false, true);
+-	}
+-		
+-	/**
+-	 * Close the connection to the Expression database, with option to execute the 'SHUTDOWN COMPACT'
+-	 * statement before calling {@link Connection#close()}
+-	 * @param finalize true to excecute the 'SHUTDOWN COMPACT' statement, false to just close the connection
+-	 */
+-	public static void close(boolean finalize)
+-	{
+-		if(con != null)
+-		{
+-			try
+-			{
+-				saveXML();
+-				
+-				DBConnectorSwt connector = getDBConnector();
+-				if(finalize) {
+-					connector.compact(con);
+-					connector.createIndices(con);
+-					String newDb = connector.finalizeNewDatabase(dbName);
+-					setDbName(newDb);
+-				} else {
+-					connector.closeConnection(con);
+-				}
+-				fireExpressionDataEvent(new ExpressionDataEvent(Gex.class, ExpressionDataEvent.CONNECTION_CLOSED));
+-				
+-			} catch (Exception e) {
+-				Engine.log.error("Error while closing connection to expression dataset " + dbName, e);
+-			}
+-			con = null;
+-		}
+-	}
+-	
+-	/**
+-	 * Close the connection excecuting the 'SHUTDOWN' statement 
+-	 * before calling {@link Connection#close()}
+-	 */
+-	public static void close()
+-	{
+-		close(false);
+-	}
+-	
+-	/**
+-	 * Connect to the GenMAPP Expression Dataset specified by the given file
+-	 * @param gmGexFile	File containing the GenMAPP Expression Dataset
+-	 */
+-	public static void connectGmGex(File gmGexFile) {
+-		String database_after = ";DriverID=22;READONLY=true";
+-		String database_before =
+-			"jdbc:odbc:Driver={Microsoft Access Driver (*.mdb)};DBQ=";
+-		try {
+-			Class.forName("sun.jdbc.odbc.JdbcOdbcDriver");
+-			conGmGex = DriverManager.getConnection(
+-					database_before + gmGexFile.toString() + database_after, "", "");
+-		} catch (Exception e) {
+-			Engine.log.error("Error: Unable to open connection go GenMAPP gex " + gmGexFile +
+-					": " +e.getMessage(), e);
+-		}
+-	}
+-	
+-	/**
+-	 * Close the connection to the GenMAPP Expression Dataset
+-	 */
+-	public static void closeGmGex() {
+-		if(conGmGex != null)
+-		{
+-			try {
+-				conGmGex.close();
+-				conGmGex = null;
+-			} catch (Exception e) {
+-				Engine.log.error("Error while closing connection to GenMAPP gex: " + e.getMessage(), e);
+-			}
+-		}
+-	}
+-	
+-	public void applicationEvent(ApplicationEvent e) {
+-		switch(e.type) {
+-		case ApplicationEvent.APPLICATION_CLOSE:
+-			if(isConnected()) close();
+-		}
+-	}
+-	
+-	static List<ExpressionDataListener> listeners;
+-	
+-	/**
+-	 * Add a {@link ExpressionDataListener}, that will be notified if an
+-	 * event related to expression data occurs
+-	 * @param l The {@link ExpressionDataListener} to add
+-	 */
+-	public static void addListener(ExpressionDataListener l) {
+-		if(listeners == null) listeners = new ArrayList<ExpressionDataListener>();
+-		listeners.add(l);
+-	}
+-	
+-	/**
+-	 * Fire a {@link ExpressionDataEvent} to notify all {@link ExpressionDataListener}s registered
+-	 * to this class
+-	 * @param e
+-	 */
+-	public static void fireExpressionDataEvent(ExpressionDataEvent e) {
+-		for(ExpressionDataListener l : listeners) l.expressionDataEvent(e);
+-	}
+-	
+-	public interface ExpressionDataListener {
+-		public void expressionDataEvent(ExpressionDataEvent e);
+-	}
+-	
+-	public static class ExpressionDataEvent extends EventObject {
+-		private static final long serialVersionUID = 1L;
+-		public static final int CONNECTION_OPENED = 0;
+-		public static final int CONNECTION_CLOSED = 1;
+-
+-		public Object source;
+-		public int type;
+-		
+-		public ExpressionDataEvent(Object source, int type) {
+-			super(source);
+-			this.source = source;
+-			this.type = type;
+-		}
+-	}
+-}
+Index: trunk/src/core/org/pathvisio/data/DBConnector.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/DBConnector.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/data/DBConnector.java	(revision 1022)
+@@ -17,6 +17,7 @@
+ package org.pathvisio.data;
+ 
+ import java.sql.Connection;
++import java.sql.SQLException;
+ 
+ public interface DBConnector {
+ 	public static final int PROP_NONE = 0;
+@@ -31,7 +32,76 @@
+ 	 * Type for expression database
+ 	 */
+ 	public static final int TYPE_GEX = 1;
+-	
++
+ 	public abstract Connection createConnection(String dbName) throws Exception;
++
+ 	public abstract Connection createConnection(String dbName, int props) throws Exception;	
++	
++	/**
++	 * Close the given connection
++	 * @param con The connection to be closed
++	 * @throws Exception
++	 */
++	public void closeConnection(Connection con) throws Exception;
++	/**
++	 * Close the given connection, and optionally finalize it after creation (using {@link #PROP_FINALIZE})
++	 * @param con The connection to be closed
++	 * @param props Close properties (one of {@link #PROP_NONE}, {@link #PROP_FINALIZE} or {@link #PROP_RECREATE})
++	 * @throws Exception
++	 */
++	public void closeConnection(Connection con, int props) throws Exception;
++	
++	/**
++	 * Set the database type (one of {@link #TYPE_GDB} or {@link #TYPE_GEX})
++	 * @param type The type of the database that will be used for this class
++	 */
++	public void setDbType(int type);
++	
++	/**
++	 * Get the database type (one of {@link #TYPE_GDB} or {@link #TYPE_GEX})
++	 * return The type of the database that is used for this class
++	 */
++	public int getDbType();
++	
++	/**
++	 * Create a new database with the given name. This includes creating tables.
++	 * @param dbName The name of the database to create
++	 * @return A connection to the newly created database
++	 * @throws Exception 
++	 * @throws Exception
++	 */
++	public Connection createNewDatabase(String dbName) throws Exception;
++	
++	/**
++	 * This method is called to finalize the given database after creation
++	 * (e.g. set read-only, archive files). The database name needs to returned, this
++	 * may change when finalizing the database modifies the storage type (e.g. from directory
++	 * to single file).
++	 * @param dbName The name of the database to finalize	
++	 * @throws Exception
++	 * @return The name of the finalized database
++	 */
++	public String finalizeNewDatabase(String dbName) throws Exception;
++	
++	/**
++	 * Excecutes several SQL statements to create the tables and indexes for storing 
++	 * the expression data
++	 */
++	public void createTables(Connection con) throws Exception;
++	
++	/**
++	 * Creates indices for a newly created expression database.
++	 * @param con The connection to the expression database
++	 * @throws SQLException
++	 */
++	public void createIndices(Connection con) throws SQLException;
++	
++	/**
++	 * This method may be implemented when the database files need to be
++	 * compacted or defragmented after creation of a new database. It will be called
++	 * after all data is added to the database.
++	 * @param con A connection to the database
++	 * @throws SQLException
++	 */
++	public void compact(Connection con) throws SQLException;
+ }
+Index: trunk/src/core/org/pathvisio/data/AbstractDBConnector.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/AbstractDBConnector.java	(revision 0)
++++ trunk/src/core/org/pathvisio/data/AbstractDBConnector.java	(revision 1022)
+@@ -0,0 +1,102 @@
++package org.pathvisio.data;
++
++import java.sql.Connection;
++import java.sql.SQLException;
++import java.sql.Statement;
++
++import org.pathvisio.Engine;
++
++public abstract class AbstractDBConnector implements DBConnector {
++	public static final int COMPAT_VERSION = 1;
++	private int dbType;
++	
++	public abstract Connection createConnection(String dbName) throws Exception;
++	public abstract Connection createConnection(String dbName, int props) throws Exception;	
++	
++	public void closeConnection(Connection con) throws Exception {
++		closeConnection(con, PROP_NONE);
++	}
++	
++
++	public void closeConnection(Connection con, int props) throws Exception {
++		con.close();
++	}
++
++	public final Connection createNewDatabase(String dbName) throws Exception {
++		Connection con = createNewDatabaseConnection(dbName);
++		createTables(con);
++		return con;
++	}
++	
++	private Connection createNewDatabaseConnection(String dbName) throws Exception {
++		return createConnection(dbName, PROP_RECREATE);
++	}
++
++	public abstract String finalizeNewDatabase(String dbName) throws Exception;
++		
++	public void setDbType(int type) { dbType = type; }
++
++	public int getDbType() { return dbType; }
++
++	public void createTables(Connection con) throws Exception {	
++			con.setReadOnly(false);
++			Statement sh = con.createStatement();
++			try { sh.execute("DROP TABLE info"); } catch(SQLException e) { Engine.log.error("Error: unable to drop expression data tables: "+e.getMessage(), e); }
++			try { sh.execute("DROP TABLE samples"); } catch(SQLException e) { Engine.log.error("Error: unable to drop expression data tables: "+e.getMessage(), e); }
++			try { sh.execute("DROP TABLE expression"); } catch(SQLException e) { Engine.log.error("Error: unable to drop expression data tables: "+e.getMessage(), e); }
++			
++			sh.execute(
++					"CREATE TABLE					" +
++					"		info							" +
++					"(	  version INTEGER PRIMARY KEY		" +
++					")");
++			sh.execute( //Add compatibility version of GEX
++					"INSERT INTO info VALUES ( " + COMPAT_VERSION + ")");
++			sh.execute(
++					"CREATE TABLE                    " +
++					"		samples							" +
++					" (   idSample INTEGER PRIMARY KEY,		" +
++					"     name VARCHAR(50),					" +
++					"	  dataType INTEGER					" +
++			" )										");
++			
++			sh.execute(
++					"CREATE TABLE					" +
++					"		expression						" +
++					" (   id VARCHAR(50),					" +
++					"     code VARCHAR(50),					" +
++					"	  ensId VARCHAR(50),				" +
++					"     idSample INTEGER,					" +
++					"     data VARCHAR(50),					" +
++					"	  groupId INTEGER 					" +
++//					"     PRIMARY KEY (id, code, idSample, data)	" +
++					")										");
++	}
++
++	public void createIndices(Connection con) throws SQLException {
++		con.setReadOnly(false);
++		Statement sh = con.createStatement();
++		sh.execute(
++				"CREATE INDEX i_expression_id " +
++		"ON expression(id)			 ");
++		sh.execute(
++				"CREATE INDEX i_expression_ensId " +
++		"ON expression(ensId)			 ");
++		sh.execute(
++				"CREATE INDEX i_expression_idSample " +
++		"ON expression(idSample)	 ");
++		sh.execute(
++				"CREATE INDEX i_expression_data " +
++		"ON expression(data)	     ");
++		sh.execute(
++				"CREATE INDEX i_expression_code " +
++		"ON expression(code)	 ");
++		sh.execute(
++				"CREATE INDEX i_expression_groupId" +
++		" ON expression(groupId)	");
++	}
++
++	public void compact(Connection con) throws SQLException {
++		//May be implemented by subclasses
++	}
++}
+Index: trunk/src/core/org/pathvisio/data/Gdb.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/Gdb.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/data/Gdb.java	(revision 1022)
+@@ -34,9 +34,7 @@
+ 
+ import org.pathvisio.Engine;
+ import org.pathvisio.debug.StopWatch;
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.GlobalPreference;
+-import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ 
+ /**
+  * This class handles everything related to the Gene Database. It contains the database connection,
+@@ -74,14 +72,14 @@
+ 	 */
+ 	public static void init()
+ 	{
+-		String currGdb = SwtPreference.SWT_CURR_GDB.getValue();
+-		if(!currGdb.equals("") && !GlobalPreference.isDefault(SwtPreference.SWT_CURR_GDB))
++		String currGdb = GlobalPreference.DB_GDB_CURRENT.getValue();
++		if(!currGdb.equals("") && !GlobalPreference.isDefault(GlobalPreference.DB_GDB_CURRENT))
+ 		{
+ 			dbName = currGdb;
+ 			try {
+ 				connect(null);
+ 			} catch(Exception e) {
+-				setCurrentGdb(SwtPreference.SWT_CURR_GDB.getDefault());
++				setCurrentGdb(GlobalPreference.DB_GDB_CURRENT.getDefault());
+ 			}
+ 		}
+ 	}
+@@ -92,9 +90,7 @@
+ 	 */
+ 	public static void setCurrentGdb(String dbNm) {
+ 		dbName = dbNm; 
+-		SwtPreference.SWT_CURR_GDB.setValue(dbNm);
+-		try { SwtEngine.getPreferences().save(); } 
+-		catch(Exception e) { Engine.log.error("Unable to save preferences", e); } 
++		GlobalPreference.DB_GDB_CURRENT.setValue(dbNm);
+ 	}
+ 	
+ 	/**
+@@ -364,8 +360,8 @@
+ 		}
+ 	}
+ 	
+-	public static DBConnectorSwt getDBConnector() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+-		return Engine.getDbConnector(DBConnectorSwt.TYPE_GDB);
++	public static DBConnector getDBConnector() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
++		return Engine.getDbConnector(DBConnector.TYPE_GDB);
+ 	}
+ 	
+ 	/**
+@@ -377,7 +373,7 @@
+ 	{
+ 		if(dbName == null) dbName = getDbName();
+ 		
+-		DBConnectorSwt connector = getDBConnector();
++		DBConnector connector = getDBConnector();
+ 		con = connector.createConnection(dbName);
+ 		con.setReadOnly(true);
+ //		Utils.checkDbVersion(con, COMPAT_VERSION); NOT FOR NOW
+@@ -391,7 +387,7 @@
+ 	{
+ 		if(con != null) {
+ 			try {
+-				DBConnectorSwt connector = getDBConnector();
++				DBConnector connector = getDBConnector();
+ 				connector.closeConnection(con);
+ 			} catch(Exception e) {
+ 				Engine.log.error("Unable to close database connection", e);
+@@ -420,7 +416,7 @@
+ 		{
+ 			close();
+ 			
+-			DBConnectorSwt connector = null;
++			DBConnector connector = null;
+ 			Connection convertCon = null;
+ 			Connection conGdb = null;
+ 			
+@@ -438,7 +434,7 @@
+ 			
+ 			//Create hsqldb gdb
+ 			connector = getDBConnector();
+-			convertCon = connector.createConnection(dbName, DBConnectorSwt.PROP_RECREATE);
++			convertCon = connector.createConnection(dbName, DBConnector.PROP_RECREATE);
+ 			
+ 			// Fetch size of database to convert (for progress monitor)
+ 			Statement s = conGdb.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1021)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1022)
+@@ -38,8 +38,6 @@
+ import javax.swing.KeyStroke;
+ 
+ import org.pathvisio.Engine;
+-import org.pathvisio.gui.swt.AlignActions;
+-import org.pathvisio.gui.swt.StackActions;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -51,17 +49,13 @@
+ import org.pathvisio.model.PathwayListener;
+ import org.pathvisio.model.ShapeType;
+ import org.pathvisio.model.PathwayElement.MPoint;
+-import org.pathvisio.visualization.Visualization;
+-import org.pathvisio.visualization.VisualizationManager;
+-import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+-import org.pathvisio.visualization.VisualizationManager.VisualizationListener;
+ 
+ /**
+  * This class implements and handles a drawing. Graphics objects are stored in
+  * the drawing and can be visualized. The class also provides methods for mouse
+  * and key event handling.
+  */
+-public class VPathway implements PathwayListener, VisualizationListener
++public class VPathway implements PathwayListener
+ {	
+ 	private static final long serialVersionUID = 1L;
+ 	static final double M_PASTE_OFFSET = 10 * 15;
+@@ -132,7 +126,6 @@
+ 		s = new SelectionBox(this);
+ 		
+ 		registerKeyboardActions();
+-		VisualizationManager.addListener(this);
+ 	}
+ 	
+ 	public void redraw()
+@@ -1095,31 +1088,32 @@
+ 	public void mouseExit(MouseEvent e)
+ 	{
+ 	}
+-	
+-	/**
+-	 * Responsible for drawing a tooltip displaying expression data when 
+-	 * hovering over a geneproduct
+-	 */
+-	public void mouseHover(MouseEvent e)
+-	{
+-		Visualization v = VisualizationManager.getCurrent();
+-		if (v != null && v.usesToolTip())
+-		{
+-			Point2D p = new Point2D.Double(e.getX(), e.getY());
+-			
+-			VPathwayElement o = getObjectAt(p);
+-			if (o != null && o instanceof Graphics)
+-			{
+-				// Shell tip = v.visualizeToolTip(getShell(), this,
+-				// (Graphics)o);
+-//				if(tip == null) return;
+-//				Point mp = toDisplay(e.x + 15, e.y + 15);
+-//				tip.setLocation(mp.x, mp.y);
+-//	            tip.setVisible(true);
+-			}
+-		}
+-	}
+ 
++	//TODO: fix tooltips
++//	/**
++//	 * Responsible for drawing a tooltip displaying expression data when 
++//	 * hovering over a geneproduct
++//	 */
++//	public void mouseHover(MouseEvent e)
++//	{
++//		Visualization v = VisualizationManager.getCurrent();
++//		if (v != null && v.usesToolTip())
++//		{
++//			Point2D p = new Point2D.Double(e.getX(), e.getY());
++//			
++//			VPathwayElement o = getObjectAt(p);
++//			if (o != null && o instanceof Graphics)
++//			{
++//				// Shell tip = v.visualizeToolTip(getShell(), this,
++//				// (Graphics)o);
++////				if(tip == null) return;
++////				Point mp = toDisplay(e.x + 15, e.y + 15);
++////				tip.setLocation(mp.x, mp.y);
++////	            tip.setVisible(true);
++//			}
++//		}
++//	}
++
+ 	private void selectGeneProducts()
+ 	{
+ 		clearSelection();
+@@ -1419,7 +1413,7 @@
+ 	 * 
+ 	 * @param alignType
+ 	 */
+-	public void alignSelected(char alignType)
++	public void alignSelected(AlignType alignType)
+ 	{
+ 		List<Graphics> selectedGraphics = getSelectedGraphics();
+ 		
+@@ -1427,7 +1421,7 @@
+ 		{
+ 			switch (alignType)
+ 			{
+-			case AlignActions.CENTERX : 
++			case CENTERX : 
+ 				Collections.sort(selectedGraphics, new YComparator());		   
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{
+@@ -1436,7 +1430,7 @@
+ 							);
+ 				}
+ 				break;
+-			case AlignActions.CENTERY : 
++			case CENTERY : 
+ 				Collections.sort(selectedGraphics, new XComparator());			
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1445,7 +1439,7 @@
+ 							);
+ 				}
+ 				break;
+-			case AlignActions.LEFT :
++			case LEFT :
+ 				Collections.sort(selectedGraphics, new YComparator());								
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1454,7 +1448,7 @@
+ 							);
+ 						}
+ 				break;
+-			case AlignActions.RIGHT : 
++			case RIGHT : 
+ 				Collections.sort(selectedGraphics, new YComparator());								
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1465,7 +1459,7 @@
+ 							);
+ 					}	
+ 				break;
+-			case AlignActions.TOP:
++			case TOP:
+ 				Collections.sort(selectedGraphics, new XComparator());			
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1474,7 +1468,7 @@
+ 							);
+ 				}
+ 				break;
+-			case AlignActions.BOTTOM:
++			case BOTTOM:
+ 				Collections.sort(selectedGraphics, new XComparator());			
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1485,6 +1479,10 @@
+ 							);
+ 				}
+ 				break;
++			case WIDTH:
++			case HEIGHT:
++				scaleSelected(alignType);
++				break;
+ 					}
+ 			redrawDirtyRect();
+ 				}
+@@ -1495,7 +1493,7 @@
+ 	 * 
+ 	 * @param stackType
+ 	 */
+-	public void stackSelected(char stackType)
++	public void stackSelected(StackType stackType)
+ 	{
+ 		List<Graphics> selectedGraphics = getSelectedGraphics();
+ 
+@@ -1503,7 +1501,7 @@
+ 		{
+ 			switch (stackType)
+ 			{
+-			case StackActions.CENTERX:
++			case CENTERX:
+ 				Collections.sort(selectedGraphics, new YComparator());		   
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{
+@@ -1516,7 +1514,7 @@
+ 							);
+ 				}		
+ 				break;
+-			case StackActions.CENTERY:
++			case CENTERY:
+ 				Collections.sort(selectedGraphics, new XComparator());			
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1529,7 +1527,7 @@
+ 							);
+ 					}
+ 				break;
+-			case StackActions.LEFT:
++			case LEFT:
+ 				Collections.sort(selectedGraphics, new YComparator());								
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1542,7 +1540,7 @@
+ 							);
+ 				}
+ 				break;
+-			case StackActions.RIGHT:
++			case RIGHT:
+ 				Collections.sort(selectedGraphics, new YComparator());								
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1558,7 +1556,7 @@
+ 
+ 				}
+ 				break;
+-			case StackActions.TOP:
++			case TOP:
+ 				Collections.sort(selectedGraphics, new XComparator());			
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1571,7 +1569,7 @@
+ 							);
+ 			}
+ 				break;
+-			case StackActions.BOTTOM:
++			case BOTTOM:
+ 				Collections.sort(selectedGraphics, new XComparator());			
+ 				for (int i=1; i<selectedGraphics.size(); i++)
+ 				{				
+@@ -1595,7 +1593,7 @@
+ 	 * 
+ 	 * @param alignType
+ 	 */
+-	public void scaleSelected(char alignType)
++	public void scaleSelected(AlignType alignType)
+ 	{
+ 		
+ 		List<Graphics> selectedGraphics = getSelectedGraphics();
+@@ -1606,7 +1604,7 @@
+ 		{
+ 			switch (alignType)
+ 			{
+-			case AlignActions.WIDTH:
++			case WIDTH:
+ 				for (Graphics g : selectedGraphics)
+ 				{
+ 					Rectangle2D r = g.getVScaleRectangle();
+@@ -1633,7 +1631,7 @@
+ 					}
+ 				}
+ 				break;
+-			case AlignActions.HEIGHT:
++			case HEIGHT:
+ 				for (Graphics g : selectedGraphics)
+ 				{
+ 					Rectangle2D r = g.getVScaleRectangle();
+@@ -1812,23 +1810,6 @@
+ 		}
+ 	}
+ 	
+-	public void visualizationEvent(VisualizationEvent e)
+-	{
+-		switch (e.type)
+-		{
+-		case(VisualizationEvent.COLORSET_MODIFIED):
+-		case(VisualizationEvent.VISUALIZATION_SELECTED):
+-		case(VisualizationEvent.VISUALIZATION_MODIFIED):
+-		case(VisualizationEvent.PLUGIN_MODIFIED):
+-			//getDisplay().syncExec(new Runnable() {
+-			//	public void run() {
+-					redraw();
+-			//	}
+-			//});
+-		}
+-	}	
+-	
+-	
+ 	/** 
+ 	 * helper method to convert view coordinates to model coordinates 
+ 	 */
+Index: trunk/src/core/org/pathvisio/view/StackType.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/StackType.java	(revision 0)
++++ trunk/src/core/org/pathvisio/view/StackType.java	(revision 1022)
+@@ -0,0 +1,33 @@
++package org.pathvisio.view;
++
++public enum StackType {	
++	CENTERX("Center X", "Stack vertical center", "icons/stackverticalcenter.gif"),
++	CENTERY("Center Y", "Stack horizontal center", "icons/stackhorizontalcenter.gif"),
++	LEFT("Left", "Stack vertical left", "icons/stackverticalleft.gif"),
++	RIGHT("Right", "Stack veritcal right", "icons/stackverticalright.gif"),
++	TOP("Top", "Stack horizontal top", "icons/stackhorizontaltop.gif"),
++	BOTTOM("Bottom", "Stack horizontal bottom", "icons/stackhorizontalbottom.gif"),
++	;
++	
++	String label;
++	String description;
++	String icon;
++	
++	StackType(String label, String tooltip, String icon) {
++		this.label = label;
++		this.description = tooltip;
++		this.icon = icon;
++	}
++
++	public String getIcon() {
++		return icon;
++	}
++
++	public String getLabel() {
++		return label;
++	}
++
++	public String getDescription() {
++		return description;
++	}
++}
+Index: trunk/src/core/org/pathvisio/view/AlignType.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/AlignType.java	(revision 0)
++++ trunk/src/core/org/pathvisio/view/AlignType.java	(revision 1022)
+@@ -0,0 +1,35 @@
++package org.pathvisio.view;
++
++public enum AlignType {
++	CENTERX("Center X", "Align horizontal centers", "icons/aligncenterx.gif"),
++	CENTERY("Center Y", "Align vertical centers", "icons/aligncentery.gif"),
++	LEFT("Left", "Align left edges", "icons/alignleft.gif"),
++	RIGHT("Right", "Align right edges", "icons/alignright.gif"),
++	TOP("Top", "Align top edges", "icons/aligntop.gif"),
++	BOTTOM("Bottom", "Align bottom edges", "icons/alignbottom.gif"),
++	WIDTH("Width", "Set common width", "icons/sizeheight.gif"),
++	HEIGHT("Height", "Set common height", "icons/sizeheight.gif"),
++	;
++	
++	String label;
++	String description;
++	String icon;
++	
++	AlignType(String label, String tooltip, String icon) {
++		this.label = label;
++		this.description = tooltip;
++		this.icon = icon;
++	}
++
++	public String getIcon() {
++		return icon;
++	}
++
++	public String getLabel() {
++		return label;
++	}
++
++	public String getDescription() {
++		return description;
++	}
++}
+Index: trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 1022)
+@@ -150,9 +150,6 @@
+ 		SWT_DIR_EXPR(new File(SwtEngine.getDataDir().toString(), "expression datasets").toString()),
+ 		SWT_DIR_RDATA(new File(SwtEngine.getDataDir().toString(), "R data").toString()),
+ 
+-		SWT_CURR_GDB("none"),
+-		SWT_DB_ENGINE_GDB("org.pathvisio.data.DBConnDerby"),
+-		SWT_DB_ENGINE_EXPR("org.pathvisio.data.DBConnDerby"),
+ 		SWT_SIDEPANEL_SIZE("30");
+ 		
+ 		SwtPreference(String defaultValue) {
+Index: trunk/src/swt/org/pathvisio/preferences/swt/PreferenceDlg.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 1022)
+@@ -133,10 +133,10 @@
+ 		}
+ 		
+ 		protected void createFieldEditors() {
+-			StringFieldEditor f1 = new StringFieldEditor(SwtPreference.SWT_DB_ENGINE_GDB.name(),
++			StringFieldEditor f1 = new StringFieldEditor(GlobalPreference.DB_ENGINE_GDB.name(),
+ 					"Database connector class for gene database:", getFieldEditorParent());
+ 			addField(f1);
+-			StringFieldEditor f2 = new StringFieldEditor(SwtPreference.SWT_DB_ENGINE_EXPR.name(),
++			StringFieldEditor f2 = new StringFieldEditor(GlobalPreference.DB_ENGINE_GEX.name(),
+ 					"Database connector class for expression dataset:", getFieldEditorParent());
+ 			addField(f2);
+ 		}
+Index: trunk/src/swt/org/pathvisio/visualization/Visualization.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/visualization/Visualization.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/visualization/Visualization.java	(revision 1022)
+@@ -44,6 +44,7 @@
+ import org.pathvisio.data.Gex.ExpressionDataListener;
+ import org.pathvisio.util.Utils;
+ import org.pathvisio.view.Graphics;
++import org.pathvisio.view.VPathway;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationListener;
+ import org.pathvisio.visualization.plugins.PluginManager;
+@@ -403,6 +404,15 @@
+ 		case VisualizationEvent.PLUGIN_ADDED: 
+ 			refreshPluginClasses();
+ 			break;
++		case(VisualizationEvent.COLORSET_MODIFIED):
++		case(VisualizationEvent.VISUALIZATION_SELECTED):
++		case(VisualizationEvent.VISUALIZATION_MODIFIED):
++		case(VisualizationEvent.PLUGIN_MODIFIED):
++			VPathway p = Engine.getActiveVPathway();
++			if(p != null) {
++				p.redraw();
++			}
++			break;
+ 		}
+ 	}
+ 	
+Index: trunk/src/swt/org/pathvisio/gui/swt/SwtEngine.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/SwtEngine.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/gui/swt/SwtEngine.java	(revision 1022)
+@@ -37,8 +37,6 @@
+ import org.pathvisio.debug.Sleak;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+-import org.pathvisio.preferences.PreferenceCollection;
+-import org.pathvisio.preferences.swt.SwtPreferences;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.swt.SwtUtils.SimpleRunnableWithProgress;
+ import org.pathvisio.view.VPathway;
+@@ -62,7 +60,6 @@
+ 	private static MainWindow window;
+ 	
+ 	private static ImageRegistry imageRegistry;
+-	private static PreferenceCollection preferences;
+ 	
+ 	private static File DIR_APPLICATION;
+ 	private static File DIR_DATA;
+@@ -330,14 +327,6 @@
+ 	}
+ 	
+ 	/**
+-	 * Get the {@link SwtPreferences} containing the user preferences
+-	 */
+-	public static PreferenceCollection getPreferences() { 
+-		if(preferences == null) preferences = new SwtPreferences();
+-		return preferences; 
+-	}
+-	
+-	/**
+ 	 * Get the {@link ImageRegistry} containing commonly used images
+ 	 */
+ 	public static ImageRegistry getImageRegistry() { 
+Index: trunk/src/swt/org/pathvisio/gui/swt/StackActions.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/StackActions.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/gui/swt/StackActions.java	(revision 1022)
+@@ -20,123 +20,19 @@
+ import org.eclipse.jface.action.Action;
+ import org.eclipse.jface.resource.ImageDescriptor;
+ import org.pathvisio.Engine;
+-public class StackActions {
+-
+-		
+-	public static final char CENTERX = 'x';
+-	public static final char CENTERY = 'y';
+-	public static final char LEFT = 'l';
+-	public static final char RIGHT = 'r';
+-	public static final char TOP = 't';
+-	public static final char BOTTOM = 'b';
+-	public static final char WIDTH = 'w';
+-	public static final char HEIGHT = 'h';
++import org.pathvisio.view.StackType;
++public class StackActions extends Action {
++	MainWindowBase window;
++	StackType type;
+ 	
++	public StackActions(StackType t, MainWindowBase w) {
++		window = w;
++		type = t;
++		setToolTipText (type.getDescription());
++		setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL(type.getIcon())));
++	}
+ 	
+-		static class StackCenterXAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public StackCenterXAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Stack vertical center");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/stackverticalcenter.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().stackSelected(CENTERX);
+-				
+-			}
+-		}
+-		
+-		static class StackCenterYAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public StackCenterYAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Stack horizontal center");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/stackhorizontalcenter.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().stackSelected(CENTERY);
+-				
+-			}
+-		}
+-		static class StackLeftAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public StackLeftAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Stack vertical left");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/stackverticalleft.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().stackSelected(LEFT);
+-				
+-			}
+-		}
+-		static class StackRightAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public StackRightAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Stack veritcal right");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/stackverticalright.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().stackSelected(RIGHT);
+-				
+-			}
+-		}
+-		static class StackTopAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public StackTopAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Stack horizontal top");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/stackhorizontaltop.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().stackSelected(TOP);
+-				
+-			}
+-		}
+-		static class StackBottomAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public StackBottomAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Stack horizontal bottom");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/stackhorizontalbottom.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().stackSelected(BOTTOM);
+-				
+-			}
+-		}
+-
++	public void run () {
++		Engine.getActiveVPathway().stackSelected(type);
+ 	}
+-
+-
++}
+\ No newline at end of file
+Index: trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 1022)
+@@ -50,7 +50,9 @@
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
++import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.GeneProduct;
++import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+@@ -84,20 +86,20 @@
+ 	protected CommonActions.SwitchEditModeAction switchEditModeAction = new CommonActions.SwitchEditModeAction(this);
+ 	public ShowRightPanelAction showRightPanelAction = new ShowRightPanelAction(this);
+ 	protected SelectGdbAction selectGdbAction = new SelectGdbAction(this);
+-	protected AlignActions.AlignCenterXAction alignCenterXAction = new AlignActions.AlignCenterXAction(this);
+-	protected AlignActions.AlignCenterYAction alignCenterYAction = new AlignActions.AlignCenterYAction(this);
+-	protected AlignActions.AlignLeftAction alignLeftAction = new AlignActions.AlignLeftAction(this);
+-	protected AlignActions.AlignRightAction alignRightAction = new AlignActions.AlignRightAction(this);
+-	protected AlignActions.AlignTopAction alignTopAction = new AlignActions.AlignTopAction(this);
+-	protected AlignActions.AlignBottomAction alignBottomAction = new AlignActions.AlignBottomAction(this);
+-	protected AlignActions.SetCommonWidthAction setCommonWidthAction = new AlignActions.SetCommonWidthAction(this);
+-	protected AlignActions.SetCommonHeightAction setCommonHeightAction = new AlignActions.SetCommonHeightAction(this);
+-	protected StackActions.StackCenterXAction stackCenterXAction = new StackActions.StackCenterXAction(this);
+-	protected StackActions.StackCenterYAction stackCenterYAction = new StackActions.StackCenterYAction(this);
+-	protected StackActions.StackLeftAction stackLeftAction = new StackActions.StackLeftAction(this);
+-	protected StackActions.StackRightAction stackRightAction = new StackActions.StackRightAction(this);
+-	protected StackActions.StackTopAction stackTopAction = new StackActions.StackTopAction(this);
+-	protected StackActions.StackBottomAction stackBottomAction = new StackActions.StackBottomAction(this);
++	protected AlignActions alignCenterXAction = new AlignActions(AlignType.CENTERX, this);
++	protected AlignActions alignCenterYAction = new AlignActions(AlignType.CENTERY, this);
++	protected AlignActions alignLeftAction = new AlignActions(AlignType.LEFT, this);
++	protected AlignActions alignRightAction = new AlignActions(AlignType.RIGHT, this);
++	protected AlignActions alignTopAction = new AlignActions(AlignType.TOP, this);
++	protected AlignActions alignBottomAction = new AlignActions(AlignType.BOTTOM, this);
++	protected AlignActions setCommonWidthAction = new AlignActions(AlignType.WIDTH, this);
++	protected AlignActions setCommonHeightAction = new AlignActions(AlignType.HEIGHT, this);
++	protected StackActions stackCenterXAction = new StackActions(StackType.CENTERX, this);
++	protected StackActions stackCenterYAction = new StackActions(StackType.CENTERY, this);
++	protected StackActions stackLeftAction = new StackActions(StackType.LEFT, this);
++	protected StackActions stackRightAction = new StackActions(StackType.RIGHT, this);
++	protected StackActions stackTopAction = new StackActions(StackType.TOP, this);
++	protected StackActions stackBottomAction = new StackActions(StackType.BOTTOM, this);
+ 
+ 	/**
+ 	 * {@link Action} to select a Gene Database
+@@ -120,7 +122,7 @@
+ 				if(dbName == null) return;
+ 				
+ 				Gdb.connect(dbName);
+-				setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB + "'");
++				setStatus("Using Gene Database: '" + GlobalPreference.DB_GDB_CURRENT.getValue() + "'");
+ 				cacheExpressionData();
+ 			} catch(Exception e) {
+ 				String msg = "Failed to open Gene Database; " + e.getMessage();
+@@ -375,7 +377,7 @@
+ 		rightPanel.getTabFolder().setSelection(0); //select backpage browser tab
+ 		rightPanel.hideTab("Legend"); //hide legend on startup
+ 		
+-		setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
++		setStatus("Using Gene Database: '" + GlobalPreference.DB_GDB_CURRENT.getValue() + "'");
+ 
+ 		SwtEngine.updateTitle();
+ 		
+Index: trunk/src/swt/org/pathvisio/gui/swt/CommonActions.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/CommonActions.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/gui/swt/CommonActions.java	(revision 1022)
+@@ -393,7 +393,7 @@
+ 		public void run () {
+ 			PreferenceManager pg = new PreferenceDlg();
+ 			PreferenceDialog pd = new PreferenceDialog(window.getShell(), pg);
+-			pd.setPreferenceStore((SwtPreferences)SwtEngine.getPreferences());
++			pd.setPreferenceStore((SwtPreferences)Engine.getPreferenceCollection());
+ 			pd.open();
+ 		}
+ 	}
+Index: trunk/src/swt/org/pathvisio/gui/swt/GuiMain.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/GuiMain.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/gui/swt/GuiMain.java	(revision 1022)
+@@ -32,6 +32,7 @@
+ import org.pathvisio.model.SvgFormat;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.Preference;
++import org.pathvisio.preferences.swt.SwtPreferences;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.swt.SwtUtils;
+ import org.pathvisio.visualization.VisualizationManager;
+@@ -159,7 +160,7 @@
+ 	}
+ 	
+ 	static void loadPreferences() {
+-		SwtEngine.getPreferences();
++		Engine.setPreferenceCollection(new SwtPreferences());
+ 	}
+ 	
+ 	/**
+Index: trunk/src/swt/org/pathvisio/gui/swt/AlignActions.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/AlignActions.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/gui/swt/AlignActions.java	(revision 1022)
+@@ -1,177 +1,40 @@
+-//	 PathVisio,
+-//	 a tool for data visualization and analysis using Biological Pathways
+-//	 Copyright 2006-2007 BiGCaT Bioinformatics
+-	//
+-//	 Licensed under the Apache License, Version 2.0 (the "License"); 
+-//	 you may not use this file except in compliance with the License. 
+-//	 You may obtain a copy of the License at 
+-//	 
+-//	 http://www.apache.org/licenses/LICENSE-2.0 
+-//	  
+-//	 Unless required by applicable law or agreed to in writing, software 
+-//	 distributed under the License is distributed on an "AS IS" BASIS, 
+-//	 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-//	 See the License for the specific language governing permissions and 
+-//	 limitations under the License.
+-	//
++//PathVisio,
++//a tool for data visualization and analysis using Biological Pathways
++//Copyright 2006-2007 BiGCaT Bioinformatics
++//
++//Licensed under the Apache License, Version 2.0 (the "License"); 
++//you may not use this file except in compliance with the License. 
++//You may obtain a copy of the License at 
+ 
++//http://www.apache.org/licenses/LICENSE-2.0 
++
++//Unless required by applicable law or agreed to in writing, software 
++//distributed under the License is distributed on an "AS IS" BASIS, 
++//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++//See the License for the specific language governing permissions and 
++//limitations under the License.
++//
++
+ package org.pathvisio.gui.swt;
+ 
+ import org.eclipse.jface.action.Action;
+ import org.eclipse.jface.resource.ImageDescriptor;
+ import org.pathvisio.Engine;
+-public class AlignActions {
++import org.pathvisio.view.AlignType;
++public class AlignActions extends Action {
++	MainWindowBase window;
++	AlignType type;
+ 
+-		
+-	public static final char CENTERX = 'x';
+-	public static final char CENTERY = 'y';
+-	public static final char LEFT = 'l';
+-	public static final char RIGHT = 'r';
+-	public static final char TOP = 't';
+-	public static final char BOTTOM = 'b';
+-	public static final char WIDTH = 'w';
+-	public static final char HEIGHT = 'h';
+-	
+-	
+-		static class AlignCenterXAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public AlignCenterXAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Align horizontal centers");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/aligncenterx.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().alignSelected(CENTERX);
+-				
+-			}
+-		}
+-		
+-		static class AlignCenterYAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public AlignCenterYAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Align vertical centers");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/aligncentery.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().alignSelected(CENTERY);
+-				
+-			}
+-		}
+-		static class AlignLeftAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public AlignLeftAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Align left edges");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/alignleft.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().alignSelected(LEFT);
+-				
+-			}
+-		}
+-		static class AlignRightAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public AlignRightAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Align right edges");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/alignright.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().alignSelected(RIGHT);
+-				
+-			}
+-		}
+-		static class AlignTopAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public AlignTopAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Align top edges");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/aligntop.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().alignSelected(TOP);
+-				
+-			}
+-		}
+-		static class AlignBottomAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public AlignBottomAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Align bottom edges");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/alignbottom.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().alignSelected(BOTTOM);
+-				
+-			}
+-		}
+-		static class SetCommonHeightAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public SetCommonHeightAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Set common height");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/sizeheight.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().scaleSelected(HEIGHT);
+-				
+-			}
+-		}
+-		static class SetCommonWidthAction extends Action 
+-		{
+-			MainWindowBase window;
+-			public SetCommonWidthAction (MainWindowBase w)
+-			{
+-				window = w;
+-				setToolTipText ("Set common width");
+-				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/sizewidth.gif")));
+-				
+-			}
+-			public void run () 
+-			{
+-				
+-				Engine.getActiveVPathway().scaleSelected(WIDTH);
+-				
+-			}
+-		}
++	public AlignActions(AlignType t, MainWindowBase w) {
++		window = w;
++		type = t;
++		setToolTipText (type.getDescription());
++		setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL(type.getIcon())));
++	}
+ 
+-
++	public void run () {
++		Engine.getActiveVPathway().alignSelected(type);
+ 	}
++}	
+ 
+ 
+Index: trunk/src/swt/org/pathvisio/data/GexImportWizard.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/GexImportWizard.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/data/GexImportWizard.java	(revision 1022)
+@@ -172,7 +172,7 @@
+ 			gexButton.addSelectionListener(new SelectionAdapter() {
+ 				public void widgetSelected(SelectionEvent e) {
+ 					try {
+-						DBConnectorSwt dbcon = Gex.getDBConnector();
++						DBConnectorSwt dbcon = (DBConnectorSwt)Gex.getDBConnector();
+ 						String dbName = dbcon.openNewDbDialog(getShell(), gexText.getText());
+ 						if(dbName != null) gexText.setText(dbName);
+ 						
+Index: trunk/src/swt/org/pathvisio/data/CachedData.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/CachedData.java	(revision 0)
++++ trunk/src/swt/org/pathvisio/data/CachedData.java	(revision 1022)
+@@ -0,0 +1,228 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.data;
++
++import java.sql.Types;
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.List;
++
++import org.pathvisio.data.Gdb.IdCodePair;
++import org.pathvisio.data.Gex.Sample;
++
++/**
++ * This class represents cached expression data for a pathway.
++ * The caching of expression data will occur when a pathway is opened and an expression dataset is loaded.
++ * The cache will be refreshed when another dataset is selected, another gene database is selected or another
++ * pathway is opened.
++ * A CachedData object will contain a list of {@link Data} object for every gene-product on the pathway for 
++ * which data is available in the expression dataset
++ * @author Thomas
++ * @see Gex#cacheData
++ */
++public class CachedData {
++	
++	HashMap<IdCodePair, List<Data>> data; //Data objects for gene-products on the pathway
++		
++	protected CachedData() {
++		data = new HashMap<IdCodePair, List<Data>>();
++	}
++	
++	/**
++	 * Check whether the cached data contains data for the given gene-product
++	 * @param pwId The IdCodePair that represents the gene-product
++	 * @return true if data is available for the gene-product, false if not
++	 */
++	public boolean hasData(IdCodePair pwId) {
++		return data.containsKey(pwId);
++	}
++	
++	/**
++	 * Check whether the cached data contains multiple data instances for the given gene-product.
++	 * This can occur when multiple reporters in the dataset correspond to the same gene-product.
++	 * @param pwId The IdCodePair that represents the gene-product
++	 * @return true if multiple data is available for the gene-product, false if not
++	 */
++	public boolean hasMultipleData(IdCodePair pwId) {
++		List<Data> d = data.get(pwId);
++		if(d != null) {
++			return d.size() > 1;
++		} else {
++			return false;
++		}
++	}
++	
++	/**
++	 * Get the cached data the given gene-product
++	 * @param idc The IdCodePair that represents the gene-product for which the data has to be returned
++	 * @return a list of {@link Data} object containing the cached data, or null when no data is available
++	 */
++	public List<Data> getData(IdCodePair idc) {
++		return data.get(idc);
++	}
++	
++	/**
++	 * Get the first {@link Data} instance of the cached data for this gene-product.
++	 * @param idc The IdCodePair that represents the gene-product for which the data has to be returned
++	 * @return a {@link Data} instance that contains the cached data
++	 */
++	public Data getSingleData(IdCodePair idc) {
++		List<Data> dlist = data.get(idc);
++		if(dlist != null && dlist.size() > 0) return dlist.get(0);
++		return null;
++	}
++	
++	/**
++	 * Add cached data for the given gene-product
++	 * @param idc The IdCodePair that represents the gene-product for which the data has to be added
++	 * @param d The data that has to be added
++	 */
++	protected void addData(IdCodePair idc, Data d) {
++		List<Data> dlist = data.get(idc);
++		if(dlist == null) 
++			data.put(idc, dlist = new ArrayList<Data>());
++		dlist.add(d);
++	}
++	
++	/**
++	 * Get the averaged sample data for the given gene-product
++	 * @param idc The IdCodePair that represents the gene-product to get the data for
++	 * @return a HashMap where the keys represent the sample ids and the values the averaged data
++	 * @see Data#getSampleData()
++	 */
++	public HashMap<Integer, Object> getAverageSampleData(IdCodePair idc)
++	{
++		HashMap<Integer, Object> averageData = new HashMap<Integer, Object>();
++		List<Data> dlist = data.get(idc);
++		if(dlist != null) {
++			HashMap<Integer, Sample> samples = Gex.getSamples();
++			for(int idSample : samples.keySet())
++			{
++				int dataType = samples.get(idSample).getDataType();
++				if(dataType == Types.REAL) {
++					averageData.put(idSample, averageDouble(dlist, idSample));
++				} else {
++					averageData.put(idSample, averageString(dlist, idSample));
++				}
++			}
++		}
++		return averageData;
++	}
++	
++	
++	private Object averageDouble(List<Data> dlist, int idSample)
++	{
++		double avg = 0;
++		int n = 0;
++		for(Data d : dlist) {
++			try { 
++				Double value = (Double)d.getSampleData(idSample);
++				if( !value.isNaN() ) {
++					avg += value;
++					n++;
++				}
++			} catch(Exception e) { }
++		}
++		if(n > 0) {
++			return avg / n;
++		} else {
++			return Double.NaN;
++		}
++	}
++	
++	private Object averageString(List<Data> dlist, int idSample)
++	{
++		StringBuilder sb = new StringBuilder();
++		for(Data d : dlist) {
++			sb.append(d.getSampleData(idSample) + ", ");
++		}
++		int end = sb.lastIndexOf(", ");
++		return end < 0 ? "" : sb.substring(0, end).toString();
++	}
++	
++	/**
++	 * This class represents cached expression data for a reporter in the dataset.
++	 * The data is stored in a {@link HashMap} where the keys are the sample ids and the value
++	 * is an object of class {@link String} or {@link Double} for text and numeric data respectively.
++	 * @author Thomas
++	 */
++	public static class Data {
++		IdCodePair idc;
++		int group;
++		HashMap<Integer, Object> sampleData;
++		
++		/**
++		 * Constructor for this class. Creates a new {@link Data} object for the given reporter
++		 * @param ref The IdCodePair that represents the reporter
++		 * @param groupId An id that groups the expression data from duplicate reporters
++		 */
++		protected Data(IdCodePair ref, int groupId) {
++			idc = ref;
++			group = groupId;
++			sampleData = new HashMap<Integer, Object>();
++		}
++		
++		/**
++		 * Get the reporter this object contains data for
++		 * @return The IdCodePair that represents the reporter this object contains data for
++		 */
++		public IdCodePair getIdCodePair() { return idc; }
++		
++		/**
++		 * Get the group id for this object
++		 * @return a group id that can be used to distinct identical reporters that occur more
++		 * than once in the dataset
++		 */
++		public int getGroup() { return group; }
++		
++		/**
++		 * Get the data for each sample
++		 * @return A {@link HashMap} that contains the data for each sample. The key is a sampleId and value
++		 * is an object of class {@link String} or {@link Double}, depending on the data type of the sample.
++		 * @see Sample#getDataType()
++		 * @see Sample#getId()
++		 */
++		public HashMap<Integer, Object> getSampleData() {
++			return sampleData;
++		}
++		
++		/**
++		 * Get the cached data for the given sample (shortcut for getSampleData().get(sampleId))
++		 * @param sampleId The id of the sample to get the data for
++		 * @return An object of class {@link String} or {@link Double}, depending on the datatype of the sample.
++		 * @see Sample#getDataType()
++		 * @see Sample#getId()
++		 */
++		public Object getSampleData(int sampleId) {
++			return sampleData.get(sampleId);
++		}
++		
++		/**
++		 * Set the data for the given sample. Data will be parsed to double if possible
++		 * @param sampleId The id of the sample to set the data for
++		 * @param data The {@link String} representation of the data to add
++		 * @see Gex#cacheData
++		 */
++		protected void setSampleData(int sampleId, String data) {
++			Object parsedData = null;
++			try { parsedData = Double.parseDouble(data); }
++			catch(Exception e) { parsedData = data; }
++			sampleData.put(sampleId, parsedData);
++		}
++		
++	}
++}
+Index: trunk/src/swt/org/pathvisio/data/Gex.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/Gex.java	(revision 0)
++++ trunk/src/swt/org/pathvisio/data/Gex.java	(revision 1022)
+@@ -0,0 +1,864 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.data;
++
++import java.io.BufferedReader;
++import java.io.File;
++import java.io.FileInputStream;
++import java.io.FileOutputStream;
++import java.io.FileReader;
++import java.io.FileWriter;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.io.PrintStream;
++import java.io.PrintWriter;
++import java.sql.Connection;
++import java.sql.DriverManager;
++import java.sql.PreparedStatement;
++import java.sql.ResultSet;
++import java.sql.ResultSetMetaData;
++import java.sql.Statement;
++import java.sql.Types;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.EventObject;
++import java.util.HashMap;
++import java.util.List;
++
++import org.jdom.Document;
++import org.jdom.Element;
++import org.jdom.input.SAXBuilder;
++import org.jdom.output.Format;
++import org.jdom.output.XMLOutputter;
++import org.pathvisio.ApplicationEvent;
++import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEventListener;
++import org.pathvisio.data.CachedData.Data;
++import org.pathvisio.data.Gdb.IdCodePair;
++import org.pathvisio.debug.StopWatch;
++import org.pathvisio.util.FileUtils;
++import org.pathvisio.util.ProgressKeeper;
++import org.pathvisio.visualization.VisualizationManager;
++import org.pathvisio.visualization.colorset.ColorSetManager;
++
++/**
++ * This class handles everything related to the Expression Data. It contains the database connection,
++ * several methods to query data and write data and methods to convert a GenMAPP Expression Dataset
++ * to hsqldb format
++ */
++public class Gex implements ApplicationEventListener {
++	public static final String XML_ELEMENT = "expression-data-visualizations";
++	
++	private static Connection con;
++	
++	public static CachedData cachedData;
++	
++	/**
++	 * Get the {@link Connection} to the Expression-data database
++	 */
++	public static Connection getCon() { return con; }
++	/**
++	 * Check whether a connection to the database exists
++	 * @return	true is a connection exists, false if not
++	 */
++	public static boolean isConnected() { return con != null; }
++	
++	private static String dbName;
++	/**
++	 * Get the database name of the expression data currently loaded
++	 */
++	public static String getDbName() { return dbName; }
++	
++	/**
++	 * Set the database name of the expression data currently loaded
++	 * (Connection is not reset)
++	 */
++	public static void setDbName(String name) { dbName = name; }
++				
++	public static InputStream getXmlInput() {
++		File xmlFile = new File(dbName + ".xml");
++		try {
++			if(!xmlFile.exists()) xmlFile.createNewFile();
++			InputStream in = new FileInputStream(xmlFile);
++			return in;
++		} catch(Exception e) {
++			e.printStackTrace();
++			return null;
++		}
++	}
++	
++	public static OutputStream getXmlOutput() {
++		try {
++			File f = new File(dbName + ".xml");
++			OutputStream out = new FileOutputStream(f);
++			return out;
++		} catch(Exception e) {
++			e.printStackTrace();
++			return null;
++		}
++	}
++	
++	public static void saveXML() {
++		if(!isConnected()) return;
++		
++		OutputStream out = getXmlOutput();
++		
++		Document xmlDoc = new Document();
++		Element root = new Element(XML_ELEMENT);
++		xmlDoc.setRootElement(root);
++		
++		root.addContent(VisualizationManager.getNonGenericXML());
++		root.addContent(ColorSetManager.getXML());
++		
++		XMLOutputter xmlOut = new XMLOutputter(Format.getPrettyFormat());
++		try {
++			xmlOut.output(xmlDoc, out);
++			out.close();
++		} catch(IOException e) {
++			Engine.log.error("Unable to save visualization settings", e);
++		}
++	}
++	
++	public static void loadXML() {
++		Document doc = getXML();
++		Element root = doc.getRootElement();
++		Element vis = root.getChild(VisualizationManager.XML_ELEMENT);
++		VisualizationManager.loadNonGenericXML(vis);
++		Element cs = root.getChild(ColorSetManager.XML_ELEMENT);
++		ColorSetManager.fromXML(cs);
++	}
++	
++	public static Document getXML() {
++		InputStream in = Gex.getXmlInput();
++		Document doc;
++		Element root;
++		try {
++			SAXBuilder parser = new SAXBuilder();
++			doc = parser.build(in);
++			in.close();
++			
++			root = doc.getRootElement();
++		} catch(Exception e) {
++			doc = new Document();
++			root = new Element(XML_ELEMENT);
++			doc.setRootElement(root);
++			
++		}
++		
++		return doc;
++	}
++		    
++	private static HashMap<Integer, Sample> samples;
++	/**
++	 * Loads the samples used in the expression data (Sample table) in memory
++	 */
++	public static void setSamples()
++	{		
++		try {
++			ResultSet r = con.createStatement().executeQuery(
++					"SELECT idSample, name, dataType FROM samples"
++			);
++			samples = new HashMap<Integer, Sample>();
++			while(r.next())
++			{
++				int id = r.getInt(1);
++				samples.put(id, new Sample(id, r.getString(2), r.getInt(3)));					
++			}
++		} catch (Exception e) {
++			Engine.log.error("while loading data from the 'samples' table: " + e.getMessage(), e);
++		}
++	}
++	
++	public static Sample getSample(int id) {
++		return getSamples().get(id);
++	}
++	
++	/**
++	 * This class represents a record in the Sample table of the Expression database. 
++	 */
++	public static class Sample implements Comparable<Sample>
++	{
++		private int idSample;
++		private String name;
++		private int dataType;
++		
++		/**
++		 * Constructor of this class
++		 * @param idSample	represents the 'idSample' column in the Sample table, an unique identifier
++		 * for this sample
++		 * @param name		represents the 'name' column in the Sample table, the name of the
++		 * sample
++		 * @param dataType	represents the 'dataType' column in the Sample table, the data type of
++		 * the values stored in the column (using the field contsants in {@link java.sql.Types})
++		 */
++		public Sample(int idSample, String name, int dataType)
++		{
++			this.idSample = idSample;
++			this.name = name;
++			this.dataType = dataType;
++		}
++		
++		public String getName() { return name == null ? "" : name; }
++		protected void setName(String nm) { name = nm; }
++		public int getDataType() { return dataType; }
++		protected void setDataType(int type) { dataType = type; }
++		public int getId() { return idSample; }
++		protected void setId(int id) { idSample = id; }
++		/**
++		 * Compares this object to another {@link Sample} object based on the idSample property
++		 * @param o	The {@link Sample} object to compare with
++		 * @return	integer that is zero if the objects are equal, negative if this object has a
++		 * lower idSample, positive if this object has a higher idSample
++		 * @throws ClassCastException
++		 */
++		public int compareTo(Sample o)
++		{
++			return idSample - o.idSample;
++		}
++		
++		public int hashCode() {
++			return idSample;
++		}
++		
++		public boolean equals(Object o) {
++			if(o instanceof Sample) return ((Sample) o).idSample == idSample;
++			return false;
++		}
++		
++		/**
++		 * Returns a readable String representation of this object
++		 */
++		public String toString()
++		{
++			return Integer.toString(idSample);
++		}
++	}
++		
++	public static HashMap<Integer, Sample> getSamples()
++	{
++		if(samples == null) setSamples();
++		return samples;
++	}
++	
++	public static List<String> getSampleNames() {
++		return getSampleNames(-1);
++	}
++	
++	public static List<String> getSampleNames(int dataType) {
++		List<String> names = new ArrayList<String>();
++		List<Sample> sorted = new ArrayList<Sample>(samples.values());
++		Collections.sort(sorted);
++		for(Sample s : sorted) {
++			if(dataType == s.dataType || dataType == -1)
++				names.add(s.getName());
++		}
++		return names;
++	}
++	
++	public static List<Sample> getSamples(int dataType) {
++		List<Sample> smps = new ArrayList<Sample>();
++		List<Sample> sorted = new ArrayList<Sample>(samples.values());
++		Collections.sort(sorted);
++		for(Sample s : sorted) {
++			if(dataType == s.dataType || dataType == -1)
++				smps.add(s);
++		}
++		return smps;
++	}
++	
++	public static List<Data> getCachedData(IdCodePair idc)
++	{
++		if(cachedData != null) {
++			return cachedData.getData(idc);
++		} else {
++			return null;
++		}
++	}
++	
++	public static CachedData getCachedData() {
++		return cachedData;
++	}
++
++	/**
++	 * Gets all available expression data for the given gene id and returns a string
++	 * containing this data in a HTML table
++	 * @param idc	the {@link IdCodePair} containing the id and code of the geneproduct to look for
++	 * @return		String containing the expression data in HTML format or a string displaying a
++	 * 'no expression data found' message in HTML format
++	 */
++	public static String getDataString(IdCodePair idc)
++	{
++		String noDataFound = "<P><I>No expression data found";
++		String exprInfo = "<P><B>Gene id on mapp: " + idc.getId() + "</B><TABLE border='1'>";
++		
++		String colNames = "<TR><TH>Sample name";
++		if(		con == null //Need a connection to the expression data
++				|| Gdb.getCon() == null //and to the gene database
++		) return noDataFound;
++		
++		List<Data> pwData = cachedData.getData(idc);
++		
++		if(pwData == null) return noDataFound;
++		
++		for(Data d : pwData){
++			colNames += "<TH>" + d.getIdCodePair().getId();
++		}
++		
++		String dataString = "";
++		for(Sample s : getSamples().values())
++		{
++			dataString += "<TR><TH>" + s.name;
++			for(Data d : pwData)
++			{
++				dataString += "<TH>" + d.getSampleData(s.idSample);
++			}
++		}
++		
++		return exprInfo + colNames + dataString + "</TABLE>";
++	}
++	
++	/**
++	 * Loads expression data for all the given gene ids into memory
++	 * @param ids	Gene ids to cache the expression data for
++	 * @param code	Systemcodes of the gene identifiers
++	 * (typically all genes in a pathway)
++	 */
++	protected static void cacheData(ArrayList<String> ids, ArrayList<String> codes, ProgressKeeper p)
++	{	
++		cachedData = new CachedData();
++		StopWatch timer = new StopWatch();
++		timer.start();
++			
++		for(int i = 0; i < ids.size(); i++)
++		{
++			String id = ids.get(i);
++			String code = codes.get(i);
++			IdCodePair pwIdc = new IdCodePair(id, code);
++			
++			if(cachedData.hasData(pwIdc)) continue;
++			
++			ArrayList<String> ensIds = Gdb.ref2EnsIds(id, code); //Get all Ensembl genes for this id
++			
++			HashMap<Integer, Data> groupData = new HashMap<Integer, Data>();
++			
++			if(ensIds.size() > 0) //Only create a Data object if the id maps to an Ensembl gene
++			{				
++				StopWatch tt = new StopWatch();
++				StopWatch ts = new StopWatch();
++				
++				tt.start();
++				
++				groupData.clear();
++				
++				for(String ensId : ensIds)
++				{	
++					try {
++						ts.start();
++						
++						ResultSet r = con.createStatement().executeQuery(
++								"SELECT id, code, data, idSample, groupId FROM expression " +
++								" WHERE ensId = '" + ensId + "'");
++						//r contains all genes and data mapping to the Ensembl id
++						while(r.next())
++						{
++							int group = r.getInt("groupId");
++							IdCodePair ref = new IdCodePair(r.getString("id"), r.getString("code"));
++							Data data = groupData.get(group);
++							if(data == null) {
++								groupData.put(group, data = new Data(ref, group));
++								cachedData.addData(pwIdc, data);
++							}
++							
++							int idSample = r.getInt("idSample");					
++							data.setSampleData(idSample, r.getString("data"));
++						}
++						
++						ts.stopToLog("Fetching data for ens id: " + ensId + "\t");
++					} catch (Exception e)
++					{
++						Engine.log.error("while caching expression data: " + e.getMessage(), e);
++					}
++				}
++				
++				tt.stopToLog(id + ", " + code + ": adding data to cache\t\t");
++			}			
++			if(p.isCancelled()) //Check if the process is interrupted
++			{
++				return;
++			}
++			p.worked(p.getTotalWork() / ids.size()); //Update the progress
++		}
++		p.finished();
++		timer.stopToLog("Caching expression data\t\t\t");
++		Engine.log.trace("> Nr of ids queried:\t" + ids.size());
++	}
++		
++
++	
++	/**
++	 * Imports expression data from a text file and saves it to an hsqldb expression database
++	 * @param info		{@link GexImportWizard.ImportInformation} object that contains the 
++	 * information needed to import the data
++	 * @param p	{@link ProgressKeeper} that reports the progress of the process and enables
++	 * the user to cancel
++	 */
++	protected static void importFromTxt(ImportInformation info, ProgressKeeper p)
++	{
++		int importWork = (int)(p.getTotalWork() * 0.8);
++		int finalizeWork = (int)(p.getTotalWork() * 0.2);
++		
++//		Open a connection to the error file
++		String errorFile = info.dbName + ".ex.txt";
++		int errors = 0;
++		PrintStream error = null;
++		try {
++			File ef = new File(errorFile);
++			ef.getParentFile().mkdirs();
++			error = new PrintStream(errorFile);
++		} catch(IOException ex) {
++			p.report("Error: could not open exception file: " + ex.getMessage());
++			error = System.out;
++		}
++		
++		StopWatch timer = new StopWatch();
++		try 
++		{
++			p.report("\nCreating expression dataset");
++						
++			//Create a new expression database (or overwrite existing)
++			connect(info.dbName, true, false);
++			
++			p.report("Importing data");
++			p.report("> Processing headers");
++			
++			timer.start();
++			
++			BufferedReader in = new BufferedReader(new FileReader(info.getTxtFile()));
++			//Get the number of lines in the file (for progress)
++			int nrLines = FileUtils.getNrLines(info.getTxtFile().toString());
++			
++			String[] headers = info.getColNames();
++			//Parse sample names and add to Sample table
++			PreparedStatement pstmt = con.prepareStatement(
++					" INSERT INTO SAMPLES " +
++					"	(idSample, name, dataType)  " +
++			" VALUES (?, ?, ?)		  ");
++			int sampleId = 0;
++			ArrayList<Integer> dataCols = new ArrayList<Integer>();
++			for(int i = 0; i < headers.length; i++) {
++				if(p.isCancelled()) { close(true); error.close(); return; } //User pressed cancel
++				if(i != info.idColumn && i != info.codeColumn) { //skip the gene and systemcode column
++					try {
++						pstmt.setInt(1, sampleId++);
++						pstmt.setString(2, headers[i]);
++						pstmt.setInt(3, info.isStringCol(i) ? Types.CHAR : Types.REAL);
++						pstmt.execute();
++						dataCols.add(i);
++					} catch(Error e) { 
++						errors = reportError(error, "Error in headerline, can't add column " + i + 
++								" due to: " + e.getMessage(), errors);
++						
++					}
++				}
++			}
++			
++			p.report("> Processing lines");
++			
++			//Check ids and add expression data
++			for(int i = 1; i < info.firstDataRow; i++) in.readLine(); //Go to line where data starts
++			pstmt = con.prepareStatement(
++					"INSERT INTO expression			" +
++					"	(id, code, ensId,			" + 
++					"	 idSample, data, groupId)	" +
++			"VALUES	(?, ?, ?, ?, ?, ?)			");
++			String line = null;
++			int n = info.firstDataRow - 1;
++			int added = 0;
++			int worked = importWork / nrLines;
++			while((line = in.readLine()) != null) 
++			{
++				if(p.isCancelled()) { close(); error.close(); return; } //User pressed cancel
++				String[] data = line.split(ImportInformation.DELIMITER, headers.length);
++				n++;
++				if(n == info.headerRow) continue; //Don't add header row (very unlikely that this will happen)
++				if(data.length < headers.length) {
++					errors = reportError(error, "Number of columns in line " + n + 
++							"doesn't match number of header columns",
++							errors);
++					continue;
++				}
++				p.setTaskName("Importing expression data - processing line " + n + "; " + errors + " exceptions");
++				//Check id and add data
++				String id = data[info.idColumn].trim();
++				String code = data[info.codeColumn].trim();
++				ArrayList<String> ensIds = Gdb.ref2EnsIds(id, code); //Find the Ensembl genes for current gene
++				
++				if(ensIds.size() == 0) //No Ensembl gene found
++				{
++					errors = reportError(error, "Line " + n + ": " + id + "\t" + code + 
++							"\t No Ensembl gene found for this identifier", errors);
++				} else { //Gene maps to an Ensembl id, so add it
++					boolean success = true;
++					for( String ensId : ensIds) //For every Ensembl id add the data
++					{
++						for(int col : dataCols)
++						{
++							if(!info.isStringCol(col) 
++									&& (data[col] == null || data[col].equals(""))) {
++								data[col] = "NaN";
++							}
++							try {
++								pstmt.setString(1,id);
++								pstmt.setString(2,code);
++								pstmt.setString(3, ensId);
++								pstmt.setString(4, Integer.toString(dataCols.indexOf(col)));
++								pstmt.setString(5, data[col]);
++								pstmt.setInt(6, added);
++								pstmt.execute();
++							} catch (Exception e) {
++								errors = reportError(error, "Line " + n + ":\t" + line + "\n" + 
++										"\tException: " + error, errors);
++								success = false;
++							}
++						}
++					}
++					if(success) added++;
++				}
++				p.worked(worked);
++			}
++			p.report(added + " genes were added succesfully to the expression dataset");
++			if(errors > 0) {
++				p.report(errors + " exceptions occured, see file '" + errorFile + "' for details");
++			} else {
++				new File(errorFile).delete(); // If no errors were found, delete the error file
++			}
++			p.setTaskName("Closing database connection");
++			close(true);
++			p.worked(finalizeWork);
++			
++			error.println("Time to create expression dataset: " + timer.stop());
++			error.close();
++			
++			try {
++				connect(); //re-connect and use the created expression dataset
++			} catch(Exception e) {
++				Engine.log.error("Exception on connecting expression dataset from import thread", e);
++			}
++			
++			p.finished();
++		} catch(Exception e) { 
++			p.report("Import aborted due to error: " + e.getMessage());
++			Engine.log.error("Expression data import error", e);
++			close(true);
++			error.close();
++		}
++	}
++	
++	private static int reportError(PrintStream out, String message, int nrError) 
++	{
++		out.println(message);
++		nrError++;
++		return nrError;
++	}
++	/**
++	 * {@link Connection} to the GenMAPP Expression Dataset
++	 */
++	private static Connection conGmGex;
++
++	private static File gmGexFile;
++	/**
++	 * Returns the file that contains the GenMAPP Expression Dataset
++	 */
++	public static File getGmGexFile() { return gmGexFile; }
++	/**
++	 * Sets the file that contains the GenMAPP Expression Dataset
++	 */
++	public static void setGmGexFile(File file) { gmGexFile = file; }
++	
++	/**
++	 * Converts the GenMAPP Expression Dataset to a expression database
++	 * in Hsqldb format as used by this program.
++	 * <BR><BR>This method reports all errors occured during the conversion to a file named 'convert_gex_error.txt'
++	 */
++	public static void convertGex(ProgressKeeper p)
++	{
++		//Open a connection to the error file
++		PrintWriter error = null;
++		try {
++			error = new PrintWriter(new FileWriter("convert_gex_error.txt"));
++		} catch(IOException ex) {
++			Engine.log.error("Unable to open error file for gdb conversion: " + ex.getMessage(), ex);
++		}
++		
++		try {
++			connect(null, true, false); //Connect and delete the old database if exists
++			connectGmGex(gmGexFile); //Connect to the GenMAPP gex
++			
++			con.setAutoCommit(false); //Keep control over when to commit, should increase speed
++			Statement s = conGmGex.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
++			
++			PreparedStatement pstmtExpr = con.prepareStatement(
++					"INSERT INTO expression			" +
++					"	(id, code, ensId,			" + 
++					"	 idSample, data)			" +
++			"VALUES	(?, ?, ?, ?, ?)			");
++			
++			ResultSet r = s.executeQuery("SELECT * FROM Expression");
++			r.last();
++			int nrRows = r.getRow(); //Get the number of rows for keeping track of the progress
++			r.beforeFirst(); //Set the cursor back to the start
++			
++			// Fill the Sample table
++			ResultSetMetaData rsmd = r.getMetaData(); 
++			int nCols = rsmd.getColumnCount();
++			for(int i = 4; i < nCols - 1; i++) // Column 4 to 2 before last contain expression data
++			{
++				int dataType = rsmd.getColumnType(i);
++				String sampleName = rsmd.getColumnName(i);
++				// Add new sample
++				con.createStatement().execute("INSERT INTO SAMPLES" +
++						"	(idSample, name, dataType)" + 
++						"VALUES ( " + (i - 4) + ",'" + sampleName + "', " + dataType + " )");
++			}
++			
++			//Fill the Expression table
++			int nq = 0; //The number of queries excecuted
++			String id = "";
++			String code = "";
++			while(r.next()) { //Process all rows of the expression data
++				if(p.isCancelled()) //Check if the user cancelled the conversion
++				{
++					closeGmGex();
++					close();
++					return;
++				}
++				
++				id = r.getString("ID");
++				code = r.getString("SystemCode");
++				ArrayList<String> ensIds = Gdb.ref2EnsIds(id, code); //Find the Ensembl genes for current gene
++				
++				if(ensIds.size() == 0) //No Ensembl gene found
++				{
++					error.println(id + "\t" + code + "\t No Ensembl gene found for this identifier");
++				} else { //Gene maps to an Ensembl id, so add it
++					ArrayList<String> data = new ArrayList<String>();
++					for(int i = 4; i < nCols - 1; i++) { // Column 4 to 2 before last contain expression data
++						data.add(r.getString(i));
++					}
++					for( String ensId : ensIds) //For every Ensembl id add the data
++					{
++						int i = 0;
++						for(String str : data)
++						{
++							try {
++								pstmtExpr.setString(1,id);
++								pstmtExpr.setString(2,code);
++								pstmtExpr.setString(3, ensId);
++								pstmtExpr.setInt(4,i);
++								pstmtExpr.setString(5,str);
++								pstmtExpr.execute();
++							} catch (Exception e) {
++								error.println(id + ", " + code + ", " + i + "\t" + e.getMessage());
++							}
++							i++;
++						}
++					}
++				}
++				nq++;
++				if(nq % 1000 == 0) //Commit every 1000 queries
++					con.commit();
++				p.worked(p.getTotalWork()/nrRows); //Report progress
++			}
++			con.commit();	
++		} catch(Exception e) {
++			error.println("Error: " + e.getMessage());
++		}
++		error.println("END");
++		error.close();
++		closeGmGex();
++		close();
++		
++//		setGexReadOnly(true);
++		
++		p.finished();
++	}
++	
++	public static DBConnector getDBConnector() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
++		return Engine.getDbConnector(DBConnector.TYPE_GEX);
++	}
++	
++	/**
++	 * Connects to the Expression database with
++	 * option to remove the old database
++	 * @param 	create true if the old database has to be removed, false for just connecting
++	 */
++	public static void connect(String dbName, boolean create, boolean fireEvent) throws Exception
++	{
++		close();
++		
++		if(dbName != null) setDbName(dbName);
++		
++		DBConnector connector = getDBConnector();
++		
++		if(create) {
++			con = connector.createNewDatabase(getDbName());
++		} else {
++			con = connector.createConnection(getDbName());
++			setSamples();
++			loadXML();
++		}
++
++		con.setReadOnly( !create );
++		
++		if(fireEvent)
++			fireExpressionDataEvent(new ExpressionDataEvent(Gex.class, ExpressionDataEvent.CONNECTION_OPENED));
++	}
++	
++	/**
++	 * Connects to the Expression database 
++	 */
++	public static void connect() throws Exception
++	{
++		connect(null, false, true);
++	}
++	
++	public static void connect(String dbName) throws Exception
++	{
++		connect(dbName, false, true);
++	}
++		
++	/**
++	 * Close the connection to the Expression database, with option to execute the 'SHUTDOWN COMPACT'
++	 * statement before calling {@link Connection#close()}
++	 * @param finalize true to excecute the 'SHUTDOWN COMPACT' statement, false to just close the connection
++	 */
++	public static void close(boolean finalize)
++	{
++		if(con != null)
++		{
++			try
++			{
++				saveXML();
++				
++				DBConnector connector = getDBConnector();
++				if(finalize) {
++					connector.compact(con);
++					connector.createIndices(con);
++					String newDb = connector.finalizeNewDatabase(dbName);
++					setDbName(newDb);
++				} else {
++					connector.closeConnection(con);
++				}
++				fireExpressionDataEvent(new ExpressionDataEvent(Gex.class, ExpressionDataEvent.CONNECTION_CLOSED));
++				
++			} catch (Exception e) {
++				Engine.log.error("Error while closing connection to expression dataset " + dbName, e);
++			}
++			con = null;
++		}
++	}
++	
++	/**
++	 * Close the connection excecuting the 'SHUTDOWN' statement 
++	 * before calling {@link Connection#close()}
++	 */
++	public static void close()
++	{
++		close(false);
++	}
++	
++	/**
++	 * Connect to the GenMAPP Expression Dataset specified by the given file
++	 * @param gmGexFile	File containing the GenMAPP Expression Dataset
++	 */
++	public static void connectGmGex(File gmGexFile) {
++		String database_after = ";DriverID=22;READONLY=true";
++		String database_before =
++			"jdbc:odbc:Driver={Microsoft Access Driver (*.mdb)};DBQ=";
++		try {
++			Class.forName("sun.jdbc.odbc.JdbcOdbcDriver");
++			conGmGex = DriverManager.getConnection(
++					database_before + gmGexFile.toString() + database_after, "", "");
++		} catch (Exception e) {
++			Engine.log.error("Error: Unable to open connection go GenMAPP gex " + gmGexFile +
++					": " +e.getMessage(), e);
++		}
++	}
++	
++	/**
++	 * Close the connection to the GenMAPP Expression Dataset
++	 */
++	public static void closeGmGex() {
++		if(conGmGex != null)
++		{
++			try {
++				conGmGex.close();
++				conGmGex = null;
++			} catch (Exception e) {
++				Engine.log.error("Error while closing connection to GenMAPP gex: " + e.getMessage(), e);
++			}
++		}
++	}
++	
++	public void applicationEvent(ApplicationEvent e) {
++		switch(e.type) {
++		case ApplicationEvent.APPLICATION_CLOSE:
++			if(isConnected()) close();
++		}
++	}
++	
++	static List<ExpressionDataListener> listeners;
++	
++	/**
++	 * Add a {@link ExpressionDataListener}, that will be notified if an
++	 * event related to expression data occurs
++	 * @param l The {@link ExpressionDataListener} to add
++	 */
++	public static void addListener(ExpressionDataListener l) {
++		if(listeners == null) listeners = new ArrayList<ExpressionDataListener>();
++		listeners.add(l);
++	}
++	
++	/**
++	 * Fire a {@link ExpressionDataEvent} to notify all {@link ExpressionDataListener}s registered
++	 * to this class
++	 * @param e
++	 */
++	public static void fireExpressionDataEvent(ExpressionDataEvent e) {
++		for(ExpressionDataListener l : listeners) l.expressionDataEvent(e);
++	}
++	
++	public interface ExpressionDataListener {
++		public void expressionDataEvent(ExpressionDataEvent e);
++	}
++	
++	public static class ExpressionDataEvent extends EventObject {
++		private static final long serialVersionUID = 1L;
++		public static final int CONNECTION_OPENED = 0;
++		public static final int CONNECTION_CLOSED = 1;
++
++		public Object source;
++		public int type;
++		
++		public ExpressionDataEvent(Object source, int type) {
++			super(source);
++			this.source = source;
++			this.type = type;
++		}
++	}
++}
+
+Property changes on: trunk/src/swt/org/pathvisio/data/Gex.java
+___________________________________________________________________
+Name: svn:eol-style
+   + native
+
+Index: trunk/src/swt/org/pathvisio/data/DBConnectorSwt.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/DBConnectorSwt.java	(revision 1021)
++++ trunk/src/swt/org/pathvisio/data/DBConnectorSwt.java	(revision 1022)
+@@ -32,59 +32,9 @@
+  * in PathVisio. Implement the abstract methods when you want to add support for a new database engine.
+  * @author Thomas
+  */
+-public abstract class DBConnectorSwt implements DBConnector {
+-	private int dbType;
++public abstract class DBConnectorSwt extends AbstractDBConnector {
+ 	
+-	public abstract Connection createConnection(String dbName) throws Exception;
+-	public abstract Connection createConnection(String dbName, int props) throws Exception;	
+-	
+ 	/**
+-	 * Close the given connection
+-	 * @param con The connection to be closed
+-	 * @throws Exception
+-	 */
+-	public void closeConnection(Connection con) throws Exception {
+-		closeConnection(con, PROP_NONE);
+-	}
+-	
+-	/**
+-	 * Close the given connection, and optionally finalize it after creation (using {@link #PROP_FINALIZE})
+-	 * @param con The connection to be closed
+-	 * @param props Close properties (one of {@link #PROP_NONE}, {@link #PROP_FINALIZE} or {@link #PROP_RECREATE})
+-	 * @throws Exception
+-	 */
+-	void closeConnection(Connection con, int props) throws Exception {
+-		con.close();
+-	}
+-	
+-	/**
+-	 * Create a new database with the given name. This includes creating tables.
+-	 * @param dbName The name of the database to create
+-	 * @return A connection to the newly created database
+-	 * @throws Exception
+-	 */
+-	protected final Connection createNewDatabase(String dbName) throws Exception {
+-		Connection con = createNewDatabaseConnection(dbName);
+-		createTables(con);
+-		return con;
+-	}
+-	
+-	private Connection createNewDatabaseConnection(String dbName) throws Exception {
+-		return createConnection(dbName, PROP_RECREATE);
+-	}
+-	
+-	/**
+-	 * This method is called to finalize the given database after creation
+-	 * (e.g. set read-only, archive files). The database name needs to returned, this
+-	 * may change when finalizing the database modifies the storage type (e.g. from directory
+-	 * to single file).
+-	 * @param dbName The name of the database to finalize	
+-	 * @throws Exception
+-	 * @return The name of the finalized database
+-	 */
+-	protected abstract String finalizeNewDatabase(String dbName) throws Exception;
+-	
+-	/**
+ 	 * This method will be called when the user
+ 	 * needs to select a database. Open a dialog (e.g. FileDialog) in this
+ 	 * method to let the user select the database and return the database name.
+@@ -103,95 +53,6 @@
+ 	public abstract String openNewDbDialog(Shell shell, String defaultName);
+ 	
+ 	/**
+-	 * Set the database type (one of {@link #TYPE_GDB} or {@link #TYPE_GEX})
+-	 * @param type The type of the database that will be used for this class
+-	 */
+-	public void setDbType(int type) { dbType = type; }
+-	/**
+-	 * Get the database type (one of {@link #TYPE_GDB} or {@link #TYPE_GEX})
+-	 * return The type of the database that is used for this class
+-	 */
+-	public int getDbType() { return dbType; }
+-	
+-	/**
+-	 * Excecutes several SQL statements to create the tables and indexes for storing 
+-	 * the expression data
+-	 */
+-	protected static void createTables(Connection con) throws Exception {	
+-			con.setReadOnly(false);
+-			Statement sh = con.createStatement();
+-			try { sh.execute("DROP TABLE info"); } catch(SQLException e) { Engine.log.error("Error: unable to drop expression data tables: "+e.getMessage(), e); }
+-			try { sh.execute("DROP TABLE samples"); } catch(SQLException e) { Engine.log.error("Error: unable to drop expression data tables: "+e.getMessage(), e); }
+-			try { sh.execute("DROP TABLE expression"); } catch(SQLException e) { Engine.log.error("Error: unable to drop expression data tables: "+e.getMessage(), e); }
+-			
+-			sh.execute(
+-					"CREATE TABLE					" +
+-					"		info							" +
+-					"(	  version INTEGER PRIMARY KEY		" +
+-					")");
+-			sh.execute( //Add compatibility version of GEX
+-					"INSERT INTO info VALUES ( " + Gex.COMPAT_VERSION + ")");
+-			sh.execute(
+-					"CREATE TABLE                    " +
+-					"		samples							" +
+-					" (   idSample INTEGER PRIMARY KEY,		" +
+-					"     name VARCHAR(50),					" +
+-					"	  dataType INTEGER					" +
+-			" )										");
+-			
+-			sh.execute(
+-					"CREATE TABLE					" +
+-					"		expression						" +
+-					" (   id VARCHAR(50),					" +
+-					"     code VARCHAR(50),					" +
+-					"	  ensId VARCHAR(50),				" +
+-					"     idSample INTEGER,					" +
+-					"     data VARCHAR(50),					" +
+-					"	  groupId INTEGER 					" +
+-//					"     PRIMARY KEY (id, code, idSample, data)	" +
+-					")										");
+-	}
+-	
+-	/**
+-	 * Creates indices for a newly created expression database.
+-	 * @param con The connection to the expression database
+-	 * @throws SQLException
+-	 */
+-	protected void createIndices(Connection con) throws SQLException {
+-		con.setReadOnly(false);
+-		Statement sh = con.createStatement();
+-		sh.execute(
+-				"CREATE INDEX i_expression_id " +
+-		"ON expression(id)			 ");
+-		sh.execute(
+-				"CREATE INDEX i_expression_ensId " +
+-		"ON expression(ensId)			 ");
+-		sh.execute(
+-				"CREATE INDEX i_expression_idSample " +
+-		"ON expression(idSample)	 ");
+-		sh.execute(
+-				"CREATE INDEX i_expression_data " +
+-		"ON expression(data)	     ");
+-		sh.execute(
+-				"CREATE INDEX i_expression_code " +
+-		"ON expression(code)	 ");
+-		sh.execute(
+-				"CREATE INDEX i_expression_groupId" +
+-		" ON expression(groupId)	");
+-	}
+-	
+-	/**
+-	 * This method may be implemented when the database files need to be
+-	 * compacted or defragmented after creation of a new database. It will be called
+-	 * after all data is added to the database.
+-	 * @param con A connection to the database
+-	 * @throws SQLException
+-	 */
+-	protected void compact(Connection con) throws SQLException {
+-		//May be implemented by subclasses
+-	}
+-	
+-	/**
+ 	 * Shortcut for creating a file dialog that has the right default directories for
+ 	 * the database type of this connector
+ 	 * @param shell
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1021)
++++ trunk/build.xml	(revision 1022)
+@@ -6,10 +6,12 @@
+ 	<property name="build.v1.dir" value="build/v1"/>
+ 	<property name="build.v2.dir" value="build/v2"/>
+ 	<property name="build.plugins.dir" value="build/plugins"/>
+-
++	<property name="build.wikipathways.dir" value="build/wikipathways"/>
++	
+     <property name="apidoc.dir" value="apidoc"/>
+ 	<!-- <property name="dist.dir" value="dist"/> -->
+ 	<property name="webstart.dir" value="webstart"/>
++	<property name="wikipathway.dir" value="wikipathways"/>
+ 	<property name="lib.dir" value="lib"/>
+ 	<property name="exec.perl" value="perl"/>
+ 	<property name="svn.exec.svnversion" value="svnversion"/>
+@@ -28,6 +30,13 @@
+ 		        <include name="**/*.jar"/>
+ 		</fileset>
+ 	</path>
++	
++	<path id="project.wikipathways.class.path">
++		<pathelement location="${build.wikipathways.dir}"/>
++		<fileset dir="lib">
++			<include name="**/*.jar"/>
++		</fileset>
++	</path>
+ 
+ 	<target name="svnversion">
+ 		<exec executable="${svn.exec.svnversion}" outputproperty="subversion_revision" failifexecutionfails="false">
+@@ -39,6 +48,7 @@
+ 		<mkdir dir="${build.v1.dir}"/>
+ 		<mkdir dir="${build.v2.dir}"/>
+ 		<mkdir dir="${build.plugins.dir}"/>
++		<mkdir dir="${build.wikipathways.dir}"/>
+ 		<mkdir dir="${apidoc.dir}"/>
+ 		
+ 		<echo file="${src.dir}/core/org/pathvisio/Revision.java">
+@@ -57,6 +67,7 @@
+ 		<delete dir="${build.v2.dir}"/>
+ 		<delete dir="${build.core.dir}"/>
+ 		<delete dir="${build.plugins.dir}"/>
++		<delete dir="${build.wikipathways.dir}"/>
+ 		<delete dir="${build.test.dir}"/>
+ 		<delete dir="${apidoc.dir}"/>
+ 		<delete dir="${webstart.dir}/www"/>
+@@ -84,6 +95,31 @@
+ 		</javac>
+ 	</target>
+ 
++	<target name="compile-wikipathways" depends="prepare, resources-jar" description="Compile wikipathways version">
++		<!-- Include packages					Exceptions
++			src/swing
++				org.pathvisio.gui.swing.* 		(!MainPanel)
++				com.mammothsoftware.frwk.ddb
++			src/core
++				org.pathvisio
++				org.pathvisio.data 				(only DataSources)
++				org.pathvisio.data.debug
++				org.pathvisio.model
++				org.pathvisio.preferences
++				org.pathvisio.util
++				org.pathvisio.view
++				org.pathvisio.view.swing
++			src/wikipathways
++				org.pathvisio.gui.wikipathways
++				org.pathvisio.wikipathways
++		-->
++		<javac srcdir="src"
++			includes="core/**,wikipathways/**,swing/**"
++			destdir="${build.wikipathways.dir}">
++			<classpath refid="project.wikipathways.class.path"/>
++		</javac>
++	</target>
++	
+ 	<target name="resources-jar" depends="prepare" description="Generates jar with resources">
+ 		<jar jarfile="lib/resources.jar">
+ 			<fileset dir="." includes="backpage/*"/>
+@@ -120,6 +156,15 @@
+ 		</jar>
+     </target>
+ 
++	<target name="jar-wikipathways" depends="compile-wikipathways" description="Generate wikipathways jar file">
++		<jar jarfile="wikipathways.jar">
++			<fileset dir="${build.wikipathways.dir}" includes="**/*.class"/>
++            <manifest>
++                <attribute name="Class-Path" value="jdom.jar apache/commons-codec-1.3.jar apache/commons-httpclient-3.0.1.jar apache/commons-logging-1.1.jar apache/ws-commons-util-1.0.1.jar apache/xmlrpc-client-3.0.jar apache/xmlrpc-common-3.0.jar"/>
++            </manifest>
++		</jar>
++	</target>
++	
+ 	<target name="run-v1" depends="compile-v1">
+ 		<java classname="org.pathvisio.gui.swt.GuiMain" fork="true">
+ 			<classpath refid="project.v1.class.path"/>
+@@ -133,7 +178,7 @@
+ 			<jvmarg value='-Djava.library.path=lib/swt-linux-lib'/>
+ 		</java>
+ 	</target>
+-
++	
+ 	<target name="prepare-webstart" depends="jar,resources-jar" description="sign jars for webstart">
+ 		<!-- Copy files needed for webstart !-->
+ 		<copy file="pathvisio_v1.jar" toDir="${webstart.dir}/www"/>
+@@ -160,7 +205,14 @@
+ 			<arg line="autoftp.pl"/>
+ 		</exec>
+ 	</target>
+-	
++
++	<target name="wikipathways" depends="jar-wikipathways" description="Build PathVisio for WikiPathways">
++		<copy file="wikipathways.jar" toDir="${wikipathway.dir}/applet"/>
++		<copy toDir="${webstart.dir}/www" overwrite="true">
++			<fileset dir="${lib.dir}" includes="**/*.jar"/>
++		</copy>
++	</target>
++			
+ 	<target name="docs" depends="prepare" description="generate api-docs">
+ 		<tstamp /> <!-- set ${TODAY} -->
+ 		<javadoc destdir="${apidoc.dir}" 

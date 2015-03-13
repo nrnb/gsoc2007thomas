@@ -1,0 +1,500 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1070)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1071)
+@@ -51,9 +51,6 @@
+ 	
+ 	public static final String PAR_PATHWAY_URL = "pathway.url";
+ 	public void init() {
+-		for(Component c : getContentPane().getComponents()) {
+-			System.out.println("COMPONENT: " + c);
+-		}
+ 		SwingEngine.setCurrent(new SwingEngine());
+ 		Engine.setCurrent(new Engine());
+ 		
+@@ -63,13 +60,13 @@
+ 				
+ 		uiHandler = new SwingUserInterfaceHandler(JOptionPane.getFrameForComponent(this));
+ 		
+-//		try {
+-//			SwingUtilities.invokeAndWait(new Runnable() {
+-//				public void run() {
++		try {
++			SwingUtilities.invokeAndWait(new Runnable() {
++				public void run() {
+ 					mainPanel = SwingEngine.getCurrent().getApplicationPanel();
+ 					System.out.println("MainPanel: " + mainPanel.hashCode());
+-					Action saveAction = new Actions.ExitAction(this, wiki, true);
+-					Action discardAction = new Actions.ExitAction(this, wiki, false);
++					Action saveAction = new Actions.ExitAction(AppletMain.this, wiki, true);
++					Action discardAction = new Actions.ExitAction(AppletMain.this, wiki, false);
+ 					
+ 					mainPanel.getToolBar().addSeparator();
+ 					mainPanel.addToToolbar(saveAction, MainPanel.TB_GROUP_HIDE_ON_EDIT);
+@@ -77,12 +74,12 @@
+ 
+ 					getContentPane().add(mainPanel);
+ 					mainPanel.setVisible(true);
+-//				}
+-//			});
+-//		} catch (Exception e) {
+-//			// TODO Auto-generated catch block
+-//			e.printStackTrace();
+-//		}
++				}
++			});
++		} catch (Exception e) {
++			// TODO Auto-generated catch block
++			e.printStackTrace();
++		}
+ 		System.out.println("INIT ENDED....");
+ 		Logger.log.trace("INIT ENDED....");
+ 	}
+@@ -100,14 +97,12 @@
+ 				loadCookies();
+ 								
+ 				try {
+-					wiki.init(SwingEngine.getCurrent().createWrapper());
++					wiki.init(SwingEngine.getCurrent().createWrapper(), getProgressKeeper());
+ 				} catch(Exception e) {
+-					Logger.log.error("Unable to load pathway", e);
++					Logger.log.error("Error while starting editor", e);
+ 					JOptionPane.showMessageDialog(
+ 							AppletMain.this, e.getClass() + ": " + e.getMessage(), "Error while initializing editor", JOptionPane.ERROR_MESSAGE);
+ 				};
+-				System.out.println("VPathway: " + Engine.getCurrent().getActiveVPathway());
+-				System.out.println(Engine.getCurrent() + " | " + SwingEngine.getCurrent());
+ 				return null;
+ 			}
+ 		};
+@@ -116,10 +111,9 @@
+ 				public void run() {
+ 					int spPercent = GlobalPreference.getValueInt(GlobalPreference.GUI_SIDEPANEL_SIZE);
+ 					double spSize = (100 - spPercent) / 100.0;
+-					System.out.println(spSize);
+ 					mainPanel.getSplitPane().setDividerLocation(spSize);
+ 					
+-					uiHandler.runWithProgress(r, "Loading pathway", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
++					uiHandler.runWithProgress(r, "Starting editor", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
+ 				}
+ 			});
+ 		} catch (Exception e) {
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1070)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1071)
+@@ -46,6 +46,7 @@
+ import org.pathvisio.data.Gdb;
+ import org.pathvisio.debug.Logger;
+ import org.pathvisio.model.ConverterException;
++import org.pathvisio.model.Organism;
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.util.ProgressKeeper;
+ import org.pathvisio.util.RunnableWithProgress;
+@@ -67,7 +68,7 @@
+ 		Engine.getCurrent().addApplicationEventListener(this);
+ 	}
+ 
+-	public void init(VPathwayWrapper wrapper) throws Exception {
++	public void init(VPathwayWrapper wrapper, ProgressKeeper progress) throws Exception {
+ 		WikiPathwaysEngine.init();
+ 		
+ 		for(Parameter p : Parameter.values()) {
+@@ -76,6 +77,8 @@
+ 				"Missing required argument '" + p.name() + "'";
+ 		}
+ 
++		progress.setTaskName("Loading pathway...");
++		
+ 		if(isNew()) { //Create new pathway
+ 			Logger.log.trace("WIKIPATHWAYS INIT: new pathway");
+ 			Engine.getCurrent().newPathway(wrapper);
+@@ -87,6 +90,8 @@
+ 		//TODO: notify user about this and hide edit actions
+ 		Engine.getCurrent().getActiveVPathway().setEditMode(!isReadOnly());
+ 		
++		progress.setTaskName("Connecting to database...");
++		
+ 		//Connect to the gene database
+ 		DBConnector connector = new DBConnectorDerbyServer("wikipathways.org", 1527);
+ 		Engine.getCurrent().setDBConnector(connector, DBConnector.TYPE_GDB);
+@@ -208,18 +213,22 @@
+ 
+ 	
+ 	public void applicationEvent(ApplicationEvent e) {
+-		Pathway p = (Pathway)e.source;
++		Pathway p = null;
+ 		switch(e.type) {
+ 		case ApplicationEvent.PATHWAY_NEW:
++			p = (Pathway)e.source;
+ 			p.getMappInfo().setOrganism(getPwSpecies());
+ 		case ApplicationEvent.PATHWAY_OPENED:
++			p = (Pathway)e.source;
+ 			//Force species name to be te same as on wikipathways
+ 			String impSpecies = p.getMappInfo().getOrganism();
+-			if(!impSpecies.equals(impSpecies = getPwSpecies())) {
++			Organism impOrg = Organism.fromLatinName(impSpecies);
++			Organism wikiOrg = Organism.fromShortName(getPwSpecies());
++			if(!impOrg.equals(wikiOrg)) {
+ 				uiHandler.showError("Invalid species",
+ 						"The species of the pathway you imported differs from the" +
+-						"species for this " + Globals.SERVER_NAME + " pathway.\n" +
+-						"It will be changed from '" + impSpecies + "' to " + getPwSpecies());
++						" species for the " + Globals.SERVER_NAME + " pathway you are editing.\n" +
++						"It will be changed from '" + impSpecies + "' to '" + getPwSpecies() + "'");
+ 				p.getMappInfo().setOrganism(impSpecies);
+ 			}
+ 			break;
+Index: trunk/src/wikipathways/de/bezier/js/preloading/Preloading.java
+===================================================================
+--- trunk/src/wikipathways/de/bezier/js/preloading/Preloading.java	(revision 0)
++++ trunk/src/wikipathways/de/bezier/js/preloading/Preloading.java	(revision 1071)
+@@ -0,0 +1,82 @@
++/*
++ *	this file is part of appletobject.js,
++ *	please see:
++ *	http://appletobject.org/
++ *
++ *  ----------------------------------------------------------------------------
++ *
++ *	implements callbacks for preloading applets via javascript
++ *
++ *  ----------------------------------------------------------------------------
++ *
++ *  changed: 2007-05-14 15:48:49 - fjenett
++ *
++ */
++
++package de.bezier.js.preloading;
++
++// http://www.rgagnon.com/javadetails/java-0240.html
++
++public class Preloading extends java.applet.Applet
++{
++	public void init () {
++		callback( "inited" );
++	}
++
++	public void start () {
++		callback( "started" );
++	}
++
++	public void callback ( String _what )
++	{
++		// AppletObject id
++		//
++		String aobj = getParameter("AObject");
++
++		// AppletObjects.started( id )
++		//
++		String jscmd = "AppletObjects." + _what + "(" +
++  						( aobj != null ? aobj : "-1" ) + ")";
++
++  		// first try using JSObject via reflection
++  		//
++		try
++		{
++   			Class c = Class.forName("netscape.javascript.JSObject");
++
++   			java.lang.reflect.Method getWin =
++   						c.getMethod("getWindow",new Class[]{java.applet.Applet.class});
++
++   			java.lang.reflect.Method eval =
++   						c.getMethod("eval",new Class[]{String.class});
++
++   			Object jswin = getWin.invoke(c, new Object[]{this});
++
++  			if ( jswin != null )
++	   			eval.invoke(jswin, new Object[]{ jscmd }).toString();
++
++			return;
++  		}
++  		catch (Exception e) {;}
++
++
++		// failed? ... then let's try via javascript: - protocol
++		//
++		try
++		{
++			java.applet.AppletContext context = getAppletContext();
++			if ( context != null ) {
++  				context.showDocument(
++  									new java.net.URL("javascript:" + jscmd)
++  									,"_self"
++  									       );
++  			}
++  		}
++  		catch (Exception e) {;}
++	}
++
++	// sadly callbacks don't work inside these ...
++	//
++	public void stop () { }
++	public void destroy () { }
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1070)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1071)
+@@ -45,6 +45,7 @@
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+ import org.pathvisio.model.MappFormat;
++import org.pathvisio.model.Organism;
+ import org.pathvisio.model.OrientationType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PropertyType;
+@@ -271,7 +272,7 @@
+ 	private static ComboRenderer datasourceRenderer = new ComboRenderer(DataSources.dataSources);
+ 	private static CheckBoxRenderer checkboxRenderer = new CheckBoxRenderer();
+ 	private static ComboRenderer orientationRenderer = new ComboRenderer(OrientationType.getNames());
+-	private static ComboRenderer organismRenderer = new ComboRenderer(MappFormat.organism_latin_name);
++	private static ComboRenderer organismRenderer = new ComboRenderer(Organism.latinNames().toArray());
+ 	private static FontRenderer fontRenderer = new FontRenderer();
+ 	private static ComboRenderer shapeTypeRenderer = new ComboRenderer(ShapeType.getNames(), ShapeType.values());
+ 	
+@@ -281,7 +282,7 @@
+ 	private static ComboEditor datasourceEditor = new ComboEditor(DataSources.dataSources, false);
+ 	private static DefaultCellEditor checkboxEditor = new DefaultCellEditor(new JCheckBox());
+ 	private static ComboEditor orientationEditor = new ComboEditor(OrientationType.getNames(), true);
+-	private static ComboEditor organismEditor = new ComboEditor(MappFormat.organism_latin_name, false);
++	private static ComboEditor organismEditor = new ComboEditor(Organism.latinNames().toArray(), false);
+ 	private static AngleEditor angleEditor = new AngleEditor();
+ 	private static DoubleEditor doubleEditor = new DoubleEditor();
+ 	private static ComboEditor fontEditor = new ComboEditor(GraphicsEnvironment
+Index: trunk/src/core/org/pathvisio/model/MappFormat.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/MappFormat.java	(revision 1070)
++++ trunk/src/core/org/pathvisio/model/MappFormat.java	(revision 1071)
+@@ -69,38 +69,17 @@
+ 		"CenterY, SecondX, SecondY, Width, Height, Rotation, " +
+ 		"Color, Label, Head, Remarks, Image, Links, Notes " +
+ 		"FROM OBJECTS";
+-
+-	public static final String[] organism_latin_name = {
+-		"",
+-		"Mus musculus",
+-		"Homo sapiens",
+-		"Rattus norvegicus",
+-		"Bos taurus",
+-		"Caenorhabditis elegans",
+-		"Gallus gallus",
+-		"Danio rero",
+-		"Drosophila melanogaster",
+-		"Canis familiaris",
+-		"Xenopus tropicalis",
+-		"Arabidopsis thaliana"
+-
+-	};
+-
+-	static final String[] organism_short_code = {
+-		"___",
+-		"Mm_", 
+-		"Hs_", 
+-		"Rn_", 
+-		"Bt_", 
+-		"Ce_", 
+-		"Gg_", 
+-		"Dr_", 
+-		"Dm_", 
+-		"Cf_", 
+-		"Xt_", 
+-		"At_", 				
+-	};
+-
++	
++	/**
++	 * @deprecated Use {@link Organism} emun instead
++	 */
++	public static final String[] organism_latin_name = Organism.latinNamesArray();
++	
++	/**
++	 * @deprecated Use {@link Organism} enum instead
++	 */
++	static final String[] organism_short_code = Organism.codes();
++	
+     private static String database_after = ";DriverID=22;READONLY=true";
+     private static String database_before =
+             "jdbc:odbc:Driver={Microsoft Access Driver (*.mdb)};DBQ=";
+@@ -371,11 +350,12 @@
+ 		o.setWindowWidth(Double.parseDouble(row[icolWindowWidth]));
+ 		o.setWindowHeight(Double.parseDouble(row[icolWindowHeight]));
+ 		
+-		// guess organism based on first three characters of filename
+-		String short_code = new File (filename).getName().substring(0, 3);
+-		if (code2organism.containsKey(short_code))
++		// guess organism based on first two characters of filename
++		String short_code = new File (filename).getName().substring(0, 2);
++		Organism org = Organism.fromCode(short_code);
++		if (org != null)
+ 		{		
+-			o.setOrganism(code2organism.get(short_code));
++			o.setOrganism(org.latinName());
+ 		}
+ 	}
+        
+@@ -979,6 +959,7 @@
+     
+ 	/**
+ 	 * {@link HashMap} containing mappings from system name (as used in Gpml) to system code
++	 * @deprecated Use {@link Organism#fromLatinName(String)} instead
+ 	 */
+ 	private static final HashMap<String,String> code2organism = initOrganism2code();
+ 
+Index: trunk/src/core/org/pathvisio/model/Organism.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/Organism.java	(revision 0)
++++ trunk/src/core/org/pathvisio/model/Organism.java	(revision 1071)
+@@ -0,0 +1,113 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++
++package org.pathvisio.model;
++
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.List;
++
++public enum Organism {
++	MusMusculus("Mus musculus", "Mm", "Mouse"),
++	HomoSapiens("Homo sapiens", "Hs", "Human"),
++	RattusNorvegicus("Rattus norvegicus", "Rn", "Rat"),
++	BosTaurus("Bos taurus", "Bt"),
++	CaenorhabditisElegans("Caenorhabditis elegans", "Ce"),
++	GallusGallus("Gallus gallus", "Gg"),
++	DanioRero("Danio rero", "Dr"),
++	DrosophilaMelanogaster("Drosophila melanogaster", "Dm"),
++	CanisFamiliaris("Canis familiaris", "Cf"),
++	XenopusTropicalis("Xenopus tropicalis", "Xt"),
++	ArabidopsisThaliana("Arabidopsis thaliana", "At"),
++	;
++	
++	String latinName;
++	String code;
++	String shortName;
++	
++	Organism(String latinName, String code) {
++		this(latinName, code, latinName);
++	}
++	
++	Organism(String latinName, String code, String shortName) {
++		this.latinName = latinName;
++		this.code = code;
++		this.shortName = shortName;
++	}
++	
++	public String code() { return code; }
++	public String latinName() { return latinName; }
++	public String shortName() { return shortName; }
++	
++	private static HashMap<String, Organism> byCode;
++	private static HashMap<String, Organism> byLatinName;
++	private static HashMap<String, Organism> byShortName;
++	private static List<String> latinNames;
++	private static String[] codes;
++	
++	public static Organism fromCode(String code) {
++		if(byCode == null) initMappings();
++		return byCode.get(code);
++	}
++	
++	public static Organism fromShortName(String shortName) {
++		if(byShortName == null) initMappings();
++		return byShortName.get(shortName);
++	}
++	
++	public static List<String> latinNames() {
++		if(latinNames == null) initMappings();
++		return latinNames;
++	}
++	
++	public static String[] codes() {
++		if(codes == null) initMappings();
++		return codes;
++	}
++	
++	public static String[] latinNamesArray() {
++		String[] nms = new String[latinNames().size()];
++		return latinNames.toArray(nms);
++	}
++	
++	public static Organism fromLatinName(String latinName) {
++		if(byLatinName == null) initMappings();
++		return byLatinName.get(latinName);
++	}
++	
++	private static void initMappings() {
++		byCode = new HashMap<String, Organism>();
++		byLatinName = new HashMap<String, Organism>();
++		byShortName = new HashMap<String, Organism>();
++		for(Organism o : values()) {
++			byCode.put(o.code, o);
++			byLatinName.put(o.latinName, o);
++			byShortName.put(o.shortName, o);
++		}
++		
++		latinNames = new ArrayList<String>(byLatinName.keySet());
++		Collections.sort(latinNames);
++		
++		codes = new String[latinNames().size()];
++		String[] latinNames = latinNamesArray();
++		for(int i = 0; i < latinNames.length; i++) {
++			codes[i] = fromLatinName(latinNames[i]).code;
++		}
++	}
++}
+Index: trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java	(revision 1070)
++++ trunk/src/swt/org/pathvisio/gui/swt/PropertyPanel.java	(revision 1071)
+@@ -52,6 +52,7 @@
+ import org.pathvisio.model.LineType;
+ import org.pathvisio.model.MappFormat;
+ import org.pathvisio.model.ObjectType;
++import org.pathvisio.model.Organism;
+ import org.pathvisio.model.OrientationType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
+@@ -290,7 +291,7 @@
+ 				comboBoxEditor.setItems(boolean_names);
+ 				return comboBoxEditor;
+ 			case ORGANISM:
+-				comboBoxEditor.setItems(MappFormat.organism_latin_name);
++				comboBoxEditor.setItems(Organism.latinNamesArray());
+ 				return comboBoxEditor;
+ 			case GENETYPE:
+ 				comboBoxEditor.setItems(genetype_names);
+@@ -345,7 +346,7 @@
+ 				case INTEGER: 
+ 					return value.toString();
+ 				case ORGANISM:
+-					return Arrays.asList(MappFormat.organism_latin_name).indexOf((String)value);
++					return Organism.latinNames().indexOf((String)value);
+ 				case GENETYPE:
+ 					return Arrays.asList(genetype_names).indexOf((String)value);
+ 				case STRING:
+@@ -458,7 +459,7 @@
+ 				break;
+ 			case ORGANISM:
+ 				if((Integer)value == -1) return; //Nothing selected
+-				value = MappFormat.organism_latin_name[(Integer)value];
++				value = Organism.latinNames().get((Integer)value);
+ 				break;
+ 			case GENETYPE:
+ 				if((Integer)value == -1) return; //Nothing selected

@@ -1,0 +1,2365 @@
+Index: branches/g2d-branch/swing/org/pathvisio/preferences/swing/SwingPreferences.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/preferences/swing/SwingPreferences.java	(revision 936)
++++ branches/g2d-branch/swing/org/pathvisio/preferences/swing/SwingPreferences.java	(revision 937)
+@@ -1,38 +1,50 @@
+ package org.pathvisio.preferences.swing;
+ 
++import java.io.IOException;
++
+ import org.pathvisio.preferences.Preference;
++import org.pathvisio.preferences.PreferenceCollection;
+ 
+-public class SwingPreferences extends PreferenceCollection {
++public class SwingPreferences implements PreferenceCollection {
++	public Preference byName(String name) {
++		// TODO Auto-generated method stub
++		return null;
++	}
+ 
+-}
+-
+-public enum SwingPreference implements Preference {
+-
+-	String value;
+-	String defaultValue;
+-	
+-	
+-	SwingPreference(String defaultValue) {
+-		this.defaultValue = defaultValue;
++	public void save() throws IOException {
++		// TODO Auto-generated method stub
++		
+ 	}
+ 	
+-	public String getDefault() {
+-		return defaultValue;
+-	}
++	public enum SwingPreference implements Preference {
++		;
++			String value;
++			String defaultValue;
++			
++			
++			SwingPreference(String defaultValue) {
++				this.defaultValue = defaultValue;
++			}
++			
++			public String getDefault() {
++				return defaultValue;
++			}
+ 
+-	public String getValue() {
+-		if(value == null) {
+-			return defaultValue;
+-		} else {
+-			return value;
++			public String getValue() {
++				if(value == null) {
++					return defaultValue;
++				} else {
++					return value;
++				}
++			}
++
++			public void setDefault(String defValue) {
++				defaultValue = defValue;
++			}
++
++			public void setValue(String newValue) {
++				value = newValue;
++			}
+ 		}
+-	}
++}
+ 
+-	public void setDefault(String defValue) {
+-		defaultValue = defValue;
+-	}
+-
+-	public void setValue(String newValue) {
+-		value = newValue;
+-	}
+-}
+\ No newline at end of file
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 936)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 937)
+@@ -1,11 +1,53 @@
+ package org.pathvisio.gui.swing;
+ 
++import java.awt.BorderLayout;
++
++import javax.swing.BoxLayout;
++import javax.swing.JMenu;
++import javax.swing.JMenuBar;
+ import javax.swing.JPanel;
+ import javax.swing.JToolBar;
+ 
++import org.pathvisio.gui.swing.CommonActions.ExportAction;
++import org.pathvisio.gui.swing.CommonActions.ImportAction;
++import org.pathvisio.gui.swing.CommonActions.SaveAction;
++
+ public class MainPanel extends JPanel {
++	private JMenuBar menuBar;
++	private JToolBar toolBar;
++	
+ 	public MainPanel() {
+-		JToolBar tb = new JToolBar();
++		setLayout(new BorderLayout());
+ 		
++		menuBar = new JMenuBar();
++		addMenuActions(menuBar);
++		toolBar = new JToolBar();
++		addToolBarActions(toolBar);
++		
++		add(toolBar, BorderLayout.NORTH);
+ 	}
++	
++	protected void addMenuActions(JMenuBar mb) {
++		JMenu pathwayMenu = new JMenu("Pathway");
++		pathwayMenu.add(new SaveAction());
++		pathwayMenu.add(new ImportAction());
++		pathwayMenu.add(new ExportAction());
++		
++		mb.add(pathwayMenu);
++	}
++	
++	protected void addToolBarActions(JToolBar tb) {
++		tb.add(new SaveAction());
++		tb.add(new ImportAction());
++		tb.add(new ExportAction());
++	}
++	
++	public JMenuBar getMenuBar() {
++		return menuBar;
++	}
++	
++	public JToolBar getToolBar() {
++		return toolBar;
++	}
+ }
++
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 936)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 937)
+@@ -2,24 +2,40 @@
+ 
+ import java.awt.Component;
+ import java.awt.event.ActionEvent;
++import java.awt.event.KeyEvent;
+ import java.io.File;
++import java.net.URL;
+ 
+ import javax.swing.AbstractAction;
++import javax.swing.Action;
++import javax.swing.ImageIcon;
+ import javax.swing.JFileChooser;
++import javax.swing.JOptionPane;
++import javax.swing.KeyStroke;
+ import javax.swing.filechooser.FileFilter;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public abstract class CommonActions {
++	private static URL IMG_IMPORT = Engine.getResourceURL("icons/open.gif");
++	private static URL IMG_EXPORT = Engine.getResourceURL("icons/save.gif");
++	
+ 	static class SaveAction extends AbstractAction {
+ 		public void actionPerformed(ActionEvent e) {
+ 			//TODO
+ 		}
+ 	}
+ 	
+-	static class ImportAction extends AbstractAction {
+-		Component parent;
++	static class ImportAction extends AbstractAction {		
++		public ImportAction() {
++			super("Import", new ImageIcon(IMG_IMPORT));
++			putValue(Action.SHORT_DESCRIPTION, "Import pathway");
++			putValue(Action.LONG_DESCRIPTION, "Import a pathway from various file formats");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_M, ActionEvent.CTRL_MASK));
++		}
+ 		
+ 		public void actionPerformed(ActionEvent e) {
+ 				//Open file dialog
+@@ -31,6 +47,8 @@
+ 				for(final PathwayImporter imp : Engine.getPathwayImporters().values()) {
+ 					FileFilter ff = new FileFilter() {
+ 						public boolean accept(File f) {
++							if(f.isDirectory()) return true;
++							
+ 							String fn = f.toString();
+ 							int i = fn.lastIndexOf('.');
+ 							if(i > 0) {
+@@ -45,7 +63,14 @@
+ 						}
+ 
+ 						public String getDescription() {
+-							return imp.getName();
++							StringBuilder exts = new StringBuilder();
++							for(String e : imp.getExtensions()) {
++								exts.append(".");
++								exts.append(e);
++								exts.append(", ");
++							}
++							String str = exts.substring(0, exts.length() - 2);
++							return imp.getName() + " (" + str + ")";
+ 						}
+ 					};
+ 					jfc.addChoosableFileFilter(ff);
+@@ -53,12 +78,25 @@
+ 				
+ 				int status = jfc.showDialog((Component)e.getSource(), "Import");
+ 				if(status == JFileChooser.APPROVE_OPTION) {
+-					jfc.getFileFilter();
++					try {
++						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing());
++					} catch(ConverterException ex) {
++						Engine.log.error("Unable to import pathway", ex);
++						JOptionPane.showMessageDialog((Component)e.getSource(), "Unable to import pathway:\n" + ex.getMessage());
++					}
+ 				}
+ 		}
+ 	}
+ 	
+ 	static class ExportAction extends AbstractAction {
++		public ExportAction() {
++			super("Export", new ImageIcon(IMG_EXPORT));
++			putValue(Action.SHORT_DESCRIPTION, "Export pathway");
++			putValue(Action.LONG_DESCRIPTION, "Export the pathway to various file formats");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_E, ActionEvent.CTRL_MASK));
++			
++		}
++		
+ 		public void actionPerformed(ActionEvent e) {
+ 			//TODO
+ 		}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 936)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 937)
+@@ -1,28 +1,32 @@
+ package org.pathvisio.gui.swing;
+ 
+-import java.io.File;
+-
+ import javax.swing.JFrame;
++import javax.swing.UIManager;
+ 
+-import org.pathvisio.model.ConverterException;
+-import org.pathvisio.model.Pathway;
+-import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.swing.VPathwaySwing;
++import org.pathvisio.Engine;
+ 
+ public class GuiMain {
+ 
+ 	private static void createAndShowGUI() {
++		GuiInit.init();
++		
+ 		//Create and set up the window.
+ 		JFrame frame = new JFrame("PathVisio...swing it baby!");
+ 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+-
+-		VPathwaySwing test = testcase();
+-		frame.add(test);
+-
+-		test.setSize(400, 400);
+ 		
++		MainPanel mainPanel = new MainPanel();
++		frame.add(mainPanel);
++		frame.setJMenuBar(mainPanel.getMenuBar());
++		frame.setSize(400, 400);
++		
++		try {
++		    UIManager.setLookAndFeel(
++		        UIManager.getSystemLookAndFeelClassName());
++		} catch (Exception ex) {
++			Engine.log.error("Unable to load native look and feel", ex);
++		}
++		
+ 		//Display the window.
+-		frame.pack();
+ 		frame.setVisible(true);
+ 	}
+ 
+@@ -33,22 +37,4 @@
+ 			}
+ 		});
+ 	}
+-
+-	static VPathwaySwing testcase() {
+-		String pwf = "test.gpml";
+-		
+-		VPathwaySwing svp = new VPathwaySwing();
+-		VPathway vp = new VPathway(svp);
+-		svp.setChild(vp);
+-
+-		try { 
+-			Pathway p = new Pathway();
+-			p.readFromXml(new File(pwf), true);
+-			vp.fromGmmlData(p);
+-		} catch(ConverterException e) {		
+-			e.printStackTrace();
+-		}
+-
+-		return svp;
+-	}
+ }
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 936)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 937)
+@@ -67,6 +67,7 @@
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Spinner;
+ import org.jdom.Element;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.CachedData;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gdb.IdCodePair;
+@@ -84,7 +85,7 @@
+ 		"This plugin displays one or more images on Gene Product objects and \n" +
+ 		"colors the image(s) accoring to the expression value for the Gene Product.";
+ 		
+-	static final Color DEFAULT_TRANSPARENT = SwtEngine.TRANSPARENT_COLOR;
++	static final Color DEFAULT_TRANSPARENT = Engine.TRANSPARENT_COLOR;
+ 		
+ 	List<URL> imageURLs;
+ 	
+@@ -101,8 +102,8 @@
+ 
+ 	private List<URL> defaultURLs() {
+ 		return new ArrayList<URL>(Arrays.asList(new URL[] {
+-				SwtEngine.getResourceURL("images/protein_hi.bmp"),
+-				SwtEngine.getResourceURL("images/mRNA_hi.bmp") }));
++				Engine.getResourceURL("images/protein_hi.bmp"),
++				Engine.getResourceURL("images/mRNA_hi.bmp") }));
+ 	}
+ 	
+ 	List<URL> getImageURLs() { 
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java	(revision 936)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java	(revision 937)
+@@ -50,13 +50,13 @@
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Spinner;
+ import org.jdom.Element;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.CachedData;
+ import org.pathvisio.data.DataSources;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.CachedData.Data;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.Graphics;
+@@ -233,7 +233,7 @@
+ 	Font getFont(boolean adjustZoom) {
+ 		Font f = font == null ? DEFAULT_FONT : font;
+ 		if(adjustZoom) {
+-			int size = (int)Math.ceil(SwtEngine.getActiveVPathway().vFromM(f.getSize()) * 15);
++			int size = (int)Math.ceil(Engine.getActiveVPathway().vFromM(f.getSize()) * 15);
+ 			f = new Font(f.getName(), size, f.getStyle());
+ 		}
+ 		return f;
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java	(revision 936)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java	(revision 937)
+@@ -62,11 +62,11 @@
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+ import org.jdom.Element;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.CachedData;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.util.TableColumnResizer;
+ import org.pathvisio.view.GeneProduct;
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionColorPlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionColorPlugin.java	(revision 936)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionColorPlugin.java	(revision 937)
+@@ -19,7 +19,6 @@
+ import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+-import java.util.Collection;
+ import java.util.HashMap;
+ import java.util.List;
+ 
+@@ -42,12 +41,12 @@
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Listener;
+ import org.jdom.Element;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.CachedData;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.CachedData.Data;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.view.Graphics;
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java	(revision 936)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java	(revision 937)
+@@ -16,12 +16,7 @@
+ //
+ package org.pathvisio.visualization.plugins;
+ 
+-import org.pathvisio.gui.swt.SwtEngine;
+-import org.pathvisio.view.GeneProduct;
+-import org.pathvisio.view.Graphics;
+-
+ import java.awt.Color;
+-import java.awt.Dimension;
+ import java.awt.Font;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+@@ -30,7 +25,6 @@
+ import java.util.Collection;
+ 
+ import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.PaintEvent;
+ import org.eclipse.swt.events.SelectionAdapter;
+ import org.eclipse.swt.events.SelectionEvent;
+ import org.eclipse.swt.graphics.FontData;
+@@ -45,10 +39,12 @@
+ import org.eclipse.swt.widgets.Group;
+ import org.eclipse.swt.widgets.Label;
+ import org.jdom.Element;
+-
++import org.pathvisio.Engine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.util.Utils;
++import org.pathvisio.view.GeneProduct;
++import org.pathvisio.view.Graphics;
+ import org.pathvisio.visualization.Visualization;
+ import org.pathvisio.visualization.Visualization.PluginSet;
+ 
+@@ -201,7 +197,7 @@
+ 	Font getFont(boolean adjustZoom) {
+ 		Font f = font == null ? DEFAULT_FONT : font;
+ 		if(adjustZoom) {
+-			int fs = (int)Math.ceil(SwtEngine.getActiveVPathway().vFromM(f.getSize()) * 15);
++			int fs = (int)Math.ceil(Engine.getActiveVPathway().vFromM(f.getSize()) * 15);
+ 			f = new Font(f.getName(), f.getStyle(), f.getSize());
+ 		}
+ 		return f;
+Index: branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java	(revision 936)
++++ branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java	(revision 937)
+@@ -47,16 +47,16 @@
+ import org.eclipse.swt.widgets.Control;
+ import org.eclipse.swt.widgets.Menu;
+ import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.data.DBConnector;
+ import org.pathvisio.data.Gdb;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gex.ExpressionDataEvent;
+ import org.pathvisio.data.Gex.ExpressionDataListener;
+-import org.pathvisio.gui.swt.Engine.ApplicationEvent;
+-import org.pathvisio.gui.swt.Engine.ApplicationEventListener;
+ import org.pathvisio.preferences.GlobalPreference;
+-import org.pathvisio.preferences.swt.SwtPreferences;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
+ import org.pathvisio.view.GeneProduct;
+@@ -132,7 +132,7 @@
+ 	{
+ 		if(Engine.isDrawingOpen())
+ 		{
+-			VPathway drawing = Engine.getVPathway();
++			VPathway drawing = Engine.getActiveVPathway();
+ 			//Check for neccesary connections
+ 			if(Gex.isConnected() && Gdb.isConnected())
+ 			{
+@@ -172,7 +172,7 @@
+ 		public void run () {
+ 			if(Engine.isDrawingOpen())
+ 			{
+-				VPathway drawing = Engine.getVPathway();
++				VPathway drawing = Engine.getActiveVPathway();
+ 				if(isChecked())
+ 				{
+ 					//Switch to edit mode: show edit toolbar, show property table in sidebar
+@@ -207,10 +207,10 @@
+ 		}
+ 
+ 		public void applicationEvent(ApplicationEvent e) {
+-			if(e.type == ApplicationEvent.OPEN_PATHWAY) {
+-				Engine.getVPathway().setEditMode(isChecked());
++			if(e.type == ApplicationEvent.PATHWAY_OPENED) {
++				Engine.getActiveVPathway().setEditMode(isChecked());
+ 			}
+-			else if(e.type == ApplicationEvent.NEW_PATHWAY) {
++			else if(e.type == ApplicationEvent.PATHWAY_NEW) {
+ 				switchEditMode(true);
+ 			}
+ 		}
+@@ -352,11 +352,11 @@
+ 			{
+ 				deselectNewItemActions();
+ 				setChecked(true);
+-				Engine.getVPathway().setNewGraphics(element);
++				Engine.getActiveVPathway().setNewGraphics(element);
+ 			}
+ 			else
+ 			{	
+-				Engine.getVPathway().setNewGraphics(VPathway.NEWNONE);
++				Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+ 			}
+ 		}
+ 		
+@@ -441,7 +441,7 @@
+ 				((ActionContributionItem)items[i]).getAction().setChecked(false);
+ 			}
+ 		}
+-		Engine.getVPathway().setNewGraphics(VPathway.NEWNONE);
++		Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+ 	}
+ 	
+ 	// Elements of the coolbar
+@@ -620,7 +620,7 @@
+ 	
+ 	public boolean close() {
+ 		Engine.fireApplicationEvent(
+-				new ApplicationEvent(this, ApplicationEvent.CLOSE_APPLICATION));
++				new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE));
+ 		return super.close();
+ 	}
+ 	
+@@ -641,7 +641,7 @@
+ 		
+ 		GuiMain.loadImages(shell.getDisplay());
+ 		
+-		shell.setImage(Engine.getImageRegistry().get("shell.icon"));
++		shell.setImage(SwtEngine.getImageRegistry().get("shell.icon"));
+ 		
+ 		Composite viewComposite = new Composite(parent, SWT.NULL);
+ 		viewComposite.setLayout(new FillLayout());
+@@ -693,28 +693,16 @@
+ 		
+ 		else rightPanel.hideTab("Legend");
+ 	}
+-			
+-	/**
+-	 * Creates a new empty drawing canvas
+-	 * @return the empty {@link VPathway}
+-	 */
+-	public VPathway createNewDrawing()
+-	{	
+-		VPathwaySWT pswt = new VPathwaySWT(sc, SWT.NO_BACKGROUND);
+-		VPathway p = new VPathway(pswt);
+-		pswt.setChild(p);
+-		return p;
+-	}
+-	
++				
+ 	public void applicationEvent(ApplicationEvent e) {
+ 		VPathway drawing = null;
+ 		switch(e.type) {
+-		case ApplicationEvent.NEW_PATHWAY:
+-			drawing = Engine.getVPathway();
++		case ApplicationEvent.PATHWAY_NEW:
++			drawing = Engine.getActiveVPathway();
+ 			sc.setContent((Canvas)drawing.getWrapper());
+ 			break;
+-		case ApplicationEvent.OPEN_PATHWAY:
+-			drawing = Engine.getVPathway();
++		case ApplicationEvent.PATHWAY_OPENED:
++			drawing = Engine.getActiveVPathway();
+ 			sc.setContent((Canvas)drawing.getWrapper());
+ 			if(Gex.isConnected()) cacheExpressionData();
+ 			break;	
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/wizard/RWizard.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/wizard/RWizard.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/wizard/RWizard.java	(revision 937)
+@@ -25,12 +25,11 @@
+ import org.eclipse.jface.wizard.Wizard;
+ import org.eclipse.jface.wizard.WizardDialog;
+ import org.eclipse.swt.widgets.Shell;
+-
+-import org.pathvisio.gui.swt.SwtEngine;
+-import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
++import org.pathvisio.Engine;
+ import org.pathvisio.R.RDataIn;
+ import org.pathvisio.R.RCommands.RException;
+ import org.pathvisio.R.RCommands.RObjectContainer;
++import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+ 
+ 
+ public class RWizard extends Wizard {
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageData.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageData.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageData.java	(revision 937)
+@@ -18,7 +18,6 @@
+ 
+ import java.io.File;
+ import java.lang.reflect.InvocationTargetException;
+-import java.util.prefs.Preferences;
+ 
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.jface.wizard.WizardPage;
+@@ -38,12 +37,12 @@
+ import org.eclipse.swt.widgets.Group;
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Text;
++import org.pathvisio.Engine;
+ import org.pathvisio.R.RCommands;
+ import org.pathvisio.R.RDataIn;
+ import org.pathvisio.R.RDataOut;
+ import org.pathvisio.R.RCommands.RInterruptedException;
+ import org.pathvisio.data.Gex;
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ 
+ public class PageData extends WizardPage {
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageStats.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageStats.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageStats.java	(revision 937)
+@@ -17,8 +17,6 @@
+ 
+ package org.pathvisio.R.wizard;
+ 
+-import org.pathvisio.gui.swt.SwtEngine;
+-
+ import java.text.SimpleDateFormat;
+ import java.util.Calendar;
+ import java.util.TimeZone;
+@@ -36,12 +34,13 @@
+ import org.eclipse.swt.widgets.Control;
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Text;
+-
+-import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
++import org.pathvisio.Engine;
+ import org.pathvisio.R.RController;
+ import org.pathvisio.R.RFunctionLoader;
+ import org.pathvisio.R.RCommands.RException;
+ import org.pathvisio.R.RFunctionLoader.RFunction;
++import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+ 
+ public class PageStats extends WizardPage {
+ 	String resultVar;
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RDataIn.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RDataIn.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RDataIn.java	(revision 937)
+@@ -16,9 +16,6 @@
+ //
+ package org.pathvisio.R;
+ 
+-import org.pathvisio.gui.swt.SwtEngine;
+-import org.pathvisio.gui.swt.TabbedSidePanel;
+-
+ import java.io.File;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+@@ -28,11 +25,12 @@
+ 
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.custom.CTabItem;
+-
+-import org.pathvisio.util.tableviewer.PathwayTable;
+-import org.pathvisio.util.tableviewer.TableData;
+ import org.pathvisio.R.RCommands.RException;
+ import org.pathvisio.R.RCommands.RObjectContainer;
++import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.gui.swt.TabbedSidePanel;
++import org.pathvisio.util.tableviewer.PathwayTable;
++import org.pathvisio.util.tableviewer.TableData;
+ 
+ public class RDataIn {
+ 	RObjectContainer inFileObjects;
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RDataOut.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RDataOut.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RDataOut.java	(revision 937)
+@@ -16,8 +16,6 @@
+ //
+ package org.pathvisio.R;
+ 
+-import org.pathvisio.gui.swt.SwtEngine;
+-
+ import java.io.File;
+ import java.lang.reflect.InvocationTargetException;
+ import java.sql.PreparedStatement;
+@@ -29,17 +27,7 @@
+ import java.util.List;
+ 
+ import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+-import org.rosuda.JRI.REXP;
+-import org.rosuda.JRI.RVector;
+-import org.rosuda.JRI.Rengine;
+-import org.xml.sax.XMLReader;
+-import org.xml.sax.helpers.XMLReaderFactory;
+-
+-import org.pathvisio.util.FileUtils;
+-import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+-import org.pathvisio.util.PathwayParser;
+-import org.pathvisio.util.PathwayParser.Gene;
+-import org.pathvisio.visualization.colorset.Criterion;
++import org.pathvisio.Engine;
+ import org.pathvisio.R.RCommands.RException;
+ import org.pathvisio.R.RCommands.RObjectContainer;
+ import org.pathvisio.R.RCommands.RTemp;
+@@ -48,6 +36,17 @@
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
++import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.util.FileUtils;
++import org.pathvisio.util.PathwayParser;
++import org.pathvisio.util.PathwayParser.Gene;
++import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
++import org.pathvisio.visualization.colorset.Criterion;
++import org.rosuda.JRI.REXP;
++import org.rosuda.JRI.RVector;
++import org.rosuda.JRI.Rengine;
++import org.xml.sax.XMLReader;
++import org.xml.sax.helpers.XMLReaderFactory;
+ 
+ public class RDataOut {
+ 	List<File> pwFiles;
+@@ -94,7 +93,7 @@
+ 	public RDataOut(File pathways, boolean recursive) {
+ 		this();
+ 		//Get the pathway files
+-		pwFiles = FileUtils.getFiles(pathways, SwtEngine.PATHWAY_FILE_EXTENSION, recursive);
++		pwFiles = FileUtils.getFiles(pathways, Engine.PATHWAY_FILE_EXTENSION, recursive);
+ 	}
+ 	
+ 	public List<File> getPathwayFiles() { return pwFiles; }
+@@ -155,7 +154,7 @@
+ 			
+ 		checkValid();
+ 		
+-		pwFiles = FileUtils.getFiles(pwDir, SwtEngine.PATHWAY_FILE_EXTENSION, true);
++		pwFiles = FileUtils.getFiles(pwDir, Engine.PATHWAY_FILE_EXTENSION, true);
+ 
+ 		if(pwFiles.size() == 0) throw new Exception("No pathway files (*.gpml) found in " + pwDir);
+ 		
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RController.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RController.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RController.java	(revision 937)
+@@ -16,10 +16,6 @@
+ //
+ package org.pathvisio.R;
+ 
+-import org.pathvisio.gui.swt.SwtEngine;
+-import org.pathvisio.gui.swt.SwtEngine.ApplicationEvent;
+-import org.pathvisio.gui.swt.SwtEngine.ApplicationEventListener;
+-
+ import java.io.BufferedReader;
+ import java.io.File;
+ import java.io.FileNotFoundException;
+@@ -37,13 +33,16 @@
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+ import org.eclipse.jface.operation.IRunnableWithProgress;
++import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
++import org.pathvisio.R.RCommands.RException;
++import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.util.JarUtils;
++import org.pathvisio.util.Utils;
+ import org.rosuda.JRI.REXP;
+ import org.rosuda.JRI.Rengine;
+ 
+-import org.pathvisio.util.JarUtils;
+-import org.pathvisio.util.Utils;
+-import org.pathvisio.R.RCommands.RException;
+-
+ public class RController implements ApplicationEventListener{	
+ 	private static Rengine re;
+ 	private static BufferedReader rOut;
+@@ -87,7 +86,7 @@
+ 			return false;
+ 		} finally {
+ 			//Add a listener to close R on closing PathVisio
+-			SwtEngine.addApplicationEventListener(new RController());
++			Engine.addApplicationEventListener(new RController());
+ 		}
+ 
+ 		return true;
+@@ -405,7 +404,7 @@
+ 	}
+ 		
+ 	public void applicationEvent(ApplicationEvent e) {
+-		if(e.type == ApplicationEvent.CLOSE_APPLICATION) {
++		if(e.type == ApplicationEvent.APPLICATION_CLOSE) {
+ 			endR(); //End the R process
+ 			if(rOut != null) { //Close the R output file
+ 				try { 
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RFunctionLoader.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RFunctionLoader.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RFunctionLoader.java	(revision 937)
+@@ -51,6 +51,7 @@
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Shell;
+ import org.eclipse.swt.widgets.Text;
++import org.pathvisio.Engine;
+ import org.pathvisio.R.RCommands.RException;
+ import org.pathvisio.R.wizard.RWizard;
+ import org.pathvisio.gui.swt.SwtEngine;
+@@ -69,7 +70,7 @@
+ 	
+ 	
+ 	public static void loadFunctions() throws IOException, RException {
+-		URL url = SwtEngine.getResourceURL(FUN_DIR);
++		URL url = Engine.getResourceURL(FUN_DIR);
+ 		
+ 		String protocol = url.getProtocol();
+ 		if(protocol.equals("jar")) {
+Index: branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 936)
++++ branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 937)
+@@ -319,10 +319,10 @@
+ 		}
+ 
+ 		public void applicationEvent(ApplicationEvent e) {
+-			if(e.type == ApplicationEvent.OPEN_PATHWAY) {
++			if(e.type == ApplicationEvent.PATHWAY_OPENED) {
+ 				Engine.getActiveVPathway().setEditMode(isChecked());
+ 			}
+-			else if(e.type == ApplicationEvent.NEW_PATHWAY) {
++			else if(e.type == ApplicationEvent.PATHWAY_NEW) {
+ 				switchEditMode(true);
+ 			}
+ 		}
+@@ -974,7 +974,7 @@
+ 	
+ 	public boolean close() {
+ 		Engine.fireApplicationEvent(
+-				new ApplicationEvent(this, ApplicationEvent.CLOSE_APPLICATION));
++				new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE));
+ 		return super.close();
+ 	}
+ 	
+@@ -1051,11 +1051,11 @@
+ 	public void applicationEvent(ApplicationEvent e) {
+ 		VPathway drawing = null;
+ 		switch(e.type) {
+-		case ApplicationEvent.NEW_PATHWAY:
++		case ApplicationEvent.PATHWAY_NEW:
+ 			drawing = Engine.getActiveVPathway();
+ 			sc.setContent((Canvas)drawing.getWrapper());
+ 			break;
+-		case ApplicationEvent.OPEN_PATHWAY:
++		case ApplicationEvent.PATHWAY_OPENED:
+ 			drawing = Engine.getActiveVPathway();
+ 			sc.setContent((Canvas)drawing.getWrapper());
+ 			if(Gex.isConnected()) cacheExpressionData();
+Index: branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 937)
+@@ -17,6 +17,7 @@
+ package org.pathvisio.model;
+ 
+ import java.awt.Color;
++import java.io.File;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collections;
+@@ -41,7 +42,7 @@
+  * @author Martijn
+  *
+  */
+-public class GpmlFormat 
++public class GpmlFormat implements PathwayImporter, PathwayExporter
+ {
+ 	public static final Namespace GPML = Namespace.getNamespace("gpml", "http://genmapp.org/GPML/2007");
+ 	public static final Namespace RDF = Namespace.getNamespace("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+@@ -1013,4 +1014,21 @@
+ 			"Maroon", "Navy", "Olive", "Purple", "Red", "Silver", "Teal",
+ 			"White", "Yellow", "Transparent"
+ 		});
+-}
++
++	public void doImport(File file, Pathway pathway) throws ConverterException {
++		pathway.readFromXml(file, true);
++	}
++
++	public void doExport(File file, Pathway pathway) throws ConverterException {
++		pathway.writeToXml(file, true);
++	}
++	
++	public String[] getExtensions() {
++		return new String[] { "gpml", "xml" };
++	}
++
++	public String getName() {
++		return "GPML file";
++	}
++
++}
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationManager.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationManager.java	(revision 937)
+@@ -365,7 +365,7 @@
+ 	}
+ 	
+ 	public void applicationEvent(ApplicationEvent e) {
+-		if(e.type == ApplicationEvent.CLOSE_APPLICATION) {
++		if(e.type == ApplicationEvent.APPLICATION_CLOSE) {
+ 			saveGeneric();
+ 		}		
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/AboutDlg.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/AboutDlg.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/AboutDlg.java	(revision 937)
+@@ -27,6 +27,7 @@
+ import org.eclipse.swt.widgets.Listener;
+ import org.eclipse.swt.widgets.Shell;
+ import org.pathvisio.Globals;
++import org.pathvisio.Revision;
+ 
+ /**
+  * 
+Index: branches/g2d-branch/src/core/org/pathvisio/Engine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 937)
+@@ -76,6 +76,31 @@
+ 		openPathway(pathwayFile, null);
+ 	}
+ 	
++	public static void importPathway(File file) throws ConverterException {
++		importPathway(file, null);
++	}
++	
++	public static void importPathway(File file, VPathwayWrapper wrapper) throws ConverterException {
++		String fileName = file.toString();
++		
++		int dot = fileName.lastIndexOf('.');
++		String ext = Engine.PATHWAY_FILE_EXTENSION; //
++		if(dot >= 0) {
++			ext = fileName.substring(dot + 1, fileName.length());
++		}
++		PathwayImporter importer = getPathwayImporter(ext);
++		
++		if(importer == null) throw new ConverterException( "No importer for '" + ext +  "' files" );
++		
++		Pathway _pathway = new Pathway();
++		importer.doImport(file, _pathway);
++		pathway = _pathway;
++		fireApplicationEvent(new ApplicationEvent(pathway, ApplicationEvent.PATHWAY_OPENED));
++		if(wrapper != null) {
++			createVPathway(pathway, wrapper);
++		}
++	}
++	
+ 	/**
+ 	 * Open a pathway from a gpml file
+ 	 */
+@@ -96,17 +121,21 @@
+ 		}
+ 		if(_pathway != null) //Only continue if the data is correctly loaded
+ 		{
++			pathway = _pathway;
++			fireApplicationEvent(new ApplicationEvent(pathway, ApplicationEvent.PATHWAY_OPENED));
+ 			if(wrapper != null) {
+-				VPathway _drawing = wrapper.createVPathway();
+-				vPathway = _drawing;
+-				vPathway.fromGmmlData(_pathway);
++				createVPathway(_pathway, wrapper);
+ 			}
+-			pathway = _pathway;
+-			fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.OPEN_PATHWAY));
+ 		}
+ 		
+ 	}
+ 	
++	private static void createVPathway(Pathway p, VPathwayWrapper wrapper) {
++		vPathway = wrapper.createVPathway();
++		vPathway.fromGmmlData(pathway);
++		fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.VPATHWAY_CREATED));
++	}
++	
+ 	/**
+ 	 * Create a new pathway
+ 	 */
+@@ -124,7 +153,7 @@
+ 		if(wrapper != null) {
+ 			newVPathway(pathway, wrapper);
+ 		}
+-		fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.NEW_PATHWAY));
++		fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.PATHWAY_NEW));
+ 	}
+ 	
+ 	public static void newVPathway(Pathway pathway, VPathwayWrapper wrapper) {
+@@ -226,9 +255,10 @@
+ 	
+ 	public static class ApplicationEvent extends EventObject {
+ 		private static final long serialVersionUID = 1L;
+-		public static final int OPEN_PATHWAY = 1;
+-		public static final int NEW_PATHWAY = 2;
+-		public static final int CLOSE_APPLICATION = 3;
++		public static final int PATHWAY_OPENED = 1;
++		public static final int PATHWAY_NEW = 2;
++		public static final int APPLICATION_CLOSE = 3;
++		public static final int VPATHWAY_CREATED = 4;
+ 
+ 		public Object source;
+ 		public int type;
+@@ -239,4 +269,4 @@
+ 			this.type = type;
+ 		}
+ 	}
+-}
++}
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/search/SearchResultTable.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/search/SearchResultTable.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/search/SearchResultTable.java	(revision 937)
+@@ -102,7 +102,7 @@
+ 	}
+ 
+ 	public void applicationEvent(ApplicationEvent e) {
+-		if(e.type == ApplicationEvent.OPEN_PATHWAY)
++		if(e.type == ApplicationEvent.PATHWAY_OPENED)
+ 				highlightResults(highlightButton.getSelection());
+ 	}
+ }	
+Index: branches/g2d-branch/src/core/org/pathvisio/data/Gex.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/Gex.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/data/Gex.java	(revision 937)
+@@ -980,7 +980,7 @@
+ 	
+ 	public void applicationEvent(ApplicationEvent e) {
+ 		switch(e.type) {
+-		case ApplicationEvent.CLOSE_APPLICATION:
++		case ApplicationEvent.APPLICATION_CLOSE:
+ 			if(isConnected()) close();
+ 		}
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayOld.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayOld.java	(revision 936)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayOld.java	(revision 937)
+@@ -1,1288 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.view;
+-
+-import org.pathvisio.gui.swt.SwtEngine;
+-
+-import java.awt.Rectangle;
+-import java.awt.geom.Point2D;
+-import java.awt.geom.Rectangle2D;
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.HashMap;
+-import java.util.HashSet;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Set;
+-
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.KeyEvent;
+-import org.eclipse.swt.events.KeyListener;
+-import org.eclipse.swt.events.MouseEvent;
+-import org.eclipse.swt.events.MouseListener;
+-import org.eclipse.swt.events.MouseMoveListener;
+-import org.eclipse.swt.events.MouseTrackListener;
+-import org.eclipse.swt.events.PaintEvent;
+-import org.eclipse.swt.events.PaintListener;
+-import org.eclipse.swt.graphics.GC;
+-import org.eclipse.swt.graphics.Image;
+-import org.eclipse.swt.graphics.Point;
+-import org.eclipse.swt.widgets.Canvas;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Shell;
+-
+-import org.pathvisio.visualization.Visualization;
+-import org.pathvisio.visualization.VisualizationManager;
+-import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+-import org.pathvisio.visualization.VisualizationManager.VisualizationListener;
+-import org.pathvisio.model.*;
+-import org.pathvisio.model.PathwayElement.MPoint;
+-
+-/**
+- * This class implements and handles a drawing.
+- * Graphics objects are stored in the drawing and can be 
+- * visualized. The class also provides methods for mouse  and key
+- * event handling.
+- */
+-public class VPathwayOld extends Canvas implements MouseListener, MouseMoveListener, 
+-PaintListener, MouseTrackListener, KeyListener, PathwayListener, VisualizationListener
+-{	
+-	private static final long serialVersionUID = 1L;
+-	static final double M_PASTE_OFFSET = 10 * 15;
+-	
+-	/**
+-	 * All objects that are visible on this mapp, including the handles
+-	 * but excluding the legend, mappInfo and selectionBox objects
+-	 */
+-	private ArrayList<VPathwayElement> drawingObjects;
+-	public ArrayList<VPathwayElement> getDrawingObjects() { return drawingObjects; }
+-	
+-	/**
+-	 * The {@link VPathwayElement} that is pressed last mouseDown event}
+-	 */
+-	VPathwayElement pressedObject	= null;	
+-	
+-	/**
+-	 * The {@link Graphics} that is directly selected since last mouseDown event
+-	 */
+-	public Graphics selectedGraphics = null;
+-	
+-	/**
+-	 * {@link InfoBox} object that contains information about this pathway,
+-	 * currently only used for information in {@link gmmlVision.PropertyPanel}
+-	 * (TODO: has to be implemented to behave the same as any Graphics object
+-	 * when displayed on the drawing)
+-	 */
+-	InfoBox infoBox;
+-	private Pathway data;
+-	public Pathway getGmmlData()
+-	{
+-		return data;
+-	}
+-	
+-	SelectionBox s; 
+-		
+-	private boolean editMode;
+-	/**
+-	 * Checks if this drawing is in edit mode
+-	 * @return false if in edit mode, true if not
+-	 */
+-	public boolean isEditMode() { return editMode; }
+-	
+-	/**
+-	 * Map the contents of a single data object to this VPathway
+-	 */	
+-	private Graphics fromGmmlDataObject (PathwayElement o)
+-	{
+-		Graphics result = null;
+-		switch (o.getObjectType())
+-		{
+-			case ObjectType.DATANODE: result = new GeneProduct(this, o); break;
+-			case ObjectType.SHAPE: result = new Shape(this, o); break;
+-			case ObjectType.LINE: result = new Line(this, o); break;
+-			case ObjectType.MAPPINFO: 
+-				InfoBox mi = new InfoBox(this, o);
+-				addObject(mi); 
+-				setMappInfo(mi);
+-				result = mi; 
+-				break;				
+-			case ObjectType.LABEL: result = new Label(this, o); break;					
+-			case ObjectType.GROUP: result = new Group(this, o); break;					
+-		}
+-		return result;
+-	}
+-	
+-	/**
+-	 * Maps the contents of a pathway to this VPathway
+-	 */	
+-	public void fromGmmlData(Pathway _data)
+-	{		
+-		data = _data;
+-			
+-		for (PathwayElement o : data.getDataObjects())
+-		{
+-			fromGmmlDataObject (o);
+-		}
+-		int width = (int)vFromM(infoBox.getGmmlData().getMBoardWidth());
+-		int height = (int)vFromM(infoBox.getGmmlData().getMBoardHeight());
+-		setSize(width, height); 
+-		data.fireObjectModifiedEvent(new PathwayEvent(null, PathwayEvent.MODIFIED_GENERAL));
+-		data.addListener(this);
+-	}
+-
+-	private int newGraphics = NEWNONE;
+-	/**
+-	 * Method to set the new graphics type that has to be added next time the user clicks on the
+-	 * drawing. 
+-	 * @param type One of the NEWXX fields of this class, where XX stands for the type of graphics to draw
+-	 */
+-	public void setNewGraphics(int type) { newGraphics = type; }
+-	
+-	private Rectangle dirtyRect = null;
+-	/**
+-	 * Adds object boundaries to the 'dirty rectangle', which marks the area that needs to be redrawn
+-	 */
+-	public void addDirtyRect(Rectangle r)
+-	{
+-		if(r == null) { //In case r is null, add whole drawing
+-			org.eclipse.swt.graphics.Rectangle b = getBounds();
+-			r = new Rectangle(b.x, b.y, b.width, b.height);
+-		}
+-		if(dirtyRect == null)
+-			dirtyRect = r;
+-		else
+-			dirtyRect.add(r);	
+-	}
+-	
+-	/**
+-	 * Redraw parts marked dirty
+-	 * reset dirty rect afterwards
+-	 */
+-	public void redrawDirtyRect()
+-	{
+-		if (dirtyRect != null)
+-			redraw (dirtyRect.x, dirtyRect.y, dirtyRect.width + 1, dirtyRect.height + 1, false);
+-		dirtyRect = null;
+-	}
+-	
+-	/**
+-	 *Constructor for this class
+-	 */	
+-	public VPathwayOld(Composite parent, int style)
+-	{
+-		super (parent, style);
+-		
+-		drawingObjects	= new ArrayList<VPathwayElement>();
+-		
+-		s = new SelectionBox(this);
+-		
+-		addMouseListener(this);
+-		addMouseMoveListener(this);
+-		addPaintListener (this);
+-		addMouseTrackListener(this);
+-		addKeyListener(this);
+-		VisualizationManager.addListener(this);
+-	}
+-		
+-	/**
+-	 * Sets the MappInfo containing information on the pathway
+-	 * @param mappInfo
+-	 */
+-	public void setMappInfo(InfoBox mappInfo)
+-	{
+-		this.infoBox = mappInfo;
+-		infoBox.getGmmlData().addListener(this);
+-	}
+-
+-	/**
+-	 * Gets the MappInfo containing information on the pathway
+-	 */
+-	public InfoBox getMappInfo() { return infoBox; }
+-		
+-	/**
+-	 * Adds an element to the drawing
+-	 * @param o the element to add
+-	 */
+-	public void addObject(VPathwayElement o)
+-	{
+-		if(!drawingObjects.contains(o)) { //Don't add duplicates!
+-			drawingObjects.add(o);
+-		}
+-		
+-	}
+-
+-	HashMap<MPoint, VPoint> pointsMtoV = new HashMap<MPoint, VPoint>();
+-	protected VPoint getPoint(MPoint mPoint) {
+-		VPoint p = pointsMtoV.get(mPoint);
+-		if(p == null) {
+-			p = newPoint(mPoint);
+-		}
+-		return p;
+-	}
+-	
+-	
+-	private VPoint newPoint(MPoint mPoint) {
+-		VPoint p = null;
+-		for(MPoint ep : mPoint.getEqualPoints()) {
+-			p = pointsMtoV.get(ep);
+-			if(p != null) {
+-				p.addMPoint(mPoint);
+-				pointsMtoV.put(mPoint, p);
+-				break;
+-			}
+-		}
+-		if(p == null) p = new VPoint(this);
+-		p.addMPoint(mPoint);
+-		pointsMtoV.put(mPoint, p);
+-		return p;
+-	}
+-	
+-	/**
+-	 * Get the gene identifiers of all genes in this pathway
+-	 * @return	List containing an identifier for every gene on the mapp
+-	 * @deprecated get this info from Pathway directly
+-	 */
+-	public ArrayList<String> getMappIds()
+-	{
+-		ArrayList<String> mappIds = new ArrayList<String>();
+-		for(VPathwayElement o : drawingObjects)
+-		{
+-			if(o instanceof GeneProduct)
+-			{
+-				mappIds.add(((GeneProduct)o).getID());
+-			}
+-		}
+-		return mappIds;
+-	}
+-	
+-	/**
+-	 * Get the systemcodes of all genes in this pathway
+-	 * @return	List containing a systemcode for every gene on the mapp
+-	 * 
+-	 * @deprecated get this info from Pathway directly
+-	 */
+-	public ArrayList<String> getSystemCodes()
+-	{
+-		ArrayList<String> systemCodes = new ArrayList<String>();
+-		for(VPathwayElement o : drawingObjects)
+-		{
+-			if(o instanceof GeneProduct)
+-			{
+-				systemCodes.add(((GeneProduct)o).getSystemCode());
+-			}
+-		}
+-		return systemCodes;
+-	}
+-	
+-	/**
+-	 * Set this drawing to editmode
+-	 * @param editMode	true if editmode has to be enabled, false if disabled (view mode)
+-	 */
+-	public void setEditMode(boolean editMode)
+-	{
+-		this.editMode = editMode;
+-		if(!editMode)
+-		{
+-			clearSelection();
+-		}
+-		SwtEngine.getWindow().showLegend(!editMode);	
+-		redraw();
+-	}
+-	
+-	private double zoomFactor = 1.0/15.0;
+-	/**
+-	 * Get the current zoomfactor used. 
+-	 * 1/15 means 100%, 15 gpml unit = 1 pixel
+-	 * 2/15 means 200%, 7.5 gpml unit = 1 pixel
+-	 * 
+-	 * The 15/1 ratio is there because of 
+-	 * the Visual Basic legacy of GenMAPP
+-	 * 
+-	 * To distinguish between model coordinates and view coordinates,
+-	 * we prefix all coordinates with either v or m (or V or M). For example:
+-	 * 
+-	 * mTop = gdata.getMTop();
+-	 * vTop = GeneProduct.getVTop();
+-	 * 
+-	 * Calculations done on M's and V's should always match.
+-	 * The only way to convert is to use the functions
+-	 * mFromV and vFromM.
+-	 * 
+-	 * Correct: mRight = mLeft + mWidth;
+-	 * Wrong: mLeft += vDx; 
+-	 * Fixed: mLeft += mFromV(vDx);
+-	 * 
+-	 * @return	the current zoomfactor
+-	 */
+-	public double getZoomFactor() { return zoomFactor; }
+-
+-	/**
+-	 * same as getZoomFactor, but in %
+-	 * @return
+-	 */
+-	public double getPctZoom() { return zoomFactor * 100 * 15.0; }
+-
+-	/**
+-	 * Sets the drawings zoom in percent
+-	 * @param pctZoomFactor zoomfactor in percent
+-	 */
+-	public void setPctZoom(double pctZoomFactor)
+-	{
+-		zoomFactor = pctZoomFactor / 100.0 / 15.0;
+-		int width = (int)vFromM(infoBox.getGmmlData().getMBoardWidth());
+-		int height = (int)vFromM(infoBox.getGmmlData().getMBoardHeight());
+-		setSize(width, height); 				
+-		redraw();
+-	}
+-
+-	public void setPressedObject(VPathwayElement o) {
+-		pressedObject = o;
+-	}
+-	
+-	int vPreviousX;
+-	int vPreviousY;
+-	boolean isDragging;
+-	/**
+-	 * handles mouse movement
+-	 */
+-	public void mouseMove(MouseEvent ve)
+-	{
+-		boolean altPressed = (ve.stateMask & SWT.ALT) != 0;
+-		// If draggin, drag the pressed object
+-		if (pressedObject != null && isDragging)
+-		{
+-			double vdx = ve.x - vPreviousX;
+-			double vdy = ve.y - vPreviousY;
+-			pressedObject.vMoveBy(vdx, vdy);
+-				
+-			vPreviousX = ve.x;
+-			vPreviousY = ve.y;
+-			
+-			if (pressedObject instanceof Handle && altPressed && newGraphics == NEWNONE &&
+-					((Handle)pressedObject).parent instanceof VPoint)
+-			{
+-				resetHighlight();
+-				Point2D p2d = new Point2D.Double(ve.x, ve.y);
+-				List<VPathwayElement> objects = getObjectsAt (p2d);
+-				Collections.sort(objects);
+-				Handle g = (Handle)pressedObject;
+-				VPoint p = (VPoint)g.parent;
+-				VPathwayElement x = null;
+-				for (VPathwayElement o : objects)
+-				{
+-					if (o instanceof VPoint && o != p) {
+-						x = o;
+-						p.link((VPoint)o);
+-						break;
+-					} else if(o instanceof Graphics && !(o instanceof Line)) {
+-						x = o;
+-						p.link((Graphics)o);
+-						break;
+-					} 
+-				}
+-				if(x != null) x.highlight();
+-			}
+-			redrawDirtyRect();
+-		}
+-	}
+-	
+-	public void selectObject(VPathwayElement o) {
+-		clearSelection();
+-		lastAdded.select();
+-		s.addToSelection(lastAdded);
+-	}
+-	
+-	/**
+-	 * Handles mouse Pressed input
+-	 */
+-	public void mouseDown(MouseEvent e)
+-	{		
+-		setFocus();
+-		if (editMode)
+-		{
+-			if (newGraphics != NEWNONE)
+-			{
+-				newObject(new Point(e.x, e.y));
+-				SwtEngine.getWindow().deselectNewItemActions();
+-			}
+-			else
+-			{
+-				editObject(new Point(e.x, e.y), e);
+-			}
+-		}
+-		else
+-		{
+-			mouseDownViewMode(e);
+-		}
+-
+-	}
+-		
+-	/**
+-	 * Handles mouse Released input
+-	 */
+-	public void mouseUp(MouseEvent e)
+-	{
+-		if(isDragging)
+-		{
+-			resetHighlight();
+-			if(s.isSelecting()) { //If we were selecting, stop it
+-				s.stopSelecting();
+-			}
+-			// check if we placed a new object by clicking or dragging
+-			// if it was a click, give object the initial size.
+-			else if (newObject != null && 
+-					Math.abs(newObjectDragStart.x - e.x) <= MIN_DRAG_LENGTH &&
+-					Math.abs(newObjectDragStart.y - e.y) <= MIN_DRAG_LENGTH)
+-			{
+-				newObject.setInitialSize();
+-			}
+-			newObject = null;
+-			redrawDirtyRect();
+-		}
+-		isDragging = false;
+-	}
+-	
+-	/**
+-	 * Handles mouse entered input
+-	 */
+-	public void mouseDoubleClick(MouseEvent e) {	}
+-
+-	/**
+-	 * Paints all components in the drawing.
+-	 * This method is called automatically in the 
+-	 * painting process
+-	 */
+-	public void paintControl (PaintEvent e)
+-	{		
+-		Image image = (Image)getData("double-buffer-image");
+-		// create an image for double-buffering, if it doesn't exist 
+-		// or the component has been resized
+-		if(image == null
+-				|| image.getBounds().width != getSize().x
+-				|| image.getBounds().height != getSize().y)
+-		{
+-			Engine.log.trace("Creating image of size " + getSize().x + ", " + getSize().y);
+-			image = new Image(getDisplay(), getSize().x, getSize().y);
+-			setData("double-buffer-image", image);
+-		}
+-
+-		GC buffer = new GC(image);
+-		buffer.setBackground(e.display.getSystemColor(SWT.COLOR_WHITE));
+-		buffer.fillRectangle(e.x, e.y, e.width, e.height);
+-		
+-		buffer.setAntialias(SWT.ON);
+-		
+-		Rectangle2D.Double r = new Rectangle.Double(e.x, e.y, e.width, e.height);
+-		    	
+-		Collections.sort(drawingObjects);
+-		
+-		Visualization v = VisualizationManager.getCurrent();
+-		for(VPathwayElement o : drawingObjects)
+-		{
+-			if(o.vIntersects(r))
+-			{
+-				if(checkDrawAllowed(o)) {
+-					o.draw (e, buffer);
+-				}
+-				
+-				if(v != null && o instanceof Graphics) {
+-						try {
+-							v.visualizeDrawing((Graphics) o, e, buffer);
+-						} catch(Exception ex) {
+-							Engine.log.error(
+-									"Unable to apply visualization " + v + " on " + o, ex);
+-							ex.printStackTrace();
+-						}
+-				}
+-				if(o instanceof GeneProduct) ((GeneProduct)o).drawHighlight(e, buffer);
+-			}
+-		}
+-		
+-		e.gc.drawImage(image, 0, 0);
+-		buffer.dispose();
+-	}
+-
+-	boolean checkDrawAllowed(VPathwayElement o) {
+-		if(isEditMode()) return true;
+-		else return !(	o instanceof Handle ||
+-						(o == s && !isDragging)
+-					);
+-	}
+-
+-	/**
+-	 * deselect all elements on the drawing
+-	 */
+-	private void clearSelection()
+-	{
+-		for(VPathwayElement o : drawingObjects) o.deselect(); //Deselect all objects
+-		s.reset();
+-	}
+-
+-	/**
+-	 * Handles event when on mouseDown in case the drawing is in view mode
+-	 * (does nothing yet)
+-	 * @param e	the mouse event to handle
+-	 */
+-	private void mouseDownViewMode(MouseEvent e) 
+-	{
+-		Point2D p2d = new Point2D.Double(e.x, e.y);
+-
+-		pressedObject = getObjectAt(p2d);
+-		
+-		if (pressedObject != null)
+-			doClickSelect(p2d, e);
+-		else
+-			startSelecting(p2d);
+-	}
+-	
+-	/**
+-	 * Initializes selection, resetting the selectionbox
+-	 * and then setting it to the position specified
+-	 * @param vp - the point to start with the selection
+-	 */
+-	private void startSelecting(Point2D vp)
+-	{
+-		vPreviousX = (int)vp.getX();
+-		vPreviousY = (int)vp.getY();
+-		isDragging = true;
+-		
+-		clearSelection();
+-		s.reset(vp.getX(), vp.getY());
+-		s.startSelecting();
+-		pressedObject = s.getCornerHandle();
+-	}
+-		
+-	/**
+-	 * Resets highlighting, unhighlights all GmmlDrawingObjects
+-	 */
+-	public void resetHighlight() 
+-	{
+-		for(VPathwayElement o : drawingObjects) o.unhighlight();
+-		redraw();
+-	}
+-	
+-	/**
+-	 * Called by MouseDown, when we're in editting mode and we're not adding new objects
+-	 * prepares for dragging the object
+-	 */
+-	private void editObject(Point p, MouseEvent e)
+-	{
+-		Point2D p2d = new Point2D.Double(p.x, p.y);
+-		
+-		pressedObject = getObjectAt(p2d);
+-		
+-		// if we clicked on an object
+-		if (pressedObject != null)
+-		{
+-			// if our object is an handle, select also it's parent.
+-			if(pressedObject instanceof Handle)
+-			{
+-				((Handle)pressedObject).parent.select();
+-			} else {
+-				doClickSelect(p2d, e);
+-			}
+-			
+-			// start dragging
+-			vPreviousX = p.x;
+-			vPreviousY = p.y;
+-			
+-			isDragging = true;		
+-		}
+-		else
+-		{
+-			// start dragging selectionbox	
+-			startSelecting(p2d);
+-		}		
+-	}
+-
+-	/**
+-	 * Find the object at a particular location on the drawing
+-	 * 
+-	 * if you want to get more than one @see #getObjectsAt(Point2D)
+-	 */
+-	VPathwayElement getObjectAt(Point2D p2d) {
+-		Collections.sort(drawingObjects);
+-		VPathwayElement probj = null;
+-		for (VPathwayElement o : drawingObjects)
+-		{
+-			if (o.vContains(p2d))
+-			{
+-				// select this object, unless it is an invisible gmmlHandle
+-				if (o instanceof Handle && !((Handle)o).isVisible()) 
+-					;
+-				else 
+-					probj = o;
+-			}
+-		}
+-		return probj;
+-	}
+-	
+-	/**
+-	 * Find all objects at a particular location on the drawing
+-	 * 
+-	 * if you only need the top object, @see #getObjectAt(Point2D)
+-	 */
+-	List<VPathwayElement> getObjectsAt(Point2D p2d) 
+-	{
+-		List<VPathwayElement> result = new ArrayList<VPathwayElement>();
+-		for (VPathwayElement o : drawingObjects)
+-		{
+-			if (o.vContains(p2d))
+-			{
+-				// select this object, unless it is an invisible gmmlHandle
+-				if (o instanceof Handle && !((Handle)o).isVisible()) 
+-					;
+-				else 
+-					result.add(o);
+-			}
+-		}
+-		return result;
+-	}
+-	
+-	void doClickSelect(Point2D p2d, MouseEvent e) {
+-		//Ctrl pressed, add/remove from selection
+-		boolean ctrlPressed =  (e.stateMask & SWT.CTRL) != 0;
+-		if(ctrlPressed) 
+-		{
+-			if(pressedObject instanceof SelectionBox) {
+-				//Object inside selectionbox clicked, pass to selectionbox
+-				s.objectClicked(p2d);
+-			}
+-			else if(pressedObject.isSelected()) { //Already in selection: remove
+-				s.removeFromSelection(pressedObject);
+-			} else {
+-				s.addToSelection(pressedObject); //Not in selection: add
+-			}
+-			pressedObject = null; //Disable dragging
+-		} 
+-		else //Ctrl not pressed
+-		{
+-			//If pressedobject is not selectionbox:
+-			//Clear current selection and select pressed object
+-			if(!(pressedObject instanceof SelectionBox))
+-			{
+-				clearSelection();
+-				s.addToSelection(pressedObject);
+-			} else { //Check if clicked object inside selectionbox
+-				if(s.getChild(p2d) == null) clearSelection();
+-			}
+-		}
+-		redrawDirtyRect();
+-	}
+-	
+-	public static final int NEWNONE = -1;
+-	public static final int NEWLINE = 0;
+-	public static final int NEWLABEL = 1;
+-	public static final int NEWARC = 2;
+-	public static final int NEWBRACE = 3;
+-	public static final int NEWGENEPRODUCT = 4;
+-	public static final int NEWLINEDASHED = 5;
+-	public static final int NEWLINEARROW = 6;
+-	public static final int NEWLINEDASHEDARROW = 7;
+-	public static final int NEWRECTANGLE = 8;
+-	public static final int NEWOVAL = 9;
+-	public static final int NEWTBAR = 10;
+-	public static final int NEWRECEPTORROUND = 11;
+-	public static final int NEWLIGANDROUND = 12;
+-	public static final int NEWRECEPTORSQUARE = 13;
+-	public static final int NEWLIGANDSQUARE = 14;
+-	public static final int NEWLINEMENU = 15;
+-	public static final int NEWLINESHAPEMENU = 16;
+-	public static final Color stdRGB = new Color(0, 0, 0);
+-
+-	/**
+-	 * pathvisio distinguishes between placing objects with a click
+-	 * or with a drag. If you don't move the cursor in between the mousedown
+-	 * and mouseup event, the object is placed with a default initial size.
+-	 * 
+-	 * newObjectDragStart is used to determine the mousemovement during the click.
+-	 */
+-	private Point newObjectDragStart;
+-	
+-	/** newly placed object, is set to null again when mouse button is released */
+-	private PathwayElement newObject = null;
+-	/** minimum drag length for it to be considered a drag and not a click */
+-	private static final int MIN_DRAG_LENGTH = 3;
+-
+-	/**
+-	 * Add a new object to the drawing
+-	 * {@see VPathway#setNewGraphics(int)}
+-	 * @param p	The point where the user clicked on the drawing to add a new graphics
+-	 */
+-	private void newObject(Point ve)
+-	{
+-		newObjectDragStart = ve;
+-		int mx = (int)mFromV((double)ve.x);
+-		int my = (int)mFromV((double)ve.y); 
+-		
+-		PathwayElement gdata = null;
+-		Handle h = null;
+-		lastAdded = null; // reset lastAdded class member
+-		switch(newGraphics) {
+-		case NEWNONE:
+-			return;
+-		case NEWLINE:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.LINE);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWLINEARROW:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.ARROW);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWLINEDASHED:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.DASHED);
+-			gdata.setLineType (LineType.LINE);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWLINEDASHEDARROW:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.DASHED);
+-			gdata.setLineType (LineType.ARROW);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWLABEL:
+-			gdata = new PathwayElement(ObjectType.LABEL);
+-			gdata.setMCenterX(mx);
+-			gdata.setMCenterY(my);
+-			gdata.setMWidth(Label.M_INITIAL_WIDTH);
+-			gdata.setMHeight(Label.M_INITIAL_HEIGHT);
+-			gdata.setMFontSize (Label.M_INITIAL_FONTSIZE);
+-			gdata.setGraphId(data.getUniqueId());
+-			data.add (gdata); // will cause lastAdded to be set
+-			((Label)lastAdded).createTextControl();
+-			h = null;
+-			break;
+-		case NEWARC:
+-			gdata = new PathwayElement(ObjectType.SHAPE);
+-			gdata.setShapeType(ShapeType.ARC);
+-			gdata.setMCenterX (mx);
+-			gdata.setMCenterY (my);
+-			gdata.setMWidth(1);
+-			gdata.setMHeight(1);
+-			gdata.setColor(stdRGB);
+-			gdata.setRotation (0);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Shape)lastAdded).handleSE;
+-			isDragging = true;
+-			break;
+-		case NEWBRACE:
+-			gdata = new PathwayElement(ObjectType.SHAPE);
+-			gdata.setShapeType(ShapeType.BRACE);
+-			gdata.setMCenterX (mx);
+-			gdata.setMCenterY (my);
+-			gdata.setMWidth(1);
+-			gdata.setMHeight(1);
+-			gdata.setOrientation(OrientationType.RIGHT);
+-			gdata.setColor(stdRGB);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Shape)lastAdded).handleSE;
+-			isDragging = true;
+-			break;
+-		case NEWGENEPRODUCT:
+-			gdata = new PathwayElement(ObjectType.DATANODE);
+-			gdata.setMCenterX(mx);
+-			gdata.setMCenterY(my);
+-			gdata.setMWidth(1);
+-			gdata.setMHeight(1);
+-			gdata.setTextLabel("Gene");
+-			gdata.setXref("");
+-			gdata.setColor(stdRGB);
+-			gdata.setGraphId(data.getUniqueId());
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((GeneProduct)lastAdded).handleSE;
+-			isDragging = true;
+-			break;
+-		case NEWRECTANGLE:
+-			gdata = new PathwayElement(ObjectType.SHAPE);
+-			gdata.setShapeType(ShapeType.RECTANGLE);
+-			gdata.setMCenterX (mx);
+-			gdata.setMCenterY (my);
+-			gdata.setMWidth(1);
+-			gdata.setMHeight(1);
+-			gdata.setColor(stdRGB);
+-			gdata.setRotation (0);
+-			gdata.setGraphId(data.getUniqueId());
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Shape)lastAdded).handleSE;
+-			isDragging = true;
+-			break;
+-		case NEWOVAL:
+-			gdata = new PathwayElement(ObjectType.SHAPE);
+-			gdata.setShapeType(ShapeType.OVAL);
+-			gdata.setMCenterX (mx);
+-			gdata.setMCenterY (my);
+-			gdata.setMWidth(1);
+-			gdata.setMHeight(1);
+-			gdata.setColor(stdRGB);
+-			gdata.setRotation (0);
+-			gdata.setGraphId(data.getUniqueId());
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Shape)lastAdded).handleSE;
+-			isDragging = true;
+-			break;
+-		case NEWTBAR:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.TBAR);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWRECEPTORROUND:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.RECEPTOR_ROUND);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWRECEPTORSQUARE:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.RECEPTOR_SQUARE);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWLIGANDROUND:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.LIGAND_ROUND);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		case NEWLIGANDSQUARE:
+-			gdata = new PathwayElement(ObjectType.LINE);
+-			gdata.setMStartX(mx);
+-			gdata.setMStartY(my);
+-			gdata.setMEndX(mx);
+-			gdata.setMEndY(my);	
+-			gdata.setColor (stdRGB);
+-			gdata.setLineStyle (LineStyle.SOLID);
+-			gdata.setLineType (LineType.LIGAND_SQUARE);
+-			data.add (gdata); // will cause lastAdded to be set
+-			h = ((Line)lastAdded).getEnd().getHandle();
+-			isDragging = true;
+-			break;
+-		}
+-		
+-		newObject = gdata;
+-		selectObject(lastAdded);
+-		pressedObject = h;
+-		
+-		vPreviousX = ve.x;
+-		vPreviousY = ve.y;
+-				
+-	}
+-	
+-
+-	public static final int DRAW_ORDER_HANDLE = -1;
+-	public static final int DRAW_ORDER_GROUP = 0;
+-	public static final int DRAW_ORDER_SELECTIONBOX = 1;
+-	public static final int DRAW_ORDER_SELECTED = 2;
+-	public static final int DRAW_ORDER_GENEPRODUCT = 3;
+-	public static final int DRAW_ORDER_LABEL = 4;
+-	public static final int DRAW_ORDER_ARC = 5;
+-	public static final int DRAW_ORDER_BRACE = 6;
+-	public static final int DRAW_ORDER_SHAPE = 7;
+-	public static final int DRAW_ORDER_LINE = 8;
+-	public static final int DRAW_ORDER_LINESHAPE = 9;
+-	public static final int DRAW_ORDER_MAPPINFO = 10;
+-	public static final int DRAW_ORDER_DEFAULT = 11;
+-	
+-	public void mouseEnter(MouseEvent e) {}
+-
+-	public void mouseExit(MouseEvent e) {}
+-	
+-	/**
+-	 * Responsible for drawing a tooltip displaying expression data when 
+-	 * hovering over a geneproduct
+-	 */
+-	public void mouseHover(MouseEvent e) {
+-		Visualization v = VisualizationManager.getCurrent();
+-		if(v != null && v.usesToolTip()) {
+-			Point2D p = new Point2D.Double(e.x, e.y);
+-			
+-			VPathwayElement o = getObjectAt(p);
+-			if(o != null && o instanceof Graphics) {
+-				Shell tip = v.visualizeToolTip(getShell(), this, (Graphics)o);
+-				if(tip == null) return;
+-				Point mp = toDisplay(e.x + 15, e.y + 15);
+-				tip.setLocation(mp.x, mp.y);
+-	            tip.setVisible(true);
+-			}
+-		}
+-	}
+-
+-	private void selectGeneProducts() {
+-		clearSelection();
+-		for(VPathwayElement o : getDrawingObjects()) {
+-			if(o instanceof GeneProduct) s.addToSelection(o);
+-		}
+-	}
+-	
+-	private void insertPressed() {
+-		Set<VPathwayElement> objects = new HashSet<VPathwayElement>();
+-		objects.addAll(s.getSelection());
+-		for(VPathwayElement o : objects) {
+-			if(o instanceof Line) {
+-				PathwayElement g = ((Line)o).getGmmlData();
+-				PathwayElement[] gNew = g.splitLine();
+-							
+-				removeDrawingObject(o); //Remove the old line
+-				
+-				//Clear refs on middle point (which is new)
+-				gNew[0].getMEnd().setGraphRef(null);
+-				gNew[1].getMStart().setGraphRef(null);
+-				
+-				gNew[1].setGraphId(data.getUniqueId());
+-				data.add(gNew[0]);
+-				Line l1 = (Line)lastAdded;
+-				data.add(gNew[1]);
+-				Line l2 = (Line)lastAdded;				
+-				
+-				l1.getEnd().link(l2.getStart());
+-			}
+-		}
+-		s.addToSelection(lastAdded);
+-	}
+-	
+-	public void createGroup() {
+-		//GroupId is created on first getGroupId call
+-		PathwayElement group = new PathwayElement(ObjectType.GROUP);
+-		data.add(group);
+-		
+-		group.setTextLabel("new group");
+-		group.setGroupStyle(GroupStyle.NONE);
+-		
+-		String id = group.getGroupId();
+-		
+-		//Add the selected pathway elements
+-		List<Graphics> selection = getSelectedGraphics();
+-		
+-		for(Graphics g : selection) {
+-			PathwayElement pe = g.getGmmlData();
+-			String ref = pe.getGroupRef();
+-			if(ref == null) {
+-				pe.setGroupRef(id);
+-			} else if(ref != id) {
+-				PathwayElement refGroup = data.getGroupById(ref);
+-				refGroup.setGroupRef(id);
+-			}
+-		}
+-	}
+-
+-	public void keyPressed(KeyEvent e) { 
+-		//if(e.keyCode == SWT.CTRL) ctrlPressed();
+-		//if(e.keyCode == SWT.ALT) altPressed();
+-		if(e.keyCode == SWT.INSERT) insertPressed();
+-		if(e.keyCode == 100) //CTRL-D to select all gene-products
+-			if((e.stateMask & SWT.CTRL) != 0) {
+-				selectGeneProducts();
+-				redraw();
+-			}
+-		if(e.keyCode == 103) //CTRL-G to select all gene-products
+-			if((e.stateMask & SWT.CTRL) != 0) {
+-				//do group thing
+-				createGroup();
+-			}
+-	}
+-
+-	
+-	
+-	public void keyReleased(KeyEvent e) {		
+-		//if(e.keyCode == SWT.CTRL) ctrlReleased();
+-		//if(e.keyCode == SWT.ALT) altReleased();
+-		if(e.keyCode == SWT.DEL) {
+-			ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
+-			for(VPathwayElement o : drawingObjects)
+-			{
+-				if(!o.isSelected() || o == s || o == infoBox) continue; //Object not selected, skip
+-				toRemove.add(o);
+-			}
+-			removeDrawingObjects(toRemove);
+-		}
+-	}
+-	
+-	/**
+-	 * Removes the GmmlDrawingObjects in the ArrayList from the drawing
+-	 * @param toRemove	The List containing the objects to be removed
+-	 */
+-	public void removeDrawingObjects(ArrayList<VPathwayElement>toRemove)
+-	{
+-		for(VPathwayElement o : toRemove)
+-		{
+-			removeDrawingObject(o);
+-			
+-		}
+-		s.fitToSelection();
+-	}
+-	
+-	public void removeDrawingObject(VPathwayElement toRemove) {
+-		toRemove.destroy(); //Object will remove itself from the drawing
+-		s.removeFromSelection(toRemove); //Remove from selection
+-	}
+-
+-	Graphics lastAdded = null;
+-	
+-	public void gmmlObjectModified(PathwayEvent e) {
+-		switch (e.getType())
+-		{
+-			case PathwayEvent.DELETED:
+-				// TODO: affected object should be removed
+-				addDirtyRect(null); // mark everything dirty
+-				break;
+-			case PathwayEvent.ADDED:
+-				lastAdded = fromGmmlDataObject(e.getAffectedData());
+-				addDirtyRect(null); // mark everything dirty
+-				break;
+-			case PathwayEvent.WINDOW:
+-				int width = (int)vFromM(infoBox.getGmmlData().getMBoardWidth());
+-				int height = (int)vFromM(infoBox.getGmmlData().getMBoardHeight());
+-				setSize(width, height); 
+-				break;
+-		}
+-		redrawDirtyRect();
+-	}
+-		
+-	/**
+-	 * Makes a copy of all GmmlDataObjects in current selection,
+-	 * and puts them in the global clipboard.
+-	 *
+-	 */
+-	public void copyToClipboard()
+-	{
+-		//Clipboard clipboard = new Clipboard (this.getDisplay());
+-		
+-		List<PathwayElement> result = new ArrayList<PathwayElement>();
+-		for (VPathwayElement g : drawingObjects)
+-		{
+-			if (g.isSelected() && g instanceof Graphics
+-					&& !(g instanceof SelectionBox))
+-			{
+-				result.add(((Graphics)g).gdata.copy());
+-			}
+-		}
+-		if (result.size() > 0)
+-		{
+-			SwtEngine.clipboard = result;
+-		}
+-		else
+-		{
+-			SwtEngine.clipboard = null;
+-		}
+-		
+-		//clipboard.dispose();
+-	}
+-	
+-	/**
+-	 * TODO: document
+-	 * @return
+-	 */
+-	public List<Graphics> getSelectedGraphics() {
+-		List<Graphics> result = new ArrayList<Graphics>();
+-		for (VPathwayElement g : drawingObjects)
+-		{
+-			if (g.isSelected() && g instanceof Graphics
+-					&& !(g instanceof SelectionBox))
+-			{
+-				result.add((Graphics)g);
+-			}
+-		}
+-		return result;
+-	}
+-	
+-	/**
+-	 * If global clipboard contains GmmlDataObjects,
+-	 * makes another copy of these objects, and pastes them in. 
+-	 * The clipboard contents will be moved 10 pixels souteast,
+-	 * so they won't exactly overlap with the original.
+-	 */
+-	public void pasteFromClipboad()
+-	{
+-		if (SwtEngine.clipboard != null)
+-		{
+-			clearSelection();
+-			Map<String, String> idmap = new HashMap<String, String>();
+-			Set<String> newids = new HashSet<String>();
+-			
+-			/*
+-			 * Step 1: generate new unique ids for copied items
+-			 */
+-			for (PathwayElement o : SwtEngine.clipboard)
+-			{
+-				String id = o.getGraphId();
+-				if (id != null) 
+-				{
+-					String x;
+-					do
+-					{
+-						/* generate a unique id.
+-						 * at the same time, check that it is not 
+-						 * equal to one of the unique ids
+-						 * that we generated since the start of this
+-						 * method
+-						 */ 
+-						x = data.getUniqueId();
+-					} while (newids.contains(x));
+-					newids.add(x); // make sure we don't generate this one again
+-					
+-					idmap.put(id, x);
+-				}
+-			}
+-			/*
+-			 * Step 2: do the actual copying 
+-			 */
+-			for (PathwayElement o : SwtEngine.clipboard)
+-			{
+-				if (o.getObjectType() == ObjectType.MAPPINFO ||
+-					o.getObjectType() == ObjectType.INFOBOX)
+-				{
+-					// these object types we skip,
+-					// because they have to be unique in a pathway
+-					continue;
+-				}
+-				
+-				lastAdded = null;
+-				o.setMStartX(o.getMStartX() + M_PASTE_OFFSET);
+-				o.setMStartY(o.getMStartY() + M_PASTE_OFFSET);
+-				o.setMEndX(o.getMEndX() + M_PASTE_OFFSET);
+-				o.setMEndY(o.getMEndY() + M_PASTE_OFFSET);
+-				o.setMLeft(o.getMLeft() + M_PASTE_OFFSET);
+-				o.setMTop(o.getMTop() + M_PASTE_OFFSET);
+-				// make another copy to preserve clipboard contents for next paste
+-				PathwayElement p = o.copy();
+-				
+-				// set new unique id
+-				if (p.getGraphId() != null)
+-				{					
+-					p.setGraphId(idmap.get(p.getGraphId()));					
+-				}
+-				// update graphref
+-				String y = p.getStartGraphRef(); 
+-				if (y != null)
+-				{
+-					//TODO: mapping graphrefs to newly created id's 
+-					// doesn't work properly yet
+-				/*	if (idmap.containsKey(y))
+-					{
+-						p.setStartGraphRef(idmap.get(y));
+-					}
+-					else
+-					{*/
+-						p.setStartGraphRef(null);
+-					//}				
+-				}
+-				y = p.getEndGraphRef(); 
+-				if (y != null)
+-				{
+-				/*	if (idmap.containsKey(y))
+-					{
+-						p.setEndGraphRef(idmap.get(y));
+-					}
+-					else
+-					{*/
+-						p.setEndGraphRef(null);
+-				//	}				
+-				}
+-				
+-				data.add (p); // causes lastAdded to be set
+-				lastAdded.select();
+-				s.addToSelection(lastAdded);
+-			}
+-		}
+-	}
+-
+-	public void visualizationEvent(VisualizationEvent e) {
+-		switch(e.type) {
+-		case(VisualizationEvent.COLORSET_MODIFIED):
+-		case(VisualizationEvent.VISUALIZATION_SELECTED):
+-		case(VisualizationEvent.VISUALIZATION_MODIFIED):
+-		case(VisualizationEvent.PLUGIN_MODIFIED):
+-			getDisplay().syncExec(new Runnable() {
+-				public void run() {
+-					redraw();
+-				}
+-			});
+-		}
+-	}	
+-	
+-	/** 
+-	 * helper method to convert view coordinates to model coordinates 
+-	 * */
+-	public double mFromV(double v) { return v / zoomFactor; }
+-
+-	/** 
+-	 * helper method to convert view coordinates to model coordinates 
+-	 * */
+-	public double vFromM(double m) { return m * zoomFactor; }
+-	
+-} // end of class

@@ -1,0 +1,4894 @@
+Index: branches/g2d-branch/pathvisio.sh
+===================================================================
+--- branches/g2d-branch/pathvisio.sh	(revision 952)
++++ branches/g2d-branch/pathvisio.sh	(revision 953)
+@@ -1,4 +1,34 @@
+ #!/bin/sh
+ export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/atlas:/usr/lib/firefox
+ export MOZILLA_FIVE_HOME=/usr/lib/firefox
+-java -cp lib/JRI.jar:lib/BrowserLauncher.jar:lib/org.eclipse.equinox.common.jar:lib/org.eclipse.equinox.supplement.jar:lib/org.eclipse.jface.jar:lib/swt-linux.jar:lib/org.eclipse.core.commands.jar:lib/jdom.jar:build/v1:lib/derby.jar:lib/swt-linux-lib.jar:lib/resources.jar -Djava.library.path="/usr/lib/firefox:./lib/swt-linux-lib" org.pathvisio.gui.GuiMain 
++
++MYCLASSPATH=lib/JRI.jar:\
++lib/BrowserLauncher.jar:\
++lib/org.eclipse.equinox.common.jar:\
++lib/org.eclipse.equinox.supplement.jar:\
++lib/org.eclipse.jface.jar:\
++lib/swt-linux-lib/swt.jar:\
++lib/org.eclipse.core.commands.jar:\
++lib/jdom.jar:\
++build/v1:\
++lib/derby.jar:\
++lib/swt-linux-lib.jar:\
++lib/resources.jar:\
++lib/batik/batik-awt-util.jar:\
++lib/batik/batik-ext.jar:\
++lib/batik/batik-script.jar:\
++lib/batik/batik-util.jar:\
++lib/batik/batik-dom.jar:\
++lib/batik/xml-apis.jar:\
++lib/batik/batik-xml.jar:\
++lib/batik/batik-extension.jar:\
++lib/batik/pdf-transcoder.jar:\
++lib/batik/batik-css.jar:\
++lib/batik/batik-transcoder.jar:\
++lib/batik/batik-svg-dom.jar:\
++lib/batik/batik-parser.jar:\
++lib/batik/batik-svggen.jar:\
++lib/batik/batik-bridge.jar:\
++lib/batik/batik-gvt.jar
++
++java -cp $MYCLASSPATH -Djava.library.path="/usr/lib/firefox:./lib/swt-linux-lib" org.pathvisio.gui.GuiMain 
+Index: branches/g2d-branch/CLASSPATH
+===================================================================
+--- branches/g2d-branch/CLASSPATH	(revision 0)
++++ branches/g2d-branch/CLASSPATH	(revision 953)
+@@ -0,0 +1,30 @@
++lib/JRI.jar
++lib/BrowserLauncher.jar
++lib/org.eclipse.equinox.common.jar
++lib/org.eclipse.equinox.supplement.jar
++lib/org.eclipse.jface.jar
++lib/swt-linux-lib/swt.jar
++lib/org.eclipse.core.commands.jar
++lib/jdom.jar
++build/v2
++lib/derby.jar
++lib/swt-linux-lib.jar
++lib/resources.jar
++lib/paxtools.jar
++lib/BrowserLauncher.jar
++lib/batik/batik-awt-util.jar
++lib/batik/batik-ext.jar
++lib/batik/batik-script.jar
++lib/batik/batik-util.jar
++lib/batik/batik-dom.jar
++lib/batik/xml-apis.jar
++lib/batik/batik-xml.jar
++lib/batik/batik-extension.jar
++lib/batik/pdf-transcoder.jar
++lib/batik/batik-css.jar
++lib/batik/batik-transcoder.jar
++lib/batik/batik-svg-dom.jar
++lib/batik/batik-parser.jar
++lib/batik/batik-svggen.jar
++lib/batik/batik-bridge.jar
++lib/batik/batik-gvt.jar
+Index: branches/g2d-branch/src/test/org/pathvisio/view/Test.java
+===================================================================
+--- branches/g2d-branch/src/test/org/pathvisio/view/Test.java	(revision 952)
++++ branches/g2d-branch/src/test/org/pathvisio/view/Test.java	(revision 953)
+@@ -18,19 +18,19 @@
+ 
+ import junit.framework.TestCase;
+ 
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
++//import org.eclipse.swt.SWT;
++//import org.eclipse.swt.layout.FillLayout;
++//import org.eclipse.swt.widgets.Display;
++//import org.eclipse.swt.widgets.Shell;
+ 
+-import org.pathvisio.model.Pathway;
+-import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.model.ObjectType;
++//import org.pathvisio.model.Pathway;
++//import org.pathvisio.model.PathwayElement;
++//import org.pathvisio.model.ObjectType;
+ 
+ public class Test extends TestCase {
+ 	
+ 	VPathway drawing;
+-    private Shell shell;
++//    private Shell shell;
+ 	
+ 	public void setUp()
+ 	{
+Index: branches/g2d-branch/src/v1/org/pathvisio/Globals.java
+===================================================================
+--- branches/g2d-branch/src/v1/org/pathvisio/Globals.java	(revision 952)
++++ branches/g2d-branch/src/v1/org/pathvisio/Globals.java	(revision 953)
+@@ -24,6 +24,7 @@
+  */
+ public class Globals {
+ 	public static final String APPLICATION_NAME = "PathVisio";
+-	public static final String APPLICATION_VERSION_NAME = "PathVisio 1.0 release candidate 1";
++	public static final String APPLICATION_VERSION_NAME = "PathVisio 1.0 release candidate 2";
+ 	public static final String HELP_URL = "http://wiki.bigcat.unimaas.nl/pathvisio/Help";
++	public static final boolean fUseExperimentalFeatures = false;
+ }
+Index: branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java	(revision 952)
++++ branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java	(revision 953)
+@@ -16,53 +16,25 @@
+ //
+ package org.pathvisio.gui.swt;
+ 
+-import java.net.URL;
+-import java.util.Vector;
++import java.util.prefs.Preferences;
+ 
+-import org.eclipse.jface.action.Action;
+-import org.eclipse.jface.action.ActionContributionItem;
+-import org.eclipse.jface.action.ControlContribution;
+ import org.eclipse.jface.action.CoolBarManager;
+-import org.eclipse.jface.action.IAction;
+-import org.eclipse.jface.action.IContributionItem;
+-import org.eclipse.jface.action.IMenuCreator;
+ import org.eclipse.jface.action.MenuManager;
+ import org.eclipse.jface.action.Separator;
+-import org.eclipse.jface.action.StatusLineManager;
+-import org.eclipse.jface.action.ToolBarContributionItem;
+-import org.eclipse.jface.action.ToolBarManager;
+-import org.eclipse.jface.dialogs.MessageDialog;
+-import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+-import org.eclipse.jface.resource.ImageDescriptor;
+-import org.eclipse.jface.window.ApplicationWindow;
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.custom.SashForm;
+ import org.eclipse.swt.custom.ScrolledComposite;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+ import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.widgets.Canvas;
+-import org.eclipse.swt.widgets.Combo;
+ import org.eclipse.swt.widgets.Composite;
+ import org.eclipse.swt.widgets.Control;
+-import org.eclipse.swt.widgets.Menu;
+ import org.eclipse.swt.widgets.Shell;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+-import org.pathvisio.Engine.ApplicationEvent;
+-import org.pathvisio.Engine.ApplicationEventListener;
+-import org.pathvisio.data.DBConnector;
+-import org.pathvisio.data.Gdb;
+ import org.pathvisio.data.Gex;
+-import org.pathvisio.data.Gex.ExpressionDataEvent;
+-import org.pathvisio.data.Gex.ExpressionDataListener;
++import org.pathvisio.gui.swt.awt.VPathwaySwingComposite;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
+-import org.pathvisio.view.GeneProduct;
+-import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.VPathwayEvent;
+-import org.pathvisio.view.VPathwayListener;
+ import org.pathvisio.visualization.LegendPanel;
+ import org.pathvisio.visualization.VisualizationManager;
+ 
+@@ -71,497 +43,40 @@
+  * It acts as a container for pathwaydrawings and facilitates
+  * loading, creating and saving drawings to and from GPML.
+  */
+-public class MainWindow extends ApplicationWindow implements 
+-						ApplicationEventListener, ExpressionDataListener
++public class MainWindow extends MainWindowBase
+ {
+-	private static final long serialVersionUID = 1L;
+-	public static int ZOOM_TO_FIT = -1;
+-	
+-	private CommonActions.UndoAction undoAction = new CommonActions.UndoAction(this);	
+-	private CommonActions.NewAction newAction = new CommonActions.NewAction (this);
+-	private CommonActions.OpenAction openAction = new CommonActions.OpenAction (this);	
+-	private CommonActions.ImportAction importAction = new CommonActions.ImportAction (this);	
+-	private CommonActions.SaveAction saveAction = new CommonActions.SaveAction(this);	
+-	private CommonActions.SaveAsAction saveAsAction = new CommonActions.SaveAsAction (this);
+-	private CommonActions.ExportAction exportAction = new CommonActions.ExportAction (this);
+-	private CommonActions.CloseAction closeAction = new CommonActions.CloseAction(this);	
+-	private CommonActions.ExitAction exitAction = new CommonActions.ExitAction(this);
+-	private CommonActions.PreferencesAction preferencesAction = new CommonActions.PreferencesAction(this);
+-	private CommonActions.AboutAction aboutAction = new CommonActions.AboutAction(this);
+-	private CommonActions.CopyAction copyAction = new CommonActions.CopyAction(this);
+-	private CommonActions.HelpAction helpAction = new CommonActions.HelpAction(this);	
+-	private CommonActions.PasteAction pasteAction = new CommonActions.PasteAction(this);
+-	
+-	/**
+-	 * {@link Action} to select a Gene Database
+-	 */
+-	private class SelectGdbAction extends Action
++	public MainWindow()
+ 	{
+-		MainWindow window;
+-		public SelectGdbAction(MainWindow w)
+-		{
+-			window = w;
+-			setText("Select &Gene Database");
+-			setToolTipText("Select Gene Database");
+-		}
+-		
+-		public void run () {			
+-			try {
+-				DBConnector dbcon = Gdb.getDBConnector();
+-				String dbName = dbcon.openChooseDbDialog(getShell());
+-				
+-				if(dbName == null) return;
+-				
+-				Gdb.connect(dbName);
+-				setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
+-				cacheExpressionData();
+-			} catch(Exception e) {
+-				String msg = "Failed to open Gene Database; " + e.getMessage();
+-				MessageDialog.openError (window.getShell(), "Error", 
+-						"Error: " + msg + "\n\n" + 
+-						"See the error log for details.");
+-				Engine.log.error(msg, e);
+-			}
+-		}
++		this(null);
+ 	}
+-	private SelectGdbAction selectGdbAction = new SelectGdbAction(this);
+ 	
+ 	/**
+-	 * Loads expression data for all {@link GeneProduct}s in the loaded pathway
++	 *Constructor for the MainWindow class
++	 *Initializes new MainWindow and sets properties for frame
+ 	 */
+-	private void cacheExpressionData()
++	public MainWindow(Shell shell)
+ 	{
+-		if(Engine.isDrawingOpen())
+-		{
+-			VPathway drawing = Engine.getActiveVPathway();
+-			//Check for neccesary connections
+-			if(Gex.isConnected() && Gdb.isConnected())
+-			{
+-				ProgressMonitorDialog dialog = new ProgressMonitorDialog(getShell());
+-				try {
+-					dialog.run(true, true, Gex.createCacheRunnable(drawing.getMappIds(), drawing.getSystemCodes()));
+-					drawing.redraw();
+-				} catch(Exception e) {
+-					String msg = "while caching expression data: " + e.getMessage();					
+-					MessageDialog.openError (getShell(), "Error", 
+-							"Error: " + msg + "\n\n" + 
+-							"See the error log for details.");
+-					Engine.log.error(msg, e);
+-				}
+-			}
+-		}
+-	}	
+-					
+-	/**
+-	 * {@link Action} to switch between edit and view mode
+-	 */
+-	private class SwitchEditModeAction extends Action implements ApplicationEventListener
+-	{
+-		final String ttChecked = "Exit edit mode";
+-		final String ttUnChecked = "Switch to edit mode to edit the pathway content";
+-		MainWindow window;
+-		public SwitchEditModeAction (MainWindow w)
+-		{
+-			super("&Edit mode", IAction.AS_CHECK_BOX);
+-			setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/edit.gif")));
+-			setToolTipText(ttUnChecked);
+-			window = w;
+-			
+-			Engine.addApplicationEventListener(this);
+-		}
++		super(shell);
+ 		
+-		public void run () {
+-			if(Engine.isDrawingOpen())
+-			{
+-				VPathway drawing = Engine.getActiveVPathway();
+-				if(isChecked())
+-				{
+-					//Switch to edit mode: show edit toolbar, show property table in sidebar
+-					drawing.setEditMode(true);
+-					showEditActionsCI(true);
+-					rightPanel.getTabFolder().setSelection(1);
+-				}
+-				else
+-				{
+-					//Switch to view mode: hide edit toolbar, show backpage browser in sidebar
+-					drawing.setEditMode(false);
+-					showEditActionsCI(false);
+-					rightPanel.getTabFolder().setSelection(0);
+-				}
+-			}
+-			else //No gpml pathway loaded, deselect action and do nothing
+-			{
+-				setChecked(false);
+-			}
+-			getCoolBarManager().update(true);
+-		}
++		addMenuBar();
++		addStatusLine();
++		addCoolBar(SWT.FLAT | SWT.LEFT);
+ 		
+-		public void setChecked(boolean check) {
+-			super.setChecked(check);
+-			setToolTipText(check ? ttChecked : ttUnChecked);
+-		}
+-		
+-		public void switchEditMode(boolean edit) {
+-			setChecked(edit);
+-			run();
+-			
+-		}
+-
+-		public void applicationEvent(ApplicationEvent e) {
+-			if(e.type == ApplicationEvent.PATHWAY_OPENED) {
+-				Engine.getActiveVPathway().setEditMode(isChecked());
+-			}
+-			else if(e.type == ApplicationEvent.PATHWAY_NEW) {
+-				switchEditMode(true);
+-			}
+-		}
++		Engine.addApplicationEventListener(this);
++		Gex.addListener(this);
+ 	}
+-	private SwitchEditModeAction switchEditModeAction = new SwitchEditModeAction(this);
+-		
+-	/**
+-	 * {@link Action} to show or hide the right sidepanel
+-	 */
+-	public class ShowRightPanelAction extends Action
+-	{
+-		MainWindow window;
+-		public ShowRightPanelAction (MainWindow w)
+-		{
+-			super("Show &information panel", IAction.AS_CHECK_BOX);
+-			window = w;
+-			setChecked(true);
+-		}
+-		
+-		public void run() {
+-			if(isChecked()) rightPanel.show();
+-			else rightPanel.hide();
+-		}
+-	}
+-	public ShowRightPanelAction showRightPanelAction = new ShowRightPanelAction(this);
+ 	
+ 	/**
+-	 * {@link Action} to add a new element to the gpml pathway
+-	 */
+-	private class NewElementAction extends Action
+-	{
+-		MainWindow window;
+-		int element;
+-		
+-		/**
+-		 * Constructor for this class
+-		 * @param e	type of element this action adds; a {@link VPathway} field constant
+-		 */
+-		public NewElementAction (int e)
+-		{
+-			element = e;
+-		
+-			String toolTipText;
+-			URL imageURL = null;
+-			toolTipText = null;
+-			switch(element) {
+-			case VPathway.NEWLINE: 
+-				toolTipText = "Draw new line";
+-				imageURL = Engine.getResourceURL("icons/newline.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEARROW:
+-				toolTipText = "Draw new arrow";
+-				imageURL = Engine.getResourceURL("icons/newarrow.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEDASHED:
+-				toolTipText = "Draw new dashed line";
+-				imageURL = Engine.getResourceURL("icons/newdashedline.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEDASHEDARROW:
+-				toolTipText = "Draw new dashed arrow";
+-				imageURL = Engine.getResourceURL("icons/newdashedarrow.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLABEL:
+-				toolTipText = "Draw new label";
+-				imageURL = Engine.getResourceURL("icons/newlabel.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWARC:
+-				toolTipText = "Draw new arc";
+-				imageURL = Engine.getResourceURL("icons/newarc.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWBRACE:
+-				toolTipText = "Draw new brace";
+-				imageURL = Engine.getResourceURL("icons/newbrace.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWGENEPRODUCT:
+-				toolTipText = "Draw new geneproduct";
+-				imageURL = Engine.getResourceURL("icons/newgeneproduct.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWRECTANGLE:
+-				imageURL = Engine.getResourceURL("icons/newrectangle.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWOVAL:
+-				toolTipText = "Draw new oval";
+-				imageURL = Engine.getResourceURL("icons/newoval.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWTBAR:
+-				toolTipText = "Draw new TBar";
+-				imageURL = Engine.getResourceURL("icons/newtbar.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWRECEPTORROUND:
+-				toolTipText = "Draw new round receptor";
+-				imageURL = Engine.getResourceURL("icons/newreceptorround.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWRECEPTORSQUARE:
+-				toolTipText = "Draw new square receptor";
+-				imageURL = Engine.getResourceURL("icons/newreceptorsquare.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLIGANDROUND:
+-				toolTipText = "Draw new round ligand";
+-				imageURL = Engine.getResourceURL("icons/newligandround.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLIGANDSQUARE:
+-				toolTipText = "Draw new square ligand";
+-				imageURL = Engine.getResourceURL("icons/newligandsquare.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEMENU:
+-				setMenuCreator(new NewItemMenuCreator(VPathway.NEWLINEMENU));
+-				imageURL = Engine.getResourceURL("icons/newlinemenu.gif");
+-				toolTipText = "Draw new line or arrow";
+-				break;
+-			case VPathway.NEWLINESHAPEMENU:
+-				setMenuCreator(new NewItemMenuCreator(VPathway.NEWLINESHAPEMENU));
+-				imageURL = Engine.getResourceURL("icons/newlineshapemenu.gif");
+-				toolTipText = "Draw new ligand or receptor";
+-				break;
+-			}
+-			setToolTipText(toolTipText);
+-			setId("newItemAction");
+-			if(imageURL != null) setImageDescriptor(ImageDescriptor.createFromURL(imageURL));
+-		}
+-				
+-		public void run () {
+-			if(isChecked())
+-			{
+-				deselectNewItemActions();
+-				setChecked(true);
+-				Engine.getActiveVPathway().setNewGraphics(element);
+-			}
+-			else
+-			{	
+-				Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+-			}
+-		}
+-		
+-	}
+-	
+-	/**
+-	 * {@link IMenuCreator} that creates the drop down menus for 
+-	 * adding new line-type and -shape elements
+-	 */
+-	private class NewItemMenuCreator implements IMenuCreator {
+-		private Menu menu;
+-		int element;
+-		
+-		/**
+-		 * Constructor for this class
+-		 * @param e	type of menu to create; one of {@link VPathway}.NEWLINEMENU
+-		 * , {@link VPathway}.NEWLINESHAPEMENU
+-		 */
+-		public NewItemMenuCreator(int e) 
+-		{
+-			element = e;
+-		}
+-		
+-		public Menu getMenu(Menu parent) {
+-			return null;
+-		}
+-
+-		public Menu getMenu(Control parent) {
+-			if (menu != null)
+-				menu.dispose();
+-			
+-			menu = new Menu(parent);
+-			Vector<Action> actions = new Vector<Action>();
+-			switch(element) {
+-			case VPathway.NEWLINEMENU:
+-				actions.add(new NewElementAction(VPathway.NEWLINE));
+-				actions.add(new NewElementAction(VPathway.NEWLINEARROW));
+-				actions.add(new NewElementAction(VPathway.NEWLINEDASHED));
+-				actions.add(new NewElementAction(VPathway.NEWLINEDASHEDARROW));
+-				break;
+-			case VPathway.NEWLINESHAPEMENU:
+-				actions.add(new NewElementAction(VPathway.NEWLIGANDROUND));
+-				actions.add(new NewElementAction(VPathway.NEWRECEPTORROUND));
+-				actions.add(new NewElementAction(VPathway.NEWLIGANDSQUARE));
+-				actions.add(new NewElementAction(VPathway.NEWRECEPTORSQUARE));
+-			}
+-			
+-			for (Action act : actions)
+-			{			
+-				addActionToMenu(menu, act);
+-			}
+-
+-			return menu;
+-		}
+-		
+-		protected void addActionToMenu(Menu parent, Action a)
+-		{
+-			 ActionContributionItem item= new ActionContributionItem(a);
+-			 item.fill(parent, -1);
+-		}
+-		
+-		public void dispose() 
+-		{
+-			if (menu != null)  {
+-				menu.dispose();
+-				menu = null;
+-			}
+-		}
+-	}
+-	
+-	/**
+-	 * Deselects all {@link NewElementAction}s on the toolbar and sets 
+-	 * {@link VPathway}.newGraphics to {@link VPathway}.NEWNONE
+-	 */
+-	public void deselectNewItemActions()
+-	{
+-		IContributionItem[] items = editActionsCI.getToolBarManager().getItems();
+-		for(int i = 0; i < items.length; i++)
+-		{
+-			if(items[i] instanceof ActionContributionItem)
+-			{
+-				((ActionContributionItem)items[i]).getAction().setChecked(false);
+-			}
+-		}
+-		Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+-	}
+-	
+-	// Elements of the coolbar
+-	ToolBarContributionItem commonActionsCI;
+-	ToolBarContributionItem editActionsCI;
+-	ToolBarContributionItem viewActionsCI;
+-	protected CoolBarManager createCoolBarManager(int style)
+-	{
+-		createCommonActionsCI();
+-		createEditActionsCI();
+-		createViewActionsCI();
+-		
+-		CoolBarManager coolBarManager = new CoolBarManager(style);
+-		coolBarManager.setLockLayout(true);
+-		
+-		coolBarManager.add(commonActionsCI);
+-		coolBarManager.add(viewActionsCI);
+-		return coolBarManager;
+-	}
+-	
+-	/**
+-	 * Creates element of the coolbar containing common actions as new, save etc.
+-	 */
+-	protected void createCommonActionsCI()
+-	{
+-		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
+-		toolBarManager.add(newAction);
+-		toolBarManager.add(openAction);
+-		toolBarManager.add(saveAction);
+-		commonActionsCI = new ToolBarContributionItem(toolBarManager, "CommonActions");
+-	}
+-	
+-	/**
+-	 * Creates element of the coolbar only shown in edit mode (new element actions)
+-	 */
+-	protected void createEditActionsCI()
+-	{
+-		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);		
+-		toolBarManager.add(new NewElementAction(VPathway.NEWGENEPRODUCT));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWLABEL));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWLINEMENU));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWRECTANGLE));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWOVAL));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWARC));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWBRACE));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWTBAR));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWLINESHAPEMENU));
+-		
+-		editActionsCI = new ToolBarContributionItem(toolBarManager, "EditModeActions");
+-	}
+-	
+-	/**
+-	 * Creates element of the coolbar containing controls related to viewing a VPathway
+-	 */
+-	protected void createViewActionsCI()
+-	{
+-		final MainWindow window = this;
+-		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
+-		//Add zoomCombo
+-		toolBarManager.add(new ControlContribution("ZoomCombo") {
+-			protected Control createControl(Composite parent) {
+-				final Combo zoomCombo = new Combo(parent, SWT.DROP_DOWN);
+-				zoomCombo.setItems(new String[] { "200%", "100%", "75%", "50%", "Zoom to fit" });
+-				zoomCombo.setText("100%");
+-				zoomCombo.addSelectionListener(new SelectionAdapter() {
+-					public void widgetSelected(SelectionEvent e) {
+-						int pctZoom = 100;
+-						String zoomText = zoomCombo.getText().replace("%", "");
+-						try {
+-							pctZoom = Integer.parseInt(zoomText);
+-						} catch (Exception ex) { 
+-							if(zoomText.equals("Zoom to fit"))
+-									{ pctZoom = ZOOM_TO_FIT; } else { return; }
+-						}
+-						new CommonActions.ZoomAction(window, pctZoom).run();
+-					}
+-					public void widgetDefaultSelected(SelectionEvent e) { widgetSelected(e); }
+-				});
+-				return zoomCombo;
+-			}
+-		});
+-		//Add swich to editmode
+-		toolBarManager.add(switchEditModeAction);
+-		
+-		viewActionsCI =  new ToolBarContributionItem(toolBarManager, "SwitchActions");
+-	}
+-	
+-	/**
+-	 * Shows or hides the editActionsCI
+-	 * @param show	true/false for either show or hide
+-	 */
+-	private void showEditActionsCI(boolean show)
+-	{
+-		if(show) {
+-			getCoolBarManager().insertAfter(viewActionsCI.getId(), editActionsCI);
+-		}
+-		else {
+-			getCoolBarManager().remove(editActionsCI);
+-		}
+-//		showVisualizationCI(!show); //Visualizations can show up in edit mode...
+-		getCoolBarManager().update(true);
+-	}
+-		
+-	protected StatusLineManager createStatusLineManager() {
+-		return super.createStatusLineManager();
+-	}
+-
+-	/**
+ 	 *Builds and ads a menu to the frame
+ 	 */
+ 	protected MenuManager createMenuManager()
+ 	{
+-		MenuManager m = new MenuManager();
++		menuManager = new MenuManager();
+ 		MenuManager fileMenu = new MenuManager ("&File");
+ 		fileMenu.add(newAction);
+ 		fileMenu.add(openAction);
+ 		fileMenu.add(saveAction);
+ 		fileMenu.add(saveAsAction);
+-		//fileMenu.add(closeAction);
+ 		fileMenu.add(new Separator());
+ 		fileMenu.add(importAction);
+ 		fileMenu.add(exportAction);
+@@ -590,48 +105,32 @@
+ 		MenuManager helpMenu = new MenuManager ("&Help");
+ 		helpMenu.add(aboutAction);
+ 		helpMenu.add(helpAction);
+-		m.add(fileMenu);
+-		m.add(editMenu);
+-		m.add(viewMenu);
+-		m.add(dataMenu);
+-		m.add(helpMenu);
+-		return m;
++		menuManager.add(fileMenu);
++		menuManager.add(editMenu);
++		menuManager.add(viewMenu);
++		menuManager.add(dataMenu);
++		menuManager.add(helpMenu);
++		return menuManager;
+ 	}
+ 	
+-	public MainWindow()
++	protected CoolBarManager createCoolBarManager(int style)
+ 	{
+-		this(null);
+-	}
+-	
+-	/**
+-	 *Constructor for the MainWindow class
+-	 *Initializes new MainWindow and sets properties for frame
+-	 */
+-	public MainWindow(Shell shell)
+-	{
+-		super(shell);
++		createCommonActionsCI();
++		createEditActionsCI();
++		createAlignActionsCI();
++		createViewActionsCI();
+ 		
+-		addMenuBar();
+-		addStatusLine();
+-		addCoolBar(SWT.FLAT | SWT.LEFT);
++		CoolBarManager coolBarManager = new CoolBarManager(style);
++		coolBarManager.setLockLayout(true);
+ 		
+-		Engine.addApplicationEventListener(this);
+-		Gex.addListener(this);
++		coolBarManager.add(commonActionsCI);
++		coolBarManager.add(viewActionsCI);
++		return coolBarManager;
+ 	}
+ 	
+-	public boolean close() {
+-		Engine.fireApplicationEvent(
+-				new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE));
+-		return super.close();
+-	}
+-	
+-	public ScrolledComposite sc;
+-	public BackpagePanel bpBrowser; //Browser for showing backpage information
+-	public PropertyPanel propertyTable;	//Table showing properties of Graphics objects
+-	SashForm sashForm; //SashForm containing the drawing area and sidebar
+-	TabbedSidePanel rightPanel; //side panel containing backbage browser and property editor
+-	PathwaySearchComposite pwSearchComposite; //Composite that handles pathway searches and displays results
+-	LegendPanel legend; //Legend to display colorset information
++	/**
++	 * Create and initialize widgets on the main window.
++	 */
+ 	protected Control createContents(Composite parent)
+ 	{		
+ 		Shell shell = parent.getShell();
+@@ -649,9 +148,11 @@
+ 		
+ 		sashForm = new SashForm(viewComposite, SWT.HORIZONTAL);
+ 		
+-		sc = new ScrolledComposite (sashForm, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
+-		sc.setFocus();
++		//sc = new ScrolledComposite (sashForm, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
++		//sc.setFocus();
+ 		
++		swingPathwayComposite = new VPathwaySwingComposite(sashForm, SWT.NONE);
++		
+ 		rightPanel = new TabbedSidePanel(sashForm, SWT.NULL);
+ 		
+ 		//rightPanel controls
+@@ -660,13 +161,11 @@
+ 				rightPanel.getTabFolder(), SWT.BORDER | SWT.SINGLE | SWT.FULL_SELECTION);
+ 		pwSearchComposite = new PathwaySearchComposite(rightPanel.getTabFolder(), SWT.NONE, this);
+ 		legend = new LegendPanel(rightPanel.getTabFolder(), SWT.V_SCROLL | SWT.H_SCROLL);
+-		Composite visPanel = VisualizationManager.createSidePanel(rightPanel.getTabFolder());
+ 		
+ 		rightPanel.addTab(bpBrowser, "Backpage");
+ 		rightPanel.addTab(propertyTable, "Properties");
+ 		rightPanel.addTab(pwSearchComposite, "Pathway Search");
+ 		rightPanel.addTab(legend, "Legend");
+-		rightPanel.addTab(visPanel, "Visualization");
+ 		
+ 		int sidePanelSize = GlobalPreference.getValueInt(SwtPreference.SWT_SIDEPANEL_SIZE);
+ 		sashForm.setWeights(new int[] {100 - sidePanelSize, sidePanelSize});
+@@ -676,49 +175,9 @@
+ 		rightPanel.hideTab("Legend"); //hide legend on startup
+ 		
+ 		setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
+-				
+-		return parent;
++		SwtEngine.updateTitle();
+ 		
++		return parent;		
+ 	};
+ 	
+-	public TabbedSidePanel getSidePanel() { return rightPanel; }
+-	
+-	public LegendPanel getLegend() { return legend; }
+-	
+-	public void showLegend(boolean show) {	
+-		if(show && Gex.isConnected()) {
+-			if(rightPanel.isVisible("Legend")) return; //Legend already visible, only refresh
+-			rightPanel.unhideTab("Legend", 0);
+-			rightPanel.selectTab("Legend");
+-		}
+-		
+-		else rightPanel.hideTab("Legend");
+-	}
+-				
+-	public void applicationEvent(ApplicationEvent e) {
+-		VPathway drawing = null;
+-		switch(e.type) {
+-		case ApplicationEvent.PATHWAY_NEW:
+-			drawing = Engine.getActiveVPathway();
+-			sc.setContent((Canvas)drawing.getWrapper());
+-			break;
+-		case ApplicationEvent.PATHWAY_OPENED:
+-			drawing = Engine.getActiveVPathway();
+-			sc.setContent((Canvas)drawing.getWrapper());
+-			if(Gex.isConnected()) cacheExpressionData();
+-			break;	
+-		}
+-	}
+-
+-	public void expressionDataEvent(ExpressionDataEvent e) {
+-		switch(e.type) {
+-		case ExpressionDataEvent.CONNECTION_CLOSED:
+-			showLegend(false);
+-			break;
+-		case ExpressionDataEvent.CONNECTION_OPENED:
+-			cacheExpressionData();
+-			showLegend(true);
+-			break;
+-		}
+-	}
+ } // end of class
+Index: branches/g2d-branch/src/MANIFEST.MF
+===================================================================
+--- branches/g2d-branch/src/MANIFEST.MF	(revision 952)
++++ branches/g2d-branch/src/MANIFEST.MF	(revision 953)
+@@ -1,3 +1,3 @@
+ Manifest-Version: 1.0
+ Main-Class: org.pathvisio.gui.GuiMain
+-Class-Path: lib/resources.jar lib/derby.jar lib/R-resources.jar lib/swt-win32.jar lib/swt-linux.jar lib/org.eclipse.core.commands.jar lib/org.eclipse.equinox.common.jar lib/org.eclipse.jface.jar lib/hsqldb.jar lib/jdom.jar lib/JRI.jar lib/BrowserLauncher.jar lib/plugins.jar lib/batik/batik-awt-util.jar lib/batik/batik-bridge.jar lib/batik/batik-css.jar lib/batik/batik-dom.jar lib/batik/batik-ext.jar lib/batik/batik-extension.jar lib/batik/batik-gvt.jar lib/batik/batik-parser.jar lib/batik/batik-script.jar lib/batik/batik-svg-dom.jar lib/batik/batik-svggen.jar lib/batik/batik-transcoder.jar lib/batik/batik-util.jar lib/batik/batik-xml.jar lib/batik/pdf-transcoder.jar lib/batik/xml-apis.jar
++Class-Path: lib/resources.jar lib/derby.jar lib/R-resources.jar lib/swt-win32-lib/swt.jar lib/swt-linux-lib/swt.jar lib/org.eclipse.core.commands.jar lib/org.eclipse.equinox.common.jar lib/org.eclipse.jface.jar lib/hsqldb.jar lib/jdom.jar lib/JRI.jar lib/BrowserLauncher.jar lib/plugins.jar lib/batik/batik-awt-util.jar lib/batik/batik-bridge.jar lib/batik/batik-css.jar lib/batik/batik-dom.jar lib/batik/batik-ext.jar lib/batik/batik-extension.jar lib/batik/batik-gvt.jar lib/batik/batik-parser.jar lib/batik/batik-script.jar lib/batik/batik-svg-dom.jar lib/batik/batik-svggen.jar lib/batik/batik-transcoder.jar lib/batik/batik-util.jar lib/batik/batik-xml.jar lib/batik/pdf-transcoder.jar lib/batik/xml-apis.jar
+Index: branches/g2d-branch/src/v2/org/pathvisio/Globals.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/Globals.java	(revision 952)
++++ branches/g2d-branch/src/v2/org/pathvisio/Globals.java	(revision 953)
+@@ -26,4 +26,5 @@
+ 	public static final String APPLICATION_NAME = "PathVisio";
+ 	public static final String APPLICATION_VERSION_NAME = "PathVisio 2.0 (experimental)";
+ 	public static final String HELP_URL = "http://wiki.bigcat.unimaas.nl/pathvisio/Help_v2";
++	public static final boolean fUseExperimentalFeatures = true;
+ }
+Index: branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 952)
++++ branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 953)
+@@ -17,16 +17,9 @@
+ package org.pathvisio.gui.swt;
+ 
+ import java.io.File;
+-import java.net.URL;
+-import java.util.Vector;
+ 
+ import org.eclipse.jface.action.Action;
+-import org.eclipse.jface.action.ActionContributionItem;
+-import org.eclipse.jface.action.ControlContribution;
+ import org.eclipse.jface.action.CoolBarManager;
+-import org.eclipse.jface.action.IAction;
+-import org.eclipse.jface.action.IContributionItem;
+-import org.eclipse.jface.action.IMenuCreator;
+ import org.eclipse.jface.action.MenuManager;
+ import org.eclipse.jface.action.Separator;
+ import org.eclipse.jface.action.StatusLineManager;
+@@ -35,25 +28,16 @@
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+ import org.eclipse.jface.resource.ImageDescriptor;
+-import org.eclipse.jface.window.ApplicationWindow;
+ import org.eclipse.jface.wizard.WizardDialog;
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.custom.SashForm;
+-import org.eclipse.swt.custom.ScrolledComposite;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+ import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.widgets.Canvas;
+-import org.eclipse.swt.widgets.Combo;
+ import org.eclipse.swt.widgets.Composite;
+ import org.eclipse.swt.widgets.Control;
+ import org.eclipse.swt.widgets.FileDialog;
+-import org.eclipse.swt.widgets.Menu;
+ import org.eclipse.swt.widgets.Shell;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+-import org.pathvisio.Engine.ApplicationEvent;
+-import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.R.RController;
+ import org.pathvisio.R.RDataIn;
+ import org.pathvisio.R.RCommands.RException;
+@@ -64,294 +48,22 @@
+ import org.pathvisio.data.GexImportWizard;
+ import org.pathvisio.data.Gex.ExpressionDataEvent;
+ import org.pathvisio.data.Gex.ExpressionDataListener;
+-import org.pathvisio.gui.swt.awt.EmbeddedSwingComposite;
+ import org.pathvisio.gui.swt.awt.VPathwaySwingComposite;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
+-import org.pathvisio.view.GeneProduct;
+-import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.VPathwayEvent;
+-import org.pathvisio.view.VPathwayListener;
+ import org.pathvisio.visualization.LegendPanel;
+ import org.pathvisio.visualization.VisualizationDialog;
+ import org.pathvisio.visualization.VisualizationManager;
+ 
+-import edu.stanford.ejalbert.BrowserLauncher;
+-
+ /**
+  * This class is the main class in the GPML project. 
+  * It acts as a container for pathwaydrawings and facilitates
+  * loading, creating and saving drawings to and from GPML.
+  */
+-public class MainWindow extends ApplicationWindow implements 
+-						ApplicationEventListener, ExpressionDataListener, VPathwayListener
++public class MainWindow extends MainWindowBase
+ {
+-	private static final long serialVersionUID = 1L;
+-	static int ZOOM_TO_FIT = -1;
+-		
+-	private CommonActions.UndoAction undoAction = new CommonActions.UndoAction(this);	
+-	private CommonActions.NewAction newAction = new CommonActions.NewAction (this);
+-	private CommonActions.OpenAction openAction = new CommonActions.OpenAction (this);	
+-	private CommonActions.ImportAction importAction = new CommonActions.ImportAction (this);	
+-	private CommonActions.SaveAction saveAction = new CommonActions.SaveAction(this);	
+-	private CommonActions.SaveAsAction saveAsAction = new CommonActions.SaveAsAction (this);
+-	private CommonActions.ExportAction exportAction = new CommonActions.ExportAction (this);
+-	private CommonActions.CloseAction closeAction = new CommonActions.CloseAction(this);	
+-	private CommonActions.ExitAction exitAction = new CommonActions.ExitAction(this);
+-	private CommonActions.PreferencesAction preferencesAction = new CommonActions.PreferencesAction(this);
+-	private CommonActions.AboutAction aboutAction = new CommonActions.AboutAction(this);
+-	private CommonActions.CopyAction copyAction = new CommonActions.CopyAction(this);
+-	private CommonActions.HelpAction helpAction = new CommonActions.HelpAction(this);	
+-	private CommonActions.PasteAction pasteAction = new CommonActions.PasteAction(this);
+-	
+-	private SwitchEditModeAction switchEditModeAction = new SwitchEditModeAction(this);
+-	public ShowRightPanelAction showRightPanelAction = new ShowRightPanelAction(this);
+-	private SelectGdbAction selectGdbAction = new SelectGdbAction(this);
+-
+ 	/**
+-	 * {@link Action} to add a new element to the gpml pathway
+-	 */
+-	private class NewElementAction extends Action
+-	{
+-		MainWindow window;
+-		int element;
+-		
+-		/**
+-		 * Constructor for this class
+-		 * @param e	type of element this action adds; a {@link VPathway} field constant
+-		 */
+-		public NewElementAction (int e)
+-		{
+-			element = e;
+-		
+-			String toolTipText;
+-			URL imageURL = null;
+-			toolTipText = null;
+-			switch(element) {
+-			case VPathway.NEWLINE: 
+-				toolTipText = "Draw new line";
+-				imageURL = Engine.getResourceURL("icons/newline.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEARROW:
+-				toolTipText = "Draw new arrow";
+-				imageURL = Engine.getResourceURL("icons/newarrow.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEDASHED:
+-				toolTipText = "Draw new dashed line";
+-				imageURL = Engine.getResourceURL("icons/newdashedline.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEDASHEDARROW:
+-				toolTipText = "Draw new dashed arrow";
+-				imageURL = Engine.getResourceURL("icons/newdashedarrow.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLABEL:
+-				toolTipText = "Draw new label";
+-				imageURL = Engine.getResourceURL("icons/newlabel.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWARC:
+-				toolTipText = "Draw new arc";
+-				imageURL = Engine.getResourceURL("icons/newarc.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWBRACE:
+-				toolTipText = "Draw new brace";
+-				imageURL = Engine.getResourceURL("icons/newbrace.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWGENEPRODUCT:
+-				toolTipText = "Draw new geneproduct";
+-				imageURL = Engine.getResourceURL("icons/newgeneproduct.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWRECTANGLE:
+-				imageURL = Engine.getResourceURL("icons/newrectangle.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWOVAL:
+-				toolTipText = "Draw new oval";
+-				imageURL = Engine.getResourceURL("icons/newoval.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWTBAR:
+-				toolTipText = "Draw new TBar";
+-				imageURL = Engine.getResourceURL("icons/newtbar.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWRECEPTORROUND:
+-				toolTipText = "Draw new round receptor";
+-				imageURL = Engine.getResourceURL("icons/newreceptorround.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWRECEPTORSQUARE:
+-				toolTipText = "Draw new square receptor";
+-				imageURL = Engine.getResourceURL("icons/newreceptorsquare.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLIGANDROUND:
+-				toolTipText = "Draw new round ligand";
+-				imageURL = Engine.getResourceURL("icons/newligandround.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLIGANDSQUARE:
+-				toolTipText = "Draw new square ligand";
+-				imageURL = Engine.getResourceURL("icons/newligandsquare.gif");
+-				setChecked(false);
+-				break;
+-			case VPathway.NEWLINEMENU:
+-				setMenuCreator(new NewItemMenuCreator(VPathway.NEWLINEMENU));
+-				imageURL = Engine.getResourceURL("icons/newlinemenu.gif");
+-				toolTipText = "Draw new line or arrow";
+-				break;
+-			case VPathway.NEWLINESHAPEMENU:
+-				setMenuCreator(new NewItemMenuCreator(VPathway.NEWLINESHAPEMENU));
+-				imageURL = Engine.getResourceURL("icons/newlineshapemenu.gif");
+-				toolTipText = "Draw new ligand or receptor";
+-				break;
+-			}
+-			setToolTipText(toolTipText);
+-			setId("newItemAction");
+-			if(imageURL != null) setImageDescriptor(ImageDescriptor.createFromURL(imageURL));
+-		}
+-				
+-		public void run () {
+-			if(isChecked())
+-			{
+-				deselectNewItemActions();
+-				setChecked(true);
+-				Engine.getActiveVPathway().setNewGraphics(element);
+-			}
+-			else
+-			{	
+-				Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+-			}
+-		}
+-		
+-	}
+-
+-	/**
+-	 * {@link Action} to select a Gene Database
+-	 */
+-	private class SelectGdbAction extends Action
+-	{
+-		MainWindow window;
+-		public SelectGdbAction(MainWindow w)
+-		{
+-			window = w;
+-			setText("Select &Gene Database");
+-			setToolTipText("Select Gene Database");
+-		}
+-		
+-		public void run () {			
+-			try {
+-				DBConnector dbcon = Gdb.getDBConnector();
+-				String dbName = dbcon.openChooseDbDialog(getShell());
+-				
+-				if(dbName == null) return;
+-				
+-				Gdb.connect(dbName);
+-				setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
+-				cacheExpressionData();
+-			} catch(Exception e) {
+-				String msg = "Failed to open Gene Database; " + e.getMessage();
+-				MessageDialog.openError (window.getShell(), "Error", 
+-						"Error: " + msg + "\n\n" + 
+-						"See the error log for details.");
+-				Engine.log.error(msg, e);
+-			}
+-		}
+-	}
+-	
+-	/**
+-	 * {@link Action} to switch between edit and view mode
+-	 */
+-	private class SwitchEditModeAction extends Action implements ApplicationEventListener
+-	{
+-		final String ttChecked = "Exit edit mode";
+-		final String ttUnChecked = "Switch to edit mode to edit the pathway content";
+-		MainWindow window;
+-		public SwitchEditModeAction (MainWindow w)
+-		{
+-			super("&Edit mode", IAction.AS_CHECK_BOX);
+-			setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/edit.gif")));
+-			setToolTipText(ttUnChecked);
+-			window = w;
+-			
+-			Engine.addApplicationEventListener(this);
+-		}
+-		
+-		public void run () {
+-			if(Engine.isDrawingOpen())
+-			{
+-				VPathway drawing = Engine.getActiveVPathway();
+-				if(isChecked())
+-				{
+-					//Switch to edit mode: show edit toolbar, show property table in sidebar
+-					drawing.setEditMode(true);
+-					showEditActionsCI(true);
+-					rightPanel.getTabFolder().setSelection(1);
+-				}
+-				else
+-				{
+-					//Switch to view mode: hide edit toolbar, show backpage browser in sidebar
+-					drawing.setEditMode(false);
+-					showEditActionsCI(false);
+-					rightPanel.getTabFolder().setSelection(0);
+-				}
+-			}
+-			else //No gpml pathway loaded, deselect action and do nothing
+-			{
+-				setChecked(false);
+-			}
+-			getCoolBarManager().update(true);
+-		}
+-		
+-		public void setChecked(boolean check) {
+-			super.setChecked(check);
+-			setToolTipText(check ? ttChecked : ttUnChecked);
+-		}
+-		
+-		public void switchEditMode(boolean edit) {
+-			setChecked(edit);
+-			run();
+-			
+-		}
+-
+-		public void applicationEvent(ApplicationEvent e) {
+-			if(e.type == ApplicationEvent.PATHWAY_OPENED) {
+-				Engine.getActiveVPathway().setEditMode(isChecked());
+-			}
+-			else if(e.type == ApplicationEvent.PATHWAY_NEW) {
+-				switchEditMode(true);
+-			}
+-		}
+-	}
+-
+-	/**
+-	 * {@link Action} to show or hide the right sidepanel
+-	 */
+-	public class ShowRightPanelAction extends Action
+-	{
+-		MainWindow window;
+-		public ShowRightPanelAction (MainWindow w)
+-		{
+-			super("Show &information panel", IAction.AS_CHECK_BOX);
+-			window = w;
+-			setChecked(true);
+-		}
+-		
+-		public void run() {
+-			if(isChecked()) rightPanel.show();
+-			else rightPanel.hide();
+-		}
+-	}
+-
+-	/**
+ 	 * {@link Action} to select an expression dataset
+ 	 */
+ 	private class SelectGexAction extends Action
+@@ -383,32 +95,6 @@
+ 	}
+ 	private SelectGexAction selectGexAction = new SelectGexAction(this);
+ 	
+-	/**
+-	 * Loads expression data for all {@link GeneProduct}s in the loaded pathway
+-	 */
+-	private void cacheExpressionData()
+-	{
+-		if(Engine.isDrawingOpen())
+-		{
+-			VPathway drawing = Engine.getActiveVPathway();
+-			//Check for neccesary connections
+-			if(Gex.isConnected() && Gdb.isConnected())
+-			{
+-				ProgressMonitorDialog dialog = new ProgressMonitorDialog(getShell());
+-				try {
+-					dialog.run(true, true, Gex.createCacheRunnable(drawing.getMappIds(), drawing.getSystemCodes()));
+-					drawing.redraw();
+-				} catch(Exception e) {
+-					String msg = "while caching expression data: " + e.getMessage();					
+-					MessageDialog.openError (getShell(), "Error", 
+-							"Error: " + msg + "\n\n" + 
+-							"See the error log for details.");
+-					Engine.log.error(msg, e);
+-				}
+-			}
+-		}
+-	}
+-	
+ 
+ 	/**
+ 	 * {@link Action} that opens an {@link GexImportWizard} that guides the user
+@@ -609,12 +295,6 @@
+ 	}
+ 	private VisualizationDialogAction visualizationDialogAction = new VisualizationDialogAction(this);
+ 	
+-	public static void openHelp() throws Exception {
+-		BrowserLauncher bl = new BrowserLauncher(null);
+-		bl.openURLinBrowser(Globals.HELP_URL);
+-	}
+-			
+-
+ 	/**
+ 	 * {@link Action} to open the pathway statistics wizard
+ 	 */
+@@ -663,179 +343,8 @@
+ 		}
+ 	}
+ 	private RLoadStatsAction rLoadStatsAction = new RLoadStatsAction(this);
+-					
+ 	
+ 	/**
+-	 * {@link IMenuCreator} that creates the drop down menus for 
+-	 * adding new line-type and -shape elements
+-	 */
+-	private class NewItemMenuCreator implements IMenuCreator {
+-		private Menu menu;
+-		int element;
+-		
+-		/**
+-		 * Constructor for this class
+-		 * @param e	type of menu to create; one of {@link VPathway}.NEWLINEMENU
+-		 * , {@link VPathway}.NEWLINESHAPEMENU
+-		 */
+-		public NewItemMenuCreator(int e) 
+-		{
+-			element = e;
+-		}
+-		
+-		public Menu getMenu(Menu parent) {
+-			return null;
+-		}
+-
+-		public Menu getMenu(Control parent) {
+-			if (menu != null)
+-				menu.dispose();
+-			
+-			menu = new Menu(parent);
+-			Vector<Action> actions = new Vector<Action>();
+-			switch(element) {
+-			case VPathway.NEWLINEMENU:
+-				actions.add(new NewElementAction(VPathway.NEWLINE));
+-				actions.add(new NewElementAction(VPathway.NEWLINEARROW));
+-				actions.add(new NewElementAction(VPathway.NEWLINEDASHED));
+-				actions.add(new NewElementAction(VPathway.NEWLINEDASHEDARROW));
+-				break;
+-			case VPathway.NEWLINESHAPEMENU:
+-				actions.add(new NewElementAction(VPathway.NEWLIGANDROUND));
+-				actions.add(new NewElementAction(VPathway.NEWRECEPTORROUND));
+-				actions.add(new NewElementAction(VPathway.NEWLIGANDSQUARE));
+-				actions.add(new NewElementAction(VPathway.NEWRECEPTORSQUARE));
+-			}
+-			
+-			for (Action act : actions)
+-			{			
+-				addActionToMenu(menu, act);
+-			}
+-
+-			return menu;
+-		}
+-		
+-		protected void addActionToMenu(Menu parent, Action a)
+-		{
+-			 ActionContributionItem item= new ActionContributionItem(a);
+-			 item.fill(parent, -1);
+-		}
+-		
+-		public void dispose() 
+-		{
+-			if (menu != null)  {
+-				menu.dispose();
+-				menu = null;
+-			}
+-		}
+-	}
+-	
+-	/**
+-	 * Deselects all NewElementActions on the toolbar and sets 
+-	 * VPathway.newGraphics to VPathway.NEWNONE
+-	 */
+-	public void deselectNewItemActions()
+-	{
+-		IContributionItem[] items = editActionsCI.getToolBarManager().getItems();
+-		for(int i = 0; i < items.length; i++)
+-		{
+-			if(items[i] instanceof ActionContributionItem)
+-			{
+-				((ActionContributionItem)items[i]).getAction().setChecked(false);
+-			}
+-		}
+-		Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+-	}
+-	
+-	// Elements of the coolbar
+-	ToolBarContributionItem commonActionsCI;
+-	ToolBarContributionItem editActionsCI;
+-	ToolBarContributionItem visualizationCI;
+-	ToolBarContributionItem viewActionsCI;
+-	protected CoolBarManager createCoolBarManager(int style)
+-	{
+-		createCommonActionsCI();
+-		createEditActionsCI();
+-		createViewActionsCI();
+-		createVisualizationCI();
+-		
+-		CoolBarManager coolBarManager = new CoolBarManager(style);
+-		coolBarManager.setLockLayout(true);
+-		
+-		coolBarManager.add(commonActionsCI);
+-		coolBarManager.add(viewActionsCI);
+-		coolBarManager.add(visualizationCI);
+-		return coolBarManager;
+-	}
+-	
+-	/**
+-	 * Creates element of the coolbar containing common actions as new, save etc.
+-	 */
+-	protected void createCommonActionsCI()
+-	{
+-		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
+-		toolBarManager.add(newAction);
+-		toolBarManager.add(openAction);
+-		toolBarManager.add(saveAction);
+-		commonActionsCI = new ToolBarContributionItem(toolBarManager, "CommonActions");
+-	}
+-	
+-	/**
+-	 * Creates element of the coolbar only shown in edit mode (new element actions)
+-	 */
+-	protected void createEditActionsCI()
+-	{
+-		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);		
+-		toolBarManager.add(new NewElementAction(VPathway.NEWGENEPRODUCT));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWLABEL));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWLINEMENU));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWRECTANGLE));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWOVAL));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWARC));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWBRACE));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWTBAR));
+-		toolBarManager.add(new NewElementAction(VPathway.NEWLINESHAPEMENU));
+-		
+-		editActionsCI = new ToolBarContributionItem(toolBarManager, "EditModeActions");
+-	}
+-	
+-	/**
+-	 * Creates element of the coolbar containing controls related to viewing a pathway
+-	 */
+-	protected void createViewActionsCI()
+-	{
+-		final MainWindow window = this;
+-		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
+-		//Add zoomCombo
+-		toolBarManager.add(new ControlContribution("ZoomCombo") {
+-			protected Control createControl(Composite parent) {
+-				final Combo zoomCombo = new Combo(parent, SWT.DROP_DOWN);
+-				zoomCombo.setItems(new String[] { "200%", "100%", "75%", "50%", "Zoom to fit" });
+-				zoomCombo.setText("100%");
+-				zoomCombo.addSelectionListener(new SelectionAdapter() {
+-					public void widgetSelected(SelectionEvent e) {
+-						int pctZoom = 100;
+-						String zoomText = zoomCombo.getText().replace("%", "");
+-						try {
+-							pctZoom = Integer.parseInt(zoomText);
+-						} catch (Exception ex) { 
+-							if(zoomText.equals("Zoom to fit"))
+-									{ pctZoom = ZOOM_TO_FIT; } else { return; }
+-						}
+-						new CommonActions.ZoomAction(window, pctZoom).run();
+-					}
+-					public void widgetDefaultSelected(SelectionEvent e) { widgetSelected(e); }
+-				});
+-				return zoomCombo;
+-			}
+-		});
+-		//Add swich to editmode
+-		toolBarManager.add(switchEditModeAction);
+-		
+-		viewActionsCI =  new ToolBarContributionItem(toolBarManager, "SwitchActions");
+-	}
+-		
+-	/**
+ 	 * Creates element of the coolbar containing controls related to visualizations
+ 	 */
+ 	protected void createVisualizationCI() {
+@@ -846,27 +355,12 @@
+ 		visualizationCI = new ToolBarContributionItem(toolBarManager, "ColorSetActions");
+ 	}
+ 	
++
+ 	/**
+-	 * Shows or hides the editActionsCI
+-	 * @param show	true/false for either show or hide
+-	 */
+-	private void showEditActionsCI(boolean show)
+-	{
+-		if(show) {
+-			getCoolBarManager().insertAfter(viewActionsCI.getId(), editActionsCI);
+-		}
+-		else {
+-			getCoolBarManager().remove(editActionsCI);
+-		}
+-//		showVisualizationCI(!show); //Visualizations can show up in edit mode...
+-		getCoolBarManager().update(true);
+-	}
+-	
+-	/**
+ 	 * Shows or hides the visualizationCI
+ 	 * @param show	true/false for either show or hide
+ 	 */
+-	private void showVisualizationCI(boolean show) {
++	public void showVisualizationCI(boolean show) {
+ 		if(show) {
+ 			getCoolBarManager().insertAfter(viewActionsCI.getId(), visualizationCI);
+ 		} else {
+@@ -890,7 +384,6 @@
+ 		fileMenu.add(openAction);
+ 		fileMenu.add(saveAction);
+ 		fileMenu.add(saveAsAction);
+-		//fileMenu.add(closeAction);
+ 		fileMenu.add(new Separator());
+ 		fileMenu.add(importAction);
+ 		fileMenu.add(exportAction);
+@@ -943,53 +436,35 @@
+ 		menuManager.add(helpMenu);
+ 		return menuManager;
+ 	}
+-	
+-	public MainWindow()
+-	{
+-		this(null);
+-	}
+-	
+-	private MenuManager menuManager = null;
++
++	ToolBarContributionItem visualizationCI;
++
+ 	/**
+-	 * can be accessed by plugins etc. 
+-	 * to add menu items and even complete menus.
+-	 * 
+-	 * (plugin API)
++	 * overrides craeteCoolBarManager in MainWindowBase.
++	 * this one also creates a visualizationCI. 
+ 	 */
+-	public MenuManager getMenuManager()
++	protected CoolBarManager createCoolBarManager(int style)
+ 	{
+-		return menuManager;
+-	}
+-	/**
+-	 *Constructor for the Engine class
+-	 *Initializes new Engine and sets properties for frame
+-	 */
+-	public MainWindow(Shell shell)
+-	{
+-		super(shell);
++		createCommonActionsCI();
++		createEditActionsCI();
++		createAlignActionsCI();
++		createViewActionsCI();
++		createVisualizationCI();
+ 		
+-		addMenuBar();
+-		addStatusLine();
+-		addCoolBar(SWT.FLAT | SWT.LEFT);
++		CoolBarManager coolBarManager = new CoolBarManager(style);
++		coolBarManager.setLockLayout(true);
+ 		
+-		Engine.addApplicationEventListener(this);
+-		Gex.addListener(this);
++		coolBarManager.add(commonActionsCI);
++		coolBarManager.add(viewActionsCI);
++		
++		coolBarManager.add(visualizationCI);
++		
++		return coolBarManager;
+ 	}
+ 	
+-	public boolean close() {
+-		Engine.fireApplicationEvent(
+-				new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE));
+-		return super.close();
+-	}
+-	
+-	public ScrolledComposite sc;
+-	public BackpagePanel bpBrowser; //Browser for showing backpage information
+-	public PropertyPanel propertyTable;	//Table showing properties of Graphics objects
+-	SashForm sashForm; //SashForm containing the drawing area and sidebar
+-	TabbedSidePanel rightPanel; //side panel containing backbage browser and property editor
+-	PathwaySearchComposite pwSearchComposite; //Composite that handles pathway searches and displays results
+-	LegendPanel legend; //Legend to display colorset information
+-	VPathwaySwingComposite swingPathwayComposite;
++	/**
++	 * Create and initialize widgets on the main window.
++	 */
+ 	protected Control createContents(Composite parent)
+ 	{		
+ 		Shell shell = parent.getShell();
+@@ -1036,73 +511,30 @@
+ 		rightPanel.hideTab("Legend"); //hide legend on startup
+ 		
+ 		setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB.getValue() + "'");
+-				
+-		return parent;
++		SwtEngine.updateTitle();
+ 		
++		return parent;
+ 	};
+ 	
+-	public TabbedSidePanel getSidePanel() { return rightPanel; }
++	public MainWindow()
++	{
++		this(null);
++	}
+ 	
+-	public LegendPanel getLegend() { return legend; }
+-	
+-	public void showLegend(boolean show) {	
+-		if(show && Gex.isConnected()) {
+-			if(rightPanel.isVisible("Legend")) return; //Legend already visible
+-			rightPanel.unhideTab("Legend", 0);
+-			rightPanel.selectTab("Legend");
+-		}
++	/**
++	 *Constructor for the MainWindow class
++	 *Initializes new MainWindow and sets properties for frame
++	 */
++	public MainWindow(Shell shell)
++	{
++		super(shell);
+ 		
+-		else rightPanel.hideTab("Legend");
++		addMenuBar();
++		addStatusLine();
++		addCoolBar(SWT.FLAT | SWT.LEFT);
++		
++		Engine.addApplicationEventListener(this);
++		Gex.addListener(this);
+ 	}
+-				
+-	public void applicationEvent(ApplicationEvent e) {
+-		VPathway drawing = null;
+-		switch(e.type) {
+-		case ApplicationEvent.PATHWAY_NEW:
+-			drawing = Engine.getActiveVPathway();
+-			//sc.setContent((Canvas)drawing.getWrapper());
+-			break;
+-		case ApplicationEvent.PATHWAY_OPENED:
+-			drawing = Engine.getActiveVPathway();
+-			//sc.setContent((Composite)drawing.getWrapper());
+-			if(Gex.isConnected()) cacheExpressionData();
+-			break;	
+-		}
+-	}
+ 
+-	public void expressionDataEvent(ExpressionDataEvent e) {
+-		switch(e.type) {
+-		case ExpressionDataEvent.CONNECTION_CLOSED:
+-			getShell().getDisplay().syncExec(new Runnable() {
+-				public void run() {
+-					showLegend(false);
+-				}
+-			});
+-			break;
+-		case ExpressionDataEvent.CONNECTION_OPENED:
+-			getShell().getDisplay().syncExec(new Runnable() {
+-				public void run() {
+-					cacheExpressionData();
+-					showLegend(true);
+-				}
+-			});
+-			break;
+-		}
+-	}
+-	
+-	public void vPathwayEvent(VPathwayEvent e) {
+-		//SwtEngine.getWindow().showLegend(!editMode);	
+-		switch(e.getType()) {
+-		case VPathwayEvent.EDIT_MODE_OFF:
+-			showLegend(true);
+-			break;
+-		case VPathwayEvent.EDIT_MODE_ON:
+-			showLegend(false);
+-			break;
+-		case VPathwayEvent.NEW_ELEMENT_ADDED:
+-			deselectNewItemActions();
+-			break;
+-		}
+-	}
+-	
+-} // end of class
++} // end of class
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 953)
+@@ -44,7 +44,7 @@
+  */
+ public class GpmlFormat implements PathwayImporter, PathwayExporter
+ {
+-	public static final Namespace GPML = Namespace.getNamespace("gpml", "http://genmapp.org/GPML/2007");
++	public static final Namespace GPML = Namespace.getNamespace("http://genmapp.org/GPML/2007");
+ 	public static final Namespace RDF = Namespace.getNamespace("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+ 	public static final Namespace RDFS = Namespace.getNamespace("rdfs", "http://www.w3.org/2000/01/rdf-schema#");
+ 	public static final Namespace BIOPAX = Namespace.getNamespace("bp", "http://www.biopax.org/release/biopax-level2.owl#");
+@@ -827,8 +827,15 @@
+ 			List<Content> content = bp.getRootElement().cloneContent();
+ 			for(Content c : content) {
+ 				if(c instanceof Element) {
+-					if(((Element)c).getNamespace() == BIOPAX) {
++					Element elm = (Element)c;
++					if(elm.getNamespace().equals(BIOPAX)) {
+ 						e.addContent(c);
++					} else if(elm.getName().equals("RDF") && elm.getNamespace().equals(RDF)) {
++						for(Object ce : elm.getChildren()) {
++							if(((Element)ce).getNamespace().equals(BIOPAX)) {
++								e.addContent((Element)ce);
++							}
++						}
+ 					} else {
+ 						Engine.log.info("Skipped non-biopax element" + c);
+ 					}
+Index: branches/g2d-branch/src/core/org/pathvisio/model/PropertyClass.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/PropertyClass.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/model/PropertyClass.java	(revision 953)
+@@ -39,5 +39,5 @@
+ 	ORGANISM,
+ 	DB_ID,
+ 	DB_SYMBOL,
+-	BIOPAX,
++	BIOPAXREF,
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/model/Pathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/Pathway.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/model/Pathway.java	(revision 953)
+@@ -59,8 +59,28 @@
+ * one object of the type INFOBOX.
+ */
+ public class Pathway implements PathwayListener
+-{
++{	
+ 	/**
++	   "changed" tracks if the Pathway has been changed since the file
++	   was opened or last saved. New pathways start changed.
++	 */
++	private boolean changed = true;
++	public boolean hasChanged() { return changed; }
++	/**
++	   clearChangedFlag should be called after when the current
++	   pathway is known to be the same as the one on disk. This
++	   happens when you just opened it, or when you just saved it.
++	*/
++	private void clearChangedFlag() { changed = false; }
++	/**
++	   To be called after each edit operation
++	*/
++	private void markChanged()
++	{
++		changed = true;
++	}
++	
++	/**
+ 	 * Logger to which all logging will be performed
+ 	 */
+ 	private static Logger log = new Logger();
+@@ -133,6 +153,11 @@
+ 		return biopax;
+ 	}
+ 	
++	public void createBiopax() {
++		biopax = new PathwayElement(ObjectType.BIOPAX);
++		this.add(biopax);
++	}
++		
+ 	/**
+ 	 * Add a PathwayElement to this Pathway.
+ 	 * takes care of setting parent and removing from possible previous
+@@ -330,8 +355,6 @@
+ 		this.add (mappInfo);
+ 		infoBox = new PathwayElement(ObjectType.INFOBOX);
+ 		this.add (infoBox);
+-		biopax = new PathwayElement(ObjectType.BIOPAX);
+-		this.add(biopax);
+ 	}
+ 	
+ 	static final double M_INITIAL_BOARD_WIDTH = 18000;
+@@ -378,6 +401,9 @@
+ 			} catch (JDOMException je) {
+ 				log.error("Document is invalid according to the xml-schema definition!: " + 
+ 						je.getMessage(), je);
++				XMLOutputter xmlcode = new XMLOutputter(Format.getPrettyFormat());
++				
++				log.error("The invalid XML code:\n" + xmlcode.outputString(doc));
+ 				throw new ConverterException (je);
+ 			}
+ 		} else {
+@@ -510,8 +536,14 @@
+ 	private List<PathwayListener> listeners = new ArrayList<PathwayListener>();
+ 	public void addListener(PathwayListener v) { listeners.add(v); }
+ 	public void removeListener(PathwayListener v) { listeners.remove(v); }
++	
++    /**
++	   Firing the ObjectModifiedEvent has the side effect of
++	   marking the Pathway as changed.
++	 */
+ 	public void fireObjectModifiedEvent(PathwayEvent e) 
+ 	{
++		markChanged();
+ 		for (PathwayListener g : listeners)
+ 		{
+ 			g.gmmlObjectModified(e);
+Index: branches/g2d-branch/src/core/org/pathvisio/model/GroupStyle.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/GroupStyle.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/model/GroupStyle.java	(revision 953)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ package org.pathvisio.model;
+ 
+ import java.util.ArrayList;
+Index: branches/g2d-branch/src/core/org/pathvisio/model/PropertyType.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/PropertyType.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/model/PropertyType.java	(revision 953)
+@@ -96,7 +96,7 @@
+ 	ENDGRAPHREF ("EndGraphRef", "EndGraphRef", PropertyClass.STRING),
+ 	GROUPID ("GroupId", "GroupId", PropertyClass.STRING),
+ 	GROUPREF ("GroupRef", "GroupRef", PropertyClass.STRING),
+-	BIOPAX( "Biopax", "Biopax", PropertyClass.BIOPAX);
++	BIOPAXREF( "BiopaxRef", "BiopaxRef", PropertyClass.BIOPAXREF);
+ 
+ 	private String tag, desc;
+ 	private PropertyClass type;
+Index: branches/g2d-branch/src/core/org/pathvisio/model/PathwayElement.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/PathwayElement.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/model/PathwayElement.java	(revision 953)
+@@ -263,114 +263,137 @@
+ 			}
+ 		}
+ 	}
+-		
++
++    /**
++	  get all attributes, also the advanced ones
++	*/
+ 	public List<PropertyType> getAttributes()
+ 	{
+-		List<PropertyType> result = Arrays.asList(new PropertyType[] { 
+-				PropertyType.NOTES, 
+-				PropertyType.COMMENT
+-		});
++		return getAttributes(true);
++	}
++
++	/**
++	 get a list of attributes for this PathwayElement.
++	 @param fAdvanced: if true, return all valid attributes. If false, hide certain "advanced" attributes
++	 that can be set in other ways too.
++	 */
++	public List<PropertyType> getAttributes(boolean fAdvanced)
++	{
++		List<PropertyType> result = new ArrayList<PropertyType>();
++		result.add (PropertyType.NOTES); 
++		result.add (PropertyType.COMMENT);
+ 		switch (getObjectType())
+ 		{
+-			case ObjectType.MAPPINFO:
+-				result = ( Arrays.asList (new PropertyType[] {
+-						PropertyType.NOTES, 
+-						PropertyType.COMMENT,
+-						PropertyType.MAPINFONAME,
+-						PropertyType.ORGANISM,
+-						PropertyType.DATA_SOURCE,
+-						PropertyType.VERSION,
+-						PropertyType.AUTHOR,
+-						PropertyType.MAINTAINED_BY,
+-						PropertyType.EMAIL,
+-						PropertyType.LAST_MODIFIED,
+-						PropertyType.AVAILABILITY,
+-						PropertyType.BOARDWIDTH,
+-						PropertyType.BOARDHEIGHT,
+-						PropertyType.WINDOWWIDTH,
+-						PropertyType.WINDOWHEIGHT
+-				}));
+-				break;
+-			case ObjectType.DATANODE:
+-				result = ( Arrays.asList (new PropertyType[] {
+-						PropertyType.NOTES,
+-						PropertyType.COMMENT,
+-						PropertyType.CENTERX,
+-						PropertyType.CENTERY,
+-						PropertyType.WIDTH,
+-						PropertyType.HEIGHT,
+-						PropertyType.COLOR,
+-						PropertyType.GENEID,
+-						PropertyType.SYSTEMCODE,
+-						PropertyType.TEXTLABEL,
+-						//PropertyType.XREF,
+-						PropertyType.BACKPAGEHEAD,
+-						PropertyType.TYPE,
+-						PropertyType.GRAPHID,
+-						PropertyType.GROUPREF
+-				}));
+-				break;
+-			case ObjectType.SHAPE:
+-				result = ( Arrays.asList(new PropertyType[] {
+-						PropertyType.NOTES,
+-						PropertyType.COMMENT,
+-						PropertyType.CENTERX,
+-						PropertyType.CENTERY,
+-						PropertyType.WIDTH,
+-						PropertyType.HEIGHT,
+-						PropertyType.COLOR,
+-						PropertyType.FILLCOLOR,
+-						PropertyType.SHAPETYPE,
+-						PropertyType.ROTATION,
+-						PropertyType.TRANSPARENT,
+-						PropertyType.GRAPHID,
+-						PropertyType.GROUPREF
+-				}));
+-				break;
+-			case ObjectType.LINE:
+-				result = ( Arrays.asList(new PropertyType[] {
+-						PropertyType.NOTES,
+-						PropertyType.COMMENT,
+-						PropertyType.COLOR,
+-						PropertyType.STARTX,
+-						PropertyType.STARTY,
+-						PropertyType.ENDX,
+-						PropertyType.ENDY,
+-						PropertyType.LINETYPE,
+-						PropertyType.LINESTYLE,
+-						PropertyType.STARTGRAPHREF,
+-						PropertyType.ENDGRAPHREF,
+-						PropertyType.GRAPHID,
+-						PropertyType.GROUPREF
+-				}));
+-				break;
+-			case ObjectType.LABEL:
+-				result = ( Arrays.asList(new PropertyType[] {
+-						PropertyType.NOTES,
+-						PropertyType.COMMENT,
+-						PropertyType.XREF,
+-						PropertyType.CENTERX,
+-						PropertyType.CENTERY,
+-						PropertyType.WIDTH,
+-						PropertyType.HEIGHT,
+-						PropertyType.COLOR,
+-						PropertyType.TEXTLABEL,
+-						PropertyType.FONTNAME,
+-						PropertyType.FONTWEIGHT,
+-						PropertyType.FONTSTYLE,
+-						PropertyType.FONTSIZE,
+-						PropertyType.GRAPHID,
+-						PropertyType.GROUPREF
+-				}));
+-				break;
+-			case ObjectType.GROUP:
+-				result = ( Arrays.asList(new PropertyType[] {
+-						PropertyType.GROUPID,
+-						PropertyType.GROUPREF,
+-						PropertyType.TEXTLABEL
+-				}));
+-				break;
+-				
++		case ObjectType.MAPPINFO:				
++			result.add (PropertyType.NOTES);
++			result.add (PropertyType.COMMENT);
++			result.add (PropertyType.MAPINFONAME);
++			result.add (PropertyType.ORGANISM);
++			result.add (PropertyType.DATA_SOURCE);
++			result.add (PropertyType.VERSION);
++			result.add (PropertyType.AUTHOR);
++			result.add (PropertyType.MAINTAINED_BY);
++			result.add (PropertyType.EMAIL);
++			result.add (PropertyType.LAST_MODIFIED);
++			result.add (PropertyType.AVAILABILITY);
++			result.add (PropertyType.BOARDWIDTH);
++			result.add (PropertyType.BOARDHEIGHT);
++			//if (Engine.getPreferences().getBoolean(Preferences.PREF_SHOW_ADVANCED_ATTR))
++			if (fAdvanced)
++			{// these two properties are deprecated and not used in PathVisio itself.
++				result.add (PropertyType.WINDOWWIDTH);
++				result.add (PropertyType.WINDOWHEIGHT);
++			}
++			break;
++		case ObjectType.DATANODE:
++			result.add (PropertyType.NOTES);
++			result.add (PropertyType.COMMENT);
++			result.add (PropertyType.CENTERX);
++			result.add (PropertyType.CENTERY);
++			result.add (PropertyType.WIDTH);
++			result.add (PropertyType.HEIGHT);
++			result.add (PropertyType.COLOR);
++			result.add (PropertyType.GENEID);
++			result.add (PropertyType.SYSTEMCODE);
++			result.add (PropertyType.TEXTLABEL);
++			//PropertyType.XREF,
++			result.add (PropertyType.BACKPAGEHEAD);
++			result.add (PropertyType.TYPE);
++			if (fAdvanced)
++			{
++				result.add (PropertyType.GRAPHID);
++				result.add (PropertyType.GROUPREF);			
++				result.add (PropertyType.BIOPAXREF);
++			}
++			break;
++		case ObjectType.SHAPE:
++			result.add (PropertyType.NOTES);
++			result.add (PropertyType.COMMENT);
++			result.add (PropertyType.CENTERX);
++			result.add (PropertyType.CENTERY);
++			result.add (PropertyType.WIDTH);
++			result.add (PropertyType.HEIGHT);
++			result.add (PropertyType.COLOR);
++			result.add (PropertyType.FILLCOLOR);
++			result.add (PropertyType.SHAPETYPE);
++			result.add (PropertyType.ROTATION);
++			result.add (PropertyType.TRANSPARENT);
++			if (fAdvanced)
++			{
++				result.add (PropertyType.GRAPHID);
++				result.add (PropertyType.GROUPREF);			
++				result.add (PropertyType.BIOPAXREF);
++			}
++			break;
++		case ObjectType.LINE:
++			result.add (PropertyType.NOTES);
++			result.add (PropertyType.COMMENT);
++			result.add (PropertyType.COLOR);
++			result.add (PropertyType.STARTX);
++			result.add (PropertyType.STARTY);
++			result.add (PropertyType.ENDX);
++			result.add (PropertyType.ENDY);
++			result.add (PropertyType.LINETYPE);
++			result.add (PropertyType.LINESTYLE);
++			if (fAdvanced)
++			{
++				result.add (PropertyType.STARTGRAPHREF);
++				result.add (PropertyType.ENDGRAPHREF);
++				result.add (PropertyType.GRAPHID);
++				result.add (PropertyType.GROUPREF);			
++				result.add (PropertyType.BIOPAXREF);
++			}
++			break;
++		case ObjectType.LABEL:
++			result.add (PropertyType.NOTES);
++			result.add (PropertyType.COMMENT);
++			result.add (PropertyType.XREF);
++			result.add (PropertyType.CENTERX);
++			result.add (PropertyType.CENTERY);
++			result.add (PropertyType.WIDTH);
++			result.add (PropertyType.HEIGHT);
++			result.add (PropertyType.COLOR);
++			result.add (PropertyType.TEXTLABEL);
++			result.add (PropertyType.FONTNAME);
++			result.add (PropertyType.FONTWEIGHT);
++			result.add (PropertyType.FONTSTYLE);
++			result.add (PropertyType.FONTSIZE);
++			if (fAdvanced)
++			{
++				result.add (PropertyType.GRAPHID);
++				result.add (PropertyType.GROUPREF);			
++				result.add (PropertyType.BIOPAXREF);
++			}
++			break;
++		case ObjectType.GROUP:
++			if (fAdvanced)
++			{
++				result.add (PropertyType.GROUPID);
++				result.add (PropertyType.GROUPREF);			
++				result.add (PropertyType.BIOPAXREF);
++			}
++			result.add (PropertyType.TEXTLABEL);
++			break;
+ 		}
+ 		return result;
+ 	}
+@@ -443,7 +466,7 @@
+ 			case GROUPREF: setGroupRef ((String)value); break;
+ 			case TRANSPARENT: setTransparent ((Boolean)value); break;
+ 			
+-			case BIOPAX: setBiopax((Document)value); break;
++			case BIOPAXREF: setBiopaxRef((String)value); break;
+ 		}
+ 	}
+ 	
+@@ -506,7 +529,7 @@
+ 			case GROUPREF: result = getGroupRef (); break;
+ 			case TRANSPARENT: result = isTransparent (); break;
+ 			
+-			case BIOPAX: result = getBiopax(); break;
++			case BIOPAXREF: result = getBiopaxRef(); break;
+ 		}
+ 
+ 		return result;
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/GlobalPreference.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 953)
+@@ -72,6 +72,10 @@
+ 		return Double.parseDouble(p.getValue());
+ 	}
+ 	
++	public static boolean getValueBoolean(Preference p) {
++		return Boolean.parseBoolean(p.getValue());
++	}
++	
+ 	private static Color string2Color(String s) {
+ 		return ColorConverter.parseColorString(s);
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 953)
+@@ -30,6 +30,8 @@
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.view.Graphics;
+ 
++import com.sun.org.apache.xpath.internal.operations.Bool;
++
+ /**
+  * This class contains all user preferences used in this application
+  */
+@@ -159,8 +161,10 @@
+ 		SWT_CURR_GDB("none"),
+ 		SWT_DB_ENGINE_GDB("org.pathvisio.data.DBConnDerby"),
+ 		SWT_DB_ENGINE_EXPR("org.pathvisio.data.DBConnDerby"),
+-		SWT_SIDEPANEL_SIZE("30");
++		SWT_SIDEPANEL_SIZE("30"),
+ 		
++		SWT_SHOW_ADVANCED_ATTR(Boolean.toString(false));
++		
+ 		SwtPreference(String defaultValue) {
+ 			this.defaultValue = defaultValue;
+ 		}
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/swt/PreferenceDlg.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 953)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.preferences.swt;
+ 
++import org.eclipse.jface.preference.BooleanFieldEditor;
+ import org.eclipse.jface.preference.ColorFieldEditor;
+ import org.eclipse.jface.preference.DirectoryFieldEditor;
+ import org.eclipse.jface.preference.FieldEditorPreferencePage;
+@@ -95,6 +96,10 @@
+ 			f.setValidRange(0, 100);
+ 			addField(f);
+ 			
++			BooleanFieldEditor f2 =	new BooleanFieldEditor (
++					SwtPreference.SWT_SHOW_ADVANCED_ATTR.name(),									   
++					"Show advanced attributes (e.g. references):", getFieldEditorParent());
++				addField (f2);
+ 		}
+ 	}
+ 	private class ColorsPage extends FieldEditorPreferencePage {
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxRefDialog.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxRefDialog.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxRefDialog.java	(revision 953)
+@@ -0,0 +1,152 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.biopax.gui;
++
++import org.biopax.paxtools.model.level2.BioPAXElement;
++import org.eclipse.jface.dialogs.Dialog;
++import org.eclipse.jface.dialogs.IDialogConstants;
++import org.eclipse.jface.viewers.ILabelProviderListener;
++import org.eclipse.jface.viewers.ISelection;
++import org.eclipse.jface.viewers.ISelectionChangedListener;
++import org.eclipse.jface.viewers.IStructuredContentProvider;
++import org.eclipse.jface.viewers.IStructuredSelection;
++import org.eclipse.jface.viewers.ITableLabelProvider;
++import org.eclipse.jface.viewers.SelectionChangedEvent;
++import org.eclipse.jface.viewers.StructuredSelection;
++import org.eclipse.jface.viewers.TableViewer;
++import org.eclipse.jface.viewers.Viewer;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.graphics.Image;
++import org.eclipse.swt.layout.GridLayout;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Shell;
++import org.eclipse.swt.widgets.Table;
++import org.eclipse.swt.widgets.TableColumn;
++import org.eclipse.swt.widgets.Text;
++import org.pathvisio.biopax.BiopaxManager;
++
++public class BiopaxRefDialog extends Dialog {	
++	BiopaxManager biopax;
++	String ref;
++	
++	TableViewer tableViewer;
++
++	public BiopaxRefDialog(Shell shell, BiopaxManager bp, String ref) {
++		super(shell);
++		setShellStyle(SWT.DIALOG_TRIM | SWT.RESIZE);
++		biopax = bp;
++		this.ref = ref;
++	}
++		
++	protected void createButtonsForButtonBar(Composite parent) {
++		createButton(parent, IDialogConstants.OK_ID,
++				IDialogConstants.OK_LABEL, true);
++		createButton(parent, IDialogConstants.CANCEL_ID,
++				IDialogConstants.CANCEL_LABEL, false);
++	}
++
++	public String getRef() {
++		return ref;
++	}
++	
++	public void setRef(String r) {
++		ref = r;
++	}
++	
++	protected Control createDialogArea(Composite parent) {
++		 Composite comp = (Composite) super.createDialogArea(parent);
++		 comp.setLayout(new GridLayout());
++		 
++		 
++		 tableViewer = new TableViewer(comp, SWT.SINGLE | SWT.V_SCROLL | SWT.H_SCROLL);
++		 Table t = tableViewer.getTable();
++		 t.setHeaderVisible(true);
++		 TableColumn tcElm = new TableColumn(t, SWT.LEFT);
++		 tcElm.setText("Element");
++		 tcElm.setWidth(500);
++		 TableColumn tcID = new TableColumn(t, SWT.LEFT);
++		 tcID.setText("ID");
++		 tcID.setWidth(100);
++		 
++		 tableViewer.setContentProvider(new IStructuredContentProvider() {
++			public Object[] getElements(Object input) {
++				BiopaxManager bpm = (BiopaxManager)input;
++				if(bpm != null) {
++					return bpm.getModel().getObjects().toArray();
++				} else {
++					return new Object[] {};
++				}
++			}
++
++			public void dispose() { }
++
++			public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {	}
++			 
++		 });
++		 tableViewer.setLabelProvider(new ITableLabelProvider() {
++			public void addListener(ILabelProviderListener l) { }
++			public void dispose() { }
++			public boolean isLabelProperty(Object value, String property) {
++				return false;
++			}
++			public void removeListener(ILabelProviderListener l) { }
++			public Image getColumnImage(Object value, int col) { return null; }
++			public String getColumnText(Object value, int col) {
++				BioPAXElement bpe = (BioPAXElement)value;
++				switch(col) {
++				case 0:
++					return bpe.getRDFId();
++				case 1:
++					return bpe.getClass().toString();
++				default: return "";
++				}
++			}
++		 });
++		 tableViewer.addSelectionChangedListener(new ISelectionChangedListener() {
++			public void selectionChanged(SelectionChangedEvent e) {
++				BioPAXElement selected = getSelectedObject(e.getSelection());
++				setRef(selected.getRDFId());
++			}	
++		 });
++		 
++		 init();
++		 
++		 return comp;
++	}
++	
++	BioPAXElement getSelectedObject(ISelection s) {
++		return (BioPAXElement)
++			((IStructuredSelection)s).getFirstElement();
++	}
++	
++	private void update() {
++		if(tableViewer != null) {
++			tableViewer.setInput(biopax);
++			tableViewer.refresh();
++		}
++	}
++	
++	private void init() {
++		tableViewer.setInput(biopax);
++		BioPAXElement pe = biopax.getModel().getIdMap().get(ref);
++		if(pe != null) {
++			tableViewer.setSelection(new StructuredSelection(pe));
++		}
++	}
++	
++}
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxDialog.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxDialog.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxDialog.java	(revision 953)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ package org.pathvisio.biopax.gui;
+ 
+ import org.eclipse.jface.dialogs.Dialog;
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxCellEditor.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxCellEditor.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxCellEditor.java	(revision 953)
+@@ -1,20 +1,33 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ package org.pathvisio.biopax.gui;
+ 
+-import java.util.List;
+-
++import org.eclipse.jface.viewers.DialogCellEditor;
+ import org.eclipse.swt.events.SelectionAdapter;
+ import org.eclipse.swt.events.SelectionEvent;
+ import org.eclipse.swt.widgets.Button;
+ import org.eclipse.swt.widgets.Composite;
+-import org.jdom.Document;
++import org.eclipse.swt.widgets.Control;
+ import org.pathvisio.Engine;
+-import org.pathvisio.gui.swt.ButtonCellEditor;
++import org.pathvisio.biopax.BiopaxManager;
+ 
+-public class BiopaxCellEditor extends ButtonCellEditor {
+-	Document biopax;
+-	
++public class BiopaxCellEditor extends DialogCellEditor {	
+ 	public BiopaxCellEditor(Composite parent, String label) {
+-		super(parent, label);
++		super(parent);
+ 	}
+ 	
+ 	protected void setSelectionListeners(Button b) {
+@@ -27,15 +40,10 @@
+ 		});
+ 	}
+ 
+-	protected Object doGetValue() {
+-		return biopax;
++	protected Object openDialogBox(Control cellEditorWindow) {
++		BiopaxManager bpm = new BiopaxManager(Engine.getActivePathway().getBiopax().getBiopax());
++		BiopaxRefDialog d = new BiopaxRefDialog(cellEditorWindow.getShell(), bpm, (String)getValue());
++		d.open();
++		return d.getRef();
+ 	}
+-
+-	protected void doSetValue(Object obj) {
+-		if(!(obj instanceof List) && obj != null) {
+-			throw new IllegalArgumentException("Can't set object of class " + obj.getClass());
+-		} else {
+-			biopax = (Document)obj;
+-		}
+-	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/BiopaxManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/BiopaxManager.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/BiopaxManager.java	(revision 953)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ package org.pathvisio.biopax;
+ 
+ import java.io.ByteArrayOutputStream;
+@@ -17,6 +33,8 @@
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.util.Utils;
+ 
++import com.hp.hpl.jena.ontology.OntModel;
++
+ public class BiopaxManager {
+ 	Model model;
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/NewElementAction.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/NewElementAction.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/NewElementAction.java	(revision 953)
+@@ -0,0 +1,225 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++
++package org.pathvisio.gui.swt;
++
++import java.net.URL;
++import java.util.Vector;
++
++import org.eclipse.jface.action.Action;
++import org.eclipse.jface.action.ActionContributionItem;
++import org.eclipse.jface.action.IMenuCreator;
++import org.eclipse.jface.resource.ImageDescriptor;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Menu;
++import org.pathvisio.Engine;
++import org.pathvisio.view.VPathway;
++
++/**
++ * {@link Action} to add a new element to the gpml pathway
++ */
++public class NewElementAction extends Action
++{
++	MainWindow window;
++	int element;
++		
++	/**
++	 * Constructor for this class
++	 * @param e	type of element this action adds; a {@link VPathway} field constant
++	 */
++	public NewElementAction (int e)
++	{
++		// TODO: this should be moved to CommonActions, since it is both in v1 and v2
++		element = e;
++		
++		String toolTipText;
++		URL imageURL = null;
++		toolTipText = null;
++		switch(element) {
++		case VPathway.NEWLINE: 
++			toolTipText = "Draw new line";
++			imageURL = Engine.getResourceURL("icons/newline.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLINEARROW:
++			toolTipText = "Draw new arrow";
++			imageURL = Engine.getResourceURL("icons/newarrow.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLINEDASHED:
++			toolTipText = "Draw new dashed line";
++			imageURL = Engine.getResourceURL("icons/newdashedline.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLINEDASHEDARROW:
++			toolTipText = "Draw new dashed arrow";
++			imageURL = Engine.getResourceURL("icons/newdashedarrow.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLABEL:
++			toolTipText = "Draw new label";
++			imageURL = Engine.getResourceURL("icons/newlabel.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWARC:
++			toolTipText = "Draw new arc";
++			imageURL = Engine.getResourceURL("icons/newarc.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWBRACE:
++			toolTipText = "Draw new brace";
++			imageURL = Engine.getResourceURL("icons/newbrace.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWGENEPRODUCT:
++			toolTipText = "Draw new geneproduct";
++			imageURL = Engine.getResourceURL("icons/newgeneproduct.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWRECTANGLE:
++			imageURL = Engine.getResourceURL("icons/newrectangle.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWOVAL:
++			toolTipText = "Draw new oval";
++			imageURL = Engine.getResourceURL("icons/newoval.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWTBAR:
++			toolTipText = "Draw new TBar";
++			imageURL = Engine.getResourceURL("icons/newtbar.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWRECEPTORROUND:
++			toolTipText = "Draw new round receptor";
++			imageURL = Engine.getResourceURL("icons/newreceptorround.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWRECEPTORSQUARE:
++			toolTipText = "Draw new square receptor";
++			imageURL = Engine.getResourceURL("icons/newreceptorsquare.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLIGANDROUND:
++			toolTipText = "Draw new round ligand";
++			imageURL = Engine.getResourceURL("icons/newligandround.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLIGANDSQUARE:
++			toolTipText = "Draw new square ligand";
++			imageURL = Engine.getResourceURL("icons/newligandsquare.gif");
++			setChecked(false);
++			break;
++		case VPathway.NEWLINEMENU:
++			setMenuCreator(new NewItemMenuCreator(VPathway.NEWLINEMENU));
++			imageURL = Engine.getResourceURL("icons/newlinemenu.gif");
++			toolTipText = "Draw new line or arrow";
++			break;
++		case VPathway.NEWLINESHAPEMENU:
++			setMenuCreator(new NewItemMenuCreator(VPathway.NEWLINESHAPEMENU));
++			imageURL = Engine.getResourceURL("icons/newlineshapemenu.gif");
++			toolTipText = "Draw new ligand or receptor";
++			break;
++		}
++		setToolTipText(toolTipText);
++		setId("newItemAction");
++		if(imageURL != null) setImageDescriptor(ImageDescriptor.createFromURL(imageURL));
++	}
++				
++	public void run () {
++		if(isChecked())
++		{
++			SwtEngine.getWindow().deselectNewItemActions();
++			setChecked(true);
++			Engine.getActiveVPathway().setNewGraphics(element);
++		}
++		else
++		{	
++			Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
++		}
++	}
++
++	/**
++	 * {@link IMenuCreator} that creates the drop down menus for 
++	 * adding new line-type and -shape elements
++	 */
++	private class NewItemMenuCreator implements IMenuCreator
++	{
++		private Menu menu;
++		int element;
++		
++		/**
++		 * Constructor for this class
++		 * @param e	type of menu to create; one of {@link VPathway}.NEWLINEMENU
++		 * , {@link VPathway}.NEWLINESHAPEMENU
++		 */
++		public NewItemMenuCreator(int e) 
++		{
++			element = e;
++		}
++		
++		public Menu getMenu(Menu parent)
++		{
++			return null;
++		}
++
++		public Menu getMenu(Control parent)
++		{
++			if (menu != null)
++				menu.dispose();
++			
++			menu = new Menu(parent);
++			Vector<Action> actions = new Vector<Action>();
++			switch(element)
++			{
++			case VPathway.NEWLINEMENU:
++				actions.add(new NewElementAction(VPathway.NEWLINE));
++				actions.add(new NewElementAction(VPathway.NEWLINEARROW));
++				actions.add(new NewElementAction(VPathway.NEWLINEDASHED));
++				actions.add(new NewElementAction(VPathway.NEWLINEDASHEDARROW));
++				break;
++			case VPathway.NEWLINESHAPEMENU:
++				actions.add(new NewElementAction(VPathway.NEWLIGANDROUND));
++				actions.add(new NewElementAction(VPathway.NEWRECEPTORROUND));
++				actions.add(new NewElementAction(VPathway.NEWLIGANDSQUARE));
++				actions.add(new NewElementAction(VPathway.NEWRECEPTORSQUARE));
++			}
++			
++			for (Action act : actions)
++			{			
++				addActionToMenu(menu, act);
++			}
++
++			return menu;
++		}
++		
++		protected void addActionToMenu(Menu parent, Action a)
++		{
++			ActionContributionItem item = new ActionContributionItem(a);
++			item.fill(parent, -1);
++		}
++		
++		public void dispose() 
++		{
++			if (menu != null)  {
++				menu.dispose();
++				menu = null;
++			}
++		}
++	}
++
++}
+
+Property changes on: branches/g2d-branch/src/core/org/pathvisio/gui/swt/NewElementAction.java
+___________________________________________________________________
+Name: svn:eol-style
+   + native
+
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 953)
+@@ -17,12 +17,18 @@
+ package org.pathvisio.gui.swt;
+ 
+ import java.io.File;
++import java.lang.reflect.InvocationTargetException;
+ 
++import org.eclipse.core.runtime.IProgressMonitor;
++import org.eclipse.jface.dialogs.IDialogConstants;
+ import org.eclipse.jface.dialogs.MessageDialog;
++import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+ import org.eclipse.jface.resource.ImageRegistry;
+ import org.eclipse.jface.window.ApplicationWindow;
++import org.eclipse.swt.SWT;
+ import org.eclipse.swt.graphics.DeviceData;
+ import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Shell;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+@@ -31,9 +37,17 @@
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.preferences.PreferenceCollection;
+ import org.pathvisio.preferences.swt.SwtPreferences;
++import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
++import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
++import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ import org.pathvisio.view.swt.VPathwaySwtAwt;
+ 
++import edu.stanford.ejalbert.BrowserLauncher;
++import edu.stanford.ejalbert.exception.BrowserLaunchingExecutionException;
++import edu.stanford.ejalbert.exception.BrowserLaunchingInitializingException;
++import edu.stanford.ejalbert.exception.UnsupportedOperatingSystemException;
++
+ /**
+  * This class contains the essential parts of the program: the window, drawing and gpml data
+  */
+@@ -61,6 +75,30 @@
+ 	}
+ 	
+ 	/**
++	   Updates the title of the main window.
++	   Call at initialization of the program,
++	   whenever the filename of the current document has changed,
++	   or the change status has changed.
++	*/
++	public static void updateTitle()
++	{
++		if (Engine.getActivePathway() == null)
++		{
++			window.getShell().setText(Globals.APPLICATION_VERSION_NAME);
++		}
++		else
++		{
++			// get filename, or (New Pathway) if current pathway hasn't been opened yet
++			String fname = (Engine.getActivePathway().getSourceFile() == null) ? "(New Pathway)" :
++				Engine.getActivePathway().getSourceFile().getName();
++			window.getShell().setText(
++				"*" + fname + " - " +
++				Globals.APPLICATION_VERSION_NAME
++				);
++		}
++	}
++	
++	/**
+ 	 * Initiates an instance of {@link MainWindow} that is monitored by Sleak.java,
+ 	 * to monitor what handles (to OS device context) are in use. For debug purposes only 
+ 	 * (to check for undisposed widgets)
+@@ -87,20 +125,180 @@
+ 		}
+ 		return null;
+ 	}
+-	
++		
+ 	public static void newPathway() {
+-		VPathwayWrapper w = createWrapper();
+-		Engine.newPathway(w);
++		if(canDiscardPathway()) {
++			VPathwayWrapper w = createWrapper();
++			Engine.newPathway(w);
++			updateTitle();
++		}
+ 	}
+ 	
+-	public static void openPathway(String fileName) {
++	/**
++	   Opens a file dialog and lets user select a file.
++	   Then the pathways is saved to that file.
++	   returns false if the action was cancelled by the user
++	 */
++	public static boolean savePathwayAs()
++	{
++		Pathway pathway = Engine.getActivePathway();
++		VPathway vPathway = Engine.getActiveVPathway();
++		
++		// Check if a gpml pathway is loaded
++		if (pathway != null)
++		{
++			FileDialog fd = new FileDialog(window.getShell(), SWT.SAVE);
++			fd.setText("Save");
++			fd.setFilterExtensions(new String[] {"*." + Engine.PATHWAY_FILE_EXTENSION, "*.*"});
++			fd.setFilterNames(new String[] {Engine.PATHWAY_FILTER_NAME, "All files (*.*)"});
++			
++			File xmlFile = pathway.getSourceFile();
++			if(xmlFile != null) {
++				fd.setFileName(xmlFile.getName());
++				fd.setFilterPath(xmlFile.getPath());
++			} else {
++					fd.setFilterPath(SwtPreference.SWT_DIR_PWFILES.getValue());
++			}
++			String fileName = fd.open();
++			// Only proceed if user selected a file
++			
++			if(fileName == null) return false;
++			
++			// Append .gpml extension if not already present
++			if(!fileName.endsWith("." + Engine.PATHWAY_FILE_EXTENSION)) 
++				fileName += "." + Engine.PATHWAY_FILE_EXTENSION;
++			
++			File checkFile = new File(fileName);
++			boolean confirmed = true;
++			// If file exists, ask overwrite permission
++			if(checkFile.exists())
++			{
++				confirmed = MessageDialog.openQuestion(window.getShell(),"",
++													   "File already exists, overwrite?");
++			}
++			if(confirmed)
++			{
++				double usedZoom = vPathway.getPctZoom();
++				// Set zoom to 100%
++				vPathway.setPctZoom(100);					
++				// Overwrite the existing xml file
++				try
++				{
++					Engine.savePathway(checkFile);
++					updateTitle();
++					// Set zoom back
++					vPathway.setPctZoom(usedZoom);
++				}
++				catch (ConverterException e)
++				{
++					String msg = "While writing xml to " 
++						+ checkFile.getAbsolutePath();					
++					MessageDialog.openError (window.getShell(), "Error", 
++											 "Error: " + msg + "\n\n" + 
++											 "See the error log for details.");
++					Engine.log.error(msg, e);
++				}
++			}
++		}
++		else
++		{
++			MessageDialog.openError (window.getShell(), "Error", 
++									 "No gpml file loaded! Open or create a new gpml file first");
++		}			
++		return true;
++	}
++
++	/**
++	   Checks if the current pathway has changes, and if so, pops up a dialog
++	   offering to save.
++	   This should always be called before you change pathway
++
++	   @return returns false if the user pressed cancel. 
++	   
++	   TODO: Currently always asks, even if there were no changes since last save.
++	 */
++	static public boolean canDiscardPathway()
++	{
++		Pathway pathway = Engine.getActivePathway();
++		// checking not necessary if there is no pathway.
++		if (pathway == null) return true;
++		String[] opts =
++		{
++			IDialogConstants.YES_LABEL,
++			IDialogConstants.NO_LABEL,
++			IDialogConstants.CANCEL_LABEL
++		};
++		MessageDialog msgDlg = new MessageDialog (
++			window.getShell(),
++			"Save changes?",
++			null,
++			"Your pathway may have changed. Do you want to save?",
++			MessageDialog.QUESTION,
++			opts,
++			0);
++		int result = msgDlg.open();
++		if (result == 2) // cancel
++		{
++			return false;
++		}
++		else if (result == 0) // yes
++		{
++			// return false if save is cancelled.
++			return (savePathway());
++		}
++		// no
++		return true;
++	}
++	
++
++	/**
++	   Opens a URL in the default webbrowser.  Uses a progress dialog
++	   if it takes a long time.  Shows an error message and returns
++	   false if it somehow failed to open the web page.
++	*/
++	public static boolean openWebPage(String url, String progressMsg, String errMsg) {
++		Shell shell = getWindow().getShell();
++		if(shell == null || shell.isDisposed()) return false;
++		
++		SimpleRunnableWithProgress rwp = new SimpleRunnableWithProgress(
++				Engine.class, "doOpenWebPage", new Class[] { String.class }, new Object[] { url }, null);
++		SimpleRunnableWithProgress.setMonitorInfo(progressMsg, IProgressMonitor.UNKNOWN);
++		ProgressMonitorDialog dialog = new ProgressMonitorDialog(shell);
+ 		try {
+-			VPathwayWrapper w = createWrapper();
+-			Engine.openPathway(fileName, w);
+-		} catch(ConverterException e) {		
+-			if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
+-			{
+-				MessageDialog.openError(getWindow().getShell(), 
++			dialog.run(true, true, rwp);
++			return true;
++		} catch (InvocationTargetException e) {
++			Throwable cause = e.getCause();
++			String msg = cause == null ? null : cause.getMessage();
++			MessageDialog.openError(shell, "Error",
++			"Unable to open web browser" +
++			(msg == null ? "" : ": " + msg) +
++			"\n" + errMsg);
++			return false;
++		} catch (InterruptedException ignore) { return false; }
++	}
++	
++	public static void doOpenWebPage(String url) throws BrowserLaunchingInitializingException, BrowserLaunchingExecutionException, UnsupportedOperatingSystemException {
++		BrowserLauncher bl = new BrowserLauncher(null);
++		bl.openURLinBrowser(url);
++	}
++	
++	/**
++	 Open a pathway from a gpml file
++	 Asks the user if the old pathway should be discarded, if necessary
++	 */
++	public static void openPathway(String pwf)
++	{
++		if (canDiscardPathway())
++		{
++			try { 
++				VPathwayWrapper w = createWrapper();
++				Engine.openPathway(pwf, w);
++				updateTitle();
++			} catch(ConverterException e) {		
++				if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
++				{
++					MessageDialog.openError(getWindow().getShell(), 
+ 						"Unable to open Gpml file", 
+ 						"Unable to open Gpml file.\n\n" +
+ 						"The most likely cause for this error is that you are trying to open an old Gpml file. " +
+@@ -109,14 +307,15 @@
+ 						"Non-standard pathways need to be recreated or upgraded. " +
+ 						"Please contact the authors at martijn.vaniersel@bigcat.unimaas.nl if you need help with this.\n" +
+ 						"\nSee error log for details");
+-				Engine.log.error("Unable to open Gpml file", e);
++					Engine.log.error("Unable to open Gpml file", e);
++				}
++				else
++				{
++					MessageDialog.openError(getWindow().getShell(), 
++											"Unable to open Gpml file", e.getClass() + e.getMessage());
++					Engine.log.error("Unable to open Gpml file", e);
++				}
+ 			}
+-			else
+-			{
+-				MessageDialog.openError(getWindow().getShell(), 
+-						"Unable to open Gpml file", e.getClass() + e.getMessage());
+-				Engine.log.error("Unable to open Gpml file", e);
+-			}
+ 		}
+ 	}
+ 	
+@@ -163,4 +362,50 @@
+ 	}
+ 			
+ 	public static boolean isUseR() { return USE_R; }
++	
++	/**
++	   save the current pathway
++	   returns false if the action was cancelled by the user
++	   
++	   Calls savePathwayAs if the filename of the current pathway is unknown,
++	   so that the user can set a location for this pathway
++	*/
++		public static boolean savePathway()
++		{
++			Pathway pathway = Engine.getActivePathway();
++			VPathway vPathway = Engine.getActiveVPathway();
++			
++			boolean result = true;
++			
++			double usedZoom = vPathway.getPctZoom();
++			// Set zoom to 100%
++			vPathway.setPctZoom(100);			
++			
++	        // Overwrite the existing xml file.
++			// If the target file is read-only, let the user select a new pathway
++			if (pathway.getSourceFile() != null && pathway.getSourceFile().canWrite())
++			{
++				try
++				{
++					Engine.savePathway();
++				}
++				catch (ConverterException e)
++				{
++					String msg = "While writing xml to " 
++						+ pathway.getSourceFile().getAbsolutePath();					
++					MessageDialog.openError (window.getShell(), "Error", 
++											 "Error: " + msg + "\n\n" + 
++											 "See the error log for details.");
++					Engine.log.error(msg, e);
++				}
++			}
++			else
++			{
++				result = savePathwayAs();
++			}
++			// Set zoom back
++			vPathway.setPctZoom(usedZoom);
++
++			return result;
++		}
+ }
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 953)
+@@ -57,6 +57,8 @@
+ import org.pathvisio.model.PropertyClass;
+ import org.pathvisio.model.PropertyType;
+ import org.pathvisio.model.ShapeType;
++import org.pathvisio.preferences.GlobalPreference;
++import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SuggestCellEditor;
+ import org.pathvisio.util.TableColumnResizer;
+@@ -166,7 +168,9 @@
+ 		HashMap<PropertyType, Integer> master = new HashMap<PropertyType, Integer>();
+ 		for (PathwayElement o : dataObjects)
+ 		{
+-			for (PropertyType attr : o.getAttributes())
++			// get attributes. Only get advanced attributes if the preferences say so.
++			for (PropertyType attr : o.getAttributes(
++					 GlobalPreference.getValueBoolean(SwtPreference.SWT_SHOW_ADVANCED_ATTR)))
+ 			{
+ 				if (master.containsKey(attr))
+ 				{
+@@ -224,7 +228,7 @@
+ 		comboBoxEditor = new ComboBoxCellEditor(tableViewer.getTable(), new String[] {""});
+ 		identifierSuggestEditor = new GdbCellEditor(tableViewer.getTable(), GdbCellEditor.TYPE_IDENTIFIER);
+ 		symbolSuggestEditor = new GdbCellEditor(tableViewer.getTable(), GdbCellEditor.TYPE_SYMBOL);
+-		biopaxEditor = new BiopaxCellEditor(tableViewer.getTable(), "Edit Biopax info");
++		biopaxEditor = new BiopaxCellEditor(tableViewer.getTable(), "...");
+ 		
+ 		tableViewer.setCellEditors(cellEditors);
+ 		tableViewer.setColumnProperties(colNames);
+@@ -292,7 +296,7 @@
+ 				return identifierSuggestEditor;
+ 			case DB_SYMBOL:
+ 				return textEditor;
+-			case BIOPAX:
++			case BIOPAXREF:
+ 				return biopaxEditor;
+ 				
+ 		}
+@@ -374,7 +378,7 @@
+ 					if(value instanceof String) return (String)value;
+ 					if(value instanceof PropertyPanel.AutoFillData) 
+ 						return ((PropertyPanel.AutoFillData)value).getMainValue();
+-				case BIOPAX:
++				case BIOPAXREF:
+ 					return value;
+ 					
+ 			}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/MainWindowBase.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/MainWindowBase.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/MainWindowBase.java	(revision 953)
+@@ -0,0 +1,431 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swt;
++
++import org.eclipse.jface.action.Action;
++import org.eclipse.jface.action.ActionContributionItem;
++import org.eclipse.jface.action.ControlContribution;
++import org.eclipse.jface.action.IAction;
++import org.eclipse.jface.action.IContributionItem;
++import org.eclipse.jface.action.MenuManager;
++import org.eclipse.jface.action.ToolBarContributionItem;
++import org.eclipse.jface.action.ToolBarManager;
++import org.eclipse.jface.dialogs.MessageDialog;
++import org.eclipse.jface.dialogs.ProgressMonitorDialog;
++import org.eclipse.jface.window.ApplicationWindow;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.custom.SashForm;
++import org.eclipse.swt.custom.ScrolledComposite;
++import org.eclipse.swt.events.SelectionAdapter;
++import org.eclipse.swt.events.SelectionEvent;
++import org.eclipse.swt.widgets.Combo;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
++import org.pathvisio.data.DBConnector;
++import org.pathvisio.data.Gdb;
++import org.pathvisio.data.Gex;
++import org.pathvisio.data.Gex.ExpressionDataEvent;
++import org.pathvisio.data.Gex.ExpressionDataListener;
++import org.pathvisio.gui.swt.awt.VPathwaySwingComposite;
++import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
++import org.pathvisio.search.PathwaySearchComposite;
++import org.pathvisio.view.GeneProduct;
++import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
++import org.pathvisio.visualization.LegendPanel;
++
++/**
++ * MainWindowBase is an abstract and incomplete Main Window that contains some
++ * core functionality. This way we can create different flavours of the main window
++ * without having too much duplicate code. Descendants should at least provide
++ * a constructor, and override createCoolBarManager and createMenuManager.
++ */
++public abstract class MainWindowBase extends ApplicationWindow implements 
++	ApplicationEventListener, ExpressionDataListener, VPathwayListener
++{
++	private static final long serialVersionUID = 1L;
++	static int ZOOM_TO_FIT = -1;
++		
++	protected CommonActions.UndoAction undoAction = new CommonActions.UndoAction(this);	
++	protected CommonActions.NewAction newAction = new CommonActions.NewAction (this);
++	protected CommonActions.OpenAction openAction = new CommonActions.OpenAction (this);	
++	protected CommonActions.ImportAction importAction = new CommonActions.ImportAction (this);	
++	protected CommonActions.SaveAction saveAction = new CommonActions.SaveAction(this);	
++	protected CommonActions.SaveAsAction saveAsAction = new CommonActions.SaveAsAction (this);
++	protected CommonActions.ExportAction exportAction = new CommonActions.ExportAction (this);
++	protected CommonActions.ExitAction exitAction = new CommonActions.ExitAction(this);
++	protected CommonActions.PreferencesAction preferencesAction = new CommonActions.PreferencesAction(this);
++	protected CommonActions.AboutAction aboutAction = new CommonActions.AboutAction(this);
++	protected CommonActions.CopyAction copyAction = new CommonActions.CopyAction(this);
++	protected CommonActions.HelpAction helpAction = new CommonActions.HelpAction(this);	
++	protected CommonActions.PasteAction pasteAction = new CommonActions.PasteAction(this);
++	protected CommonActions.SwitchEditModeAction switchEditModeAction = new CommonActions.SwitchEditModeAction(this);
++	public ShowRightPanelAction showRightPanelAction = new ShowRightPanelAction(this);
++	protected SelectGdbAction selectGdbAction = new SelectGdbAction(this);
++	protected AlignActions.AlignCenterXAction alignCenterXAction = new AlignActions.AlignCenterXAction(this);
++	protected AlignActions.AlignCenterYAction alignCenterYAction = new AlignActions.AlignCenterYAction(this);
++	protected AlignActions.AlignLeftAction alignLeftAction = new AlignActions.AlignLeftAction(this);
++	protected AlignActions.AlignRightAction alignRightAction = new AlignActions.AlignRightAction(this);
++	protected AlignActions.AlignTopAction alignTopAction = new AlignActions.AlignTopAction(this);
++	protected AlignActions.AlignBottomAction alignBottomAction = new AlignActions.AlignBottomAction(this);
++	protected AlignActions.SetCommonWidthAction setCommonWidthAction = new AlignActions.SetCommonWidthAction(this);
++	protected AlignActions.SetCommonHeightAction setCommonHeightAction = new AlignActions.SetCommonHeightAction(this);
++
++	/**
++	 * {@link Action} to select a Gene Database
++	 */
++	private class SelectGdbAction extends Action
++	{
++		MainWindowBase window;
++		public SelectGdbAction(MainWindowBase w)
++		{
++			window = w;
++			setText("Select &Gene Database");
++			setToolTipText("Select Gene Database");
++		}
++		
++		public void run () {			
++			try {
++				DBConnector dbcon = Gdb.getDBConnector();
++				String dbName = dbcon.openChooseDbDialog(getShell());
++				
++				if(dbName == null) return;
++				
++				Gdb.connect(dbName);
++				setStatus("Using Gene Database: '" + SwtPreference.SWT_CURR_GDB + "'");
++				cacheExpressionData();
++			} catch(Exception e) {
++				String msg = "Failed to open Gene Database; " + e.getMessage();
++				MessageDialog.openError (window.getShell(), "Error", 
++						"Error: " + msg + "\n\n" + 
++						"See the error log for details.");
++				Engine.log.error(msg, e);
++			}
++		}
++	}
++
++	/**
++	 * deselect all buttons in the alignActionsCI coolbar
++	 */
++	public void deselectAlignItemActions()
++	{
++		IContributionItem[] items = alignActionsCI.getToolBarManager().getItems();
++		for(int i = 0; i < items.length; i++)
++		{
++			if(items[i] instanceof ActionContributionItem)
++			{
++				((ActionContributionItem)items[i]).getAction().setChecked(false);
++			}
++		}
++		Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
++	}
++	
++	/**
++	 * {@link Action} to show or hide the right sidepanel
++	 */
++	public class ShowRightPanelAction extends Action
++	{
++		MainWindowBase window;
++		public ShowRightPanelAction (MainWindowBase w)
++		{
++			super("Show &information panel", IAction.AS_CHECK_BOX);
++			window = w;
++			setChecked(true);
++		}
++		
++		public void run() {
++			if(isChecked()) rightPanel.show();
++			else rightPanel.hide();
++		}
++	}
++
++	/**
++	 * Loads expression data for all {@link GeneProduct}s in the loaded pathway
++	 */
++	private void cacheExpressionData()
++	{
++		if(Engine.isDrawingOpen())
++		{
++			VPathway drawing = Engine.getActiveVPathway();
++			//Check for neccesary connections
++			if(Gex.isConnected() && Gdb.isConnected())
++			{
++				ProgressMonitorDialog dialog = new ProgressMonitorDialog(getShell());
++				try {
++					dialog.run(true, true, Gex.createCacheRunnable(drawing.getMappIds(), drawing.getSystemCodes()));
++					drawing.redraw();
++				} catch(Exception e) {
++					String msg = "while caching expression data: " + e.getMessage();					
++					MessageDialog.openError (getShell(), "Error", 
++							"Error: " + msg + "\n\n" + 
++							"See the error log for details.");
++					Engine.log.error(msg, e);
++				}
++			}
++		}
++	}
++
++	/**
++	 * Deselects all {@link NewElementAction}s on the toolbar and sets 
++	 * {@link VPathway}.newGraphics to {@link VPathway}.NEWNONE
++	 */
++	public void deselectNewItemActions()
++	{
++		IContributionItem[] items = editActionsCI.getToolBarManager().getItems();
++		for(int i = 0; i < items.length; i++)
++		{
++			if(items[i] instanceof ActionContributionItem)
++			{
++				((ActionContributionItem)items[i]).getAction().setChecked(false);
++			}
++		}
++		Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
++	}
++
++	// Elements of the coolbar
++	ToolBarContributionItem commonActionsCI;
++	ToolBarContributionItem editActionsCI;
++	ToolBarContributionItem alignActionsCI;
++	ToolBarContributionItem viewActionsCI;
++	
++	/**
++	 * Creates element of the coolbar containing common actions as new, save etc.
++	 */
++	protected void createCommonActionsCI()
++	{
++		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
++		toolBarManager.add(newAction);
++		toolBarManager.add(openAction);
++		toolBarManager.add(saveAction);
++		commonActionsCI = new ToolBarContributionItem(toolBarManager, "CommonActions");
++	}
++
++	/**
++	 * Creates element of the coolbar only shown in edit mode (new element actions)
++	 */
++	protected void createEditActionsCI()
++	{
++		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);		
++		toolBarManager.add(new NewElementAction(VPathway.NEWGENEPRODUCT));
++		toolBarManager.add(new NewElementAction(VPathway.NEWLABEL));
++		toolBarManager.add(new NewElementAction(VPathway.NEWLINEMENU));
++		toolBarManager.add(new NewElementAction(VPathway.NEWRECTANGLE));
++		toolBarManager.add(new NewElementAction(VPathway.NEWOVAL));
++		toolBarManager.add(new NewElementAction(VPathway.NEWARC));
++		toolBarManager.add(new NewElementAction(VPathway.NEWBRACE));
++		toolBarManager.add(new NewElementAction(VPathway.NEWTBAR));
++		toolBarManager.add(new NewElementAction(VPathway.NEWLINESHAPEMENU));
++
++		editActionsCI = new ToolBarContributionItem(toolBarManager, "EditModeActions");
++	}
++	
++	/**
++	 * Creates element of the coolbar containing controls related to viewing a pathway
++	 */
++	protected void createViewActionsCI()
++	{
++		final MainWindowBase window = this;
++		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
++		//Add zoomCombo
++		toolBarManager.add(new ControlContribution("ZoomCombo") {
++			protected Control createControl(Composite parent) {
++				final Combo zoomCombo = new Combo(parent, SWT.DROP_DOWN);
++				zoomCombo.setItems(new String[] { "200%", "100%", "75%", "50%", "Zoom to fit" });
++				zoomCombo.setText("100%");
++				zoomCombo.addSelectionListener(new SelectionAdapter() {
++					public void widgetSelected(SelectionEvent e) {
++						int pctZoom = 100;
++						String zoomText = zoomCombo.getText().replace("%", "");
++						try {
++							pctZoom = Integer.parseInt(zoomText);
++						} catch (Exception ex) { 
++							if(zoomText.equals("Zoom to fit"))
++									{ pctZoom = ZOOM_TO_FIT; } else { return; }
++						}
++						new CommonActions.ZoomAction(window, pctZoom).run();
++					}
++					public void widgetDefaultSelected(SelectionEvent e) { widgetSelected(e); }
++				});
++				return zoomCombo;
++			}
++		});
++		//Add swich to editmode
++		toolBarManager.add(switchEditModeAction);
++		
++		viewActionsCI =  new ToolBarContributionItem(toolBarManager, "SwitchActions");
++	}
++		
++	/**
++	 * Shows or hides the editActionsCI
++	 * @param show	true/false for either show or hide
++	 */
++	public void showEditActionsCI(boolean show)
++	{
++		if(show) {
++			getCoolBarManager().insertAfter(viewActionsCI.getId(), editActionsCI);
++		}
++		else {
++			getCoolBarManager().remove(editActionsCI);
++		}
++//		showVisualizationCI(!show); //Visualizations can show up in edit mode...
++		getCoolBarManager().update(true);
++	}
++
++	/**
++	   Shows or hides the alignActionsCI.
++	   @param show	true/false for either show or hide
++	*/
++	public void showAlignActionsCI(boolean show)
++	{
++		if(show) {
++			getCoolBarManager().insertAfter(editActionsCI.getId(), alignActionsCI);
++		}
++		else {
++			getCoolBarManager().remove(alignActionsCI);
++		}
++//		showVisualizationCI(!show); //Visualizations can show up in edit mode...
++		getCoolBarManager().update(true);
++	}
++	
++	//	KH 20070514 begin
++	/**
++	 * set up the alignActions coolbar
++	 */
++	protected void createAlignActionsCI()
++	{
++		ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
++		toolBarManager.add(alignCenterXAction);
++		toolBarManager.add(alignCenterYAction);
++		toolBarManager.add(alignLeftAction);
++		toolBarManager.add(alignRightAction);
++		toolBarManager.add(alignTopAction);
++		toolBarManager.add(alignBottomAction);
++		toolBarManager.add(setCommonWidthAction);
++		toolBarManager.add(setCommonHeightAction);
++	
++		alignActionsCI = new ToolBarContributionItem(toolBarManager, "AlignActions");
++	}
++	
++//	KH end
++	/**
++	   Invoked when user tries to close window.
++	   We'll ask the user if he wants to save the pathway
++	*/
++	protected boolean canHandleShellCloseEvent()
++	{
++		return SwtEngine.canDiscardPathway();
++	}
++	
++	protected MenuManager menuManager = null;
++	/**
++	 * can be accessed by plugins etc. 
++	 * to add menu items and even complete menus.
++	 * 
++	 * (plugin API)
++	 */
++	public MenuManager getMenuManager()
++	{
++		return menuManager;
++	}
++		
++	public boolean close() {
++		Engine.fireApplicationEvent(
++				new ApplicationEvent(this, ApplicationEvent.APPLICATION_CLOSE));
++		return super.close();
++	}
++	
++	public ScrolledComposite sc;
++	public BackpagePanel bpBrowser; //Browser for showing backpage information
++	public PropertyPanel propertyTable;	//Table showing properties of Graphics objects
++	SashForm sashForm; //SashForm containing the drawing area and sidebar
++	TabbedSidePanel rightPanel; //side panel containing backbage browser and property editor
++	PathwaySearchComposite pwSearchComposite; //Composite that handles pathway searches and displays results
++	LegendPanel legend; //Legend to display colorset information
++	VPathwaySwingComposite swingPathwayComposite;
++	
++	public TabbedSidePanel getSidePanel() { return rightPanel; }
++	
++	public LegendPanel getLegend() { return legend; }
++	
++	public void showLegend(boolean show) {	
++		if(show && Gex.isConnected()) {
++			if(rightPanel.isVisible("Legend")) return; //Legend already visible, only refresh
++			rightPanel.unhideTab("Legend", 0);
++			rightPanel.selectTab("Legend");
++		}
++		
++		else rightPanel.hideTab("Legend");
++	}
++				
++	public void applicationEvent(ApplicationEvent e) {
++		switch(e.type) {
++		case ApplicationEvent.PATHWAY_OPENED:
++			if(Gex.isConnected()) cacheExpressionData();
++			break;
++		}
++		switch(e.type) {
++		case ApplicationEvent.PATHWAY_NEW:
++		case ApplicationEvent.PATHWAY_OPENED:
++			Engine.getActiveVPathway().addVPathwayListener(this);
++		}
++	}
++
++	public void expressionDataEvent(ExpressionDataEvent e) {
++		switch(e.type) {
++		case ExpressionDataEvent.CONNECTION_CLOSED:
++			getShell().getDisplay().syncExec(new Runnable() {
++				public void run() {
++					showLegend(false);
++				}
++			});
++			break;
++		case ExpressionDataEvent.CONNECTION_OPENED:
++			getShell().getDisplay().syncExec(new Runnable() {
++				public void run() {
++					cacheExpressionData();
++					showLegend(true);
++				}
++			});
++			break;
++		}
++	}
++	
++	public void vPathwayEvent(VPathwayEvent e) {
++		switch(e.getType()) {
++		case VPathwayEvent.EDIT_MODE_OFF:
++			showLegend(true);
++			break;
++		case VPathwayEvent.EDIT_MODE_ON:
++			showLegend(false);
++			break;
++		case VPathwayEvent.NEW_ELEMENT_ADDED:
++			deselectNewItemActions();
++			break;
++		}
++	}
++	
++	public MainWindowBase(Shell shell)
++	{
++		super(shell);
++	}
++
++}
+
+Property changes on: branches/g2d-branch/src/core/org/pathvisio/gui/swt/MainWindowBase.java
+___________________________________________________________________
+Name: svn:eol-style
+   + native
+
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 953)
+@@ -16,17 +16,14 @@
+ //
+ package org.pathvisio.gui.swt;
+ 
+-import java.awt.Dimension;
+ import java.io.File;
+-import java.lang.reflect.InvocationTargetException;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.HashMap;
+ 
+-import org.eclipse.core.runtime.IProgressMonitor;
+ import org.eclipse.jface.action.Action;
++import org.eclipse.jface.action.IAction;
+ import org.eclipse.jface.dialogs.MessageDialog;
+-import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+ import org.eclipse.jface.preference.PreferenceDialog;
+ import org.eclipse.jface.preference.PreferenceManager;
+ import org.eclipse.jface.resource.ImageDescriptor;
+@@ -34,6 +31,8 @@
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.biopax.gui.BiopaxDialog;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+@@ -41,19 +40,17 @@
+ import org.pathvisio.preferences.swt.PreferenceDlg;
+ import org.pathvisio.preferences.swt.SwtPreferences;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+-import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+ import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.swt.VPathwaySWT;
+ 
+ /**
+    This class contains a large number of JFace Actions that are both in V1 and V2.
+ */   
+-public class CommonActions 
++public class CommonActions
+ {
+ 	static class UndoAction extends Action
+ 	{
+-		MainWindow window;
+-		public UndoAction (MainWindow w)
++		MainWindowBase window;
++		public UndoAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&Undo@Ctrl+Z");
+@@ -73,8 +70,8 @@
+ 	 */
+ 	static class NewAction extends Action 
+ 	{
+-		MainWindow window;
+-		public NewAction (MainWindow w)
++		MainWindowBase window;
++		public NewAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&New pathway@Ctrl+N");
+@@ -82,15 +79,10 @@
+ 			setImageDescriptor(ImageDescriptor.createFromURL(
+ 					Engine.getResourceURL("icons/new.gif")));
+ 		}
+-		public void run () {
+-			if (Engine.getActivePathway() == null ||
+-				MessageDialog.openQuestion(window.getShell(), "Discard changes?",
+-						"Warning: This will discard any changes to " +
+-						"the current pathway. Are you sure?"))
+-			{
+-				SwtEngine.newPathway();
+-			}
+-		}
++		public void run ()
++		{			
++			SwtEngine.newPathway();
++		}	
+ 	}
+ 	
+ 	/**
+@@ -98,8 +90,8 @@
+ 	 */
+ 	static class SvgExportAction extends Action 
+ 	{
+-		MainWindow window;
+-		public SvgExportAction (MainWindow w)
++		MainWindowBase window;
++		public SvgExportAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("Export to SVG");
+@@ -108,6 +100,7 @@
+ 		}
+ 		public void run () 
+ 		{
++			//TODO: move to engine, merge with "save"
+ 			VPathway drawing = Engine.getActiveVPathway();
+ 			Pathway gmmlData = Engine.getActivePathway();
+ 			// Check if a gpml pathway is loaded
+@@ -179,8 +172,8 @@
+ 	 */
+ 	static class OpenAction extends Action 
+ 	{
+-		MainWindow window;
+-		public OpenAction (MainWindow w)
++		MainWindowBase window;
++		public OpenAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&Open pathway@Ctrl+O");
+@@ -209,8 +202,8 @@
+ 	 */
+ 	static class ImportAction extends Action 
+ 	{
+-		MainWindow window;
+-		public ImportAction (MainWindow w)
++		MainWindowBase window;
++		public ImportAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&Import");
+@@ -218,16 +211,19 @@
+ 		}
+ 		public void run () 
+ 		{
+-			FileDialog fd = new FileDialog(window.getShell(), SWT.OPEN);
+-			fd.setText("Open");
+-			fd.setFilterPath(SwtPreference.SWT_DIR_PWFILES.getValue());
+-			fd.setFilterExtensions(new String[] {"*." + Engine.GENMAPP_FILE_EXTENSION, "*.*"});
+-			fd.setFilterNames(new String[] {Engine.GENMAPP_FILTER_NAME, "All files (*.*)"});
+-	        String fnMapp = fd.open();
+-	        // Only open pathway if user selected a file
+-	        
+-	        if(fnMapp != null) { 
+-	        	SwtEngine.openPathway(fnMapp); 
++			if(SwtEngine.canDiscardPathway())
++			{
++				FileDialog fd = new FileDialog(window.getShell(), SWT.OPEN);
++				fd.setText("Open");
++				fd.setFilterPath(SwtPreference.SWT_DIR_PWFILES.getValue());
++				fd.setFilterExtensions(new String[] {"*." + Engine.GENMAPP_FILE_EXTENSION, "*.*"});
++				fd.setFilterNames(new String[] {Engine.GENMAPP_FILTER_NAME, "All files (*.*)"});
++	        	String fnMapp = fd.open();
++	        	// Only open pathway if user selected a file
++	        	
++	        	if(fnMapp != null) { 
++	        		SwtEngine.openPathway(fnMapp); 
++	        	}
+ 	        }
+ 		}
+ 	}
+@@ -237,82 +233,17 @@
+ 	 */
+ 	static class SaveAsAction extends Action 
+ 	{
+-		MainWindow window;
+-		public SaveAsAction (MainWindow w)
++		MainWindowBase window;
++		public SaveAsAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("Save pathway &As");
+ 			setToolTipText ("Save pathway with new file name");
+ 		}
+ 		
+-		static public void do_run(MainWindow window)
+-		{
+-			VPathway drawing = Engine.getActiveVPathway();
+-			Pathway gmmlData = Engine.getActivePathway();
+-			// Check if a gpml pathway is loaded
+-			if (drawing != null)
+-			{
+-				FileDialog fd = new FileDialog(window.getShell(), SWT.SAVE);
+-				fd.setText("Save");
+-				fd.setFilterExtensions(new String[] {"*." + Engine.PATHWAY_FILE_EXTENSION, "*.*"});
+-				fd.setFilterNames(new String[] {Engine.PATHWAY_FILTER_NAME, "All files (*.*)"});
+-				
+-				File xmlFile = gmmlData.getSourceFile();
+-				if(xmlFile != null) {
+-					fd.setFileName(xmlFile.getName());
+-					fd.setFilterPath(xmlFile.getPath());
+-				} else {
+-					fd.setFilterPath(SwtPreference.SWT_DIR_PWFILES.getValue());
+-				}
+-				String fileName = fd.open();
+-				// Only proceed if user selected a file
+-				
+-				if(fileName == null) return;
+-				
+-				// Append .gpml extension if not already present
+-				if(!fileName.endsWith("." + Engine.PATHWAY_FILE_EXTENSION)) 
+-					fileName += "." + Engine.PATHWAY_FILE_EXTENSION;
+-				
+-				File checkFile = new File(fileName);
+-				boolean confirmed = true;
+-				// If file exists, ask overwrite permission
+-				if(checkFile.exists())
+-				{
+-					confirmed = MessageDialog.openQuestion(window.getShell(),"",
+-					"File already exists, overwrite?");
+-				}
+-				if(confirmed)
+-				{
+-					double usedZoom = drawing.getPctZoom();
+-					// Set zoom to 100%
+-					drawing.setPctZoom(100);					
+-					// Overwrite the existing xml file
+-					try
+-					{
+-						gmmlData.writeToXml(checkFile, true);
+-						// Set zoom back
+-						drawing.setPctZoom(usedZoom);
+-					}
+-					catch (ConverterException e)
+-					{
+-						String msg = "While writing xml to " 
+-							+ checkFile.getAbsolutePath();					
+-						MessageDialog.openError (window.getShell(), "Error", 
+-								"Error: " + msg + "\n\n" + 
+-								"See the error log for details.");
+-						Engine.log.error(msg, e);
+-					}
+-				}
+-			}
+-			else
+-			{
+-				MessageDialog.openError (window.getShell(), "Error", 
+-					"No gpml file loaded! Open or create a new gpml file first");
+-			}			
+-		}
+ 		public void run () 
+ 		{
+-			do_run(window);
++			SwtEngine.savePathwayAs();
+ 		}
+ 	}
+ 
+@@ -322,14 +253,15 @@
+ 	 */
+ 	static class ExportAction extends Action 
+ 	{
+-		MainWindow window;
+-		public ExportAction (MainWindow w)
++		MainWindowBase window;
++		public ExportAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&Export");
+ 			setToolTipText ("Export Pathway to GenMAPP format");
+ 		}
+ 		public void run () {
++			//TODO: move to engine, merge with "save" or "saveAs"
+ 			VPathway drawing = Engine.getActiveVPathway();
+ 			Pathway gmmlData = Engine.getActivePathway();
+ 			// Check if a gpml pathway is loaded
+@@ -429,44 +361,30 @@
+ 	}
+ 
+ 	/**
+-	 * {@link Action} to close the gpml pathway (does nothing yet)
+-	 */
+-	static class CloseAction extends Action 
+-	{
+-		MainWindow window;
+-		public CloseAction (MainWindow w)
+-		{
+-			window = w;
+-			setText ("&Close pathway@Ctrl+W");
+-			setToolTipText ("Close this pathway");
+-		}
+-		public void run () {
+-			//TODO: unload drawing, ask to save
+-		}
+-	}
+-
+-	/**
+ 	 * {@link Action} to exit the application
+ 	 */
+ 	static class ExitAction extends Action 
+ 	{
+-		MainWindow window;
+-		public ExitAction (MainWindow w)
++		MainWindowBase window;
++		public ExitAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("E&xit@Ctrl+X");
+ 			setToolTipText ("Exit Application");
+ 		}
+-		public void run () {
+-			window.close();
+-			//TODO: ask to save pathway if content is changed
++		public void run () 
++		{
++			if (SwtEngine.canDiscardPathway())
++			{
++				window.close();
++			}
+ 		}
+ 	}
+ 	
+ 	static class PreferencesAction extends Action
+ 	{
+-		MainWindow window;
+-		public PreferencesAction (MainWindow w)
++		MainWindowBase window;
++		public PreferencesAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText("&Preferences");
+@@ -485,7 +403,7 @@
+ 	 */
+ 	static class ZoomAction extends Action 
+ 	{
+-		MainWindow window;
++		MainWindowBase window;
+ 		int pctZoomFactor;
+ 		
+ 		/**
+@@ -493,11 +411,11 @@
+ 		 * @param w {@link MainWindow} window this action belongs to
+ 		 * @param newPctZoomFactor the zoom factor as percentage of original
+ 		 */
+-		public ZoomAction (MainWindow w, int newPctZoomFactor)
++		public ZoomAction (MainWindowBase w, int newPctZoomFactor)
+ 		{
+ 			window = w;
+ 			pctZoomFactor = newPctZoomFactor;
+-			if(pctZoomFactor == MainWindow.ZOOM_TO_FIT) 
++			if(pctZoomFactor == MainWindowBase.ZOOM_TO_FIT) 
+ 			{
+ 				setText ("Zoom to fit");
+ 				setToolTipText("Zoom mapp to fit window");
+@@ -527,8 +445,8 @@
+ 	 */
+ 	static class AboutAction extends Action 
+ 	{
+-		MainWindow window;
+-		public AboutAction (MainWindow w)
++		MainWindowBase window;
++		public AboutAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&About");
+@@ -541,42 +459,30 @@
+ 	}
+ 	
+ 	/**
+-	 * {@link Action} to open a {@link AboutDlg} window
++	 * {@link Action} to open a Help window
+ 	 */
+ 	static class HelpAction extends Action 
+ 	{
+-		MainWindow window;
+-		public HelpAction (MainWindow w)
++		MainWindowBase window;
++		public HelpAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&Help@F1");
+ 			setToolTipText ("Opens " + Globals.APPLICATION_VERSION_NAME + " help in your web browser");
+ 		}
+-		public void run () {
+-			SimpleRunnableWithProgress rwp = new SimpleRunnableWithProgress(
+-					window.getClass(), "openHelp", new Class[] {}, new Object[] {}, null);
+-			SimpleRunnableWithProgress.setMonitorInfo("Opening help", IProgressMonitor.UNKNOWN);
+-			ProgressMonitorDialog dialog = new ProgressMonitorDialog(window.getShell());
+-			try {
+-				dialog.run(true, true, rwp);
+-			} catch (InvocationTargetException e) {
+-				Throwable cause = e.getCause();
+-				String msg = cause == null ? null : cause.getMessage();
+-				MessageDialog.openError(window.getShell(), "Unable to open help",
+-				"Unable to open web browser" +
+-				(msg == null ? "" : ": " + msg) +
+-				"\nYou can open the help page manually:\n" +
+-				Globals.HELP_URL);
+-			} catch (InterruptedException ignore) {}
+-			
+-
++		public void run ()
++		{
++			SwtEngine.openWebPage(Globals.HELP_URL, "Opening help page in broswer",
++						"Unable to open web browser" +
++						"\nYou can open the help page manually:\n" +
++						Globals.HELP_URL);
+ 		}
+ 	}
+ 
+ 	static class CopyAction extends Action
+ 	{
+-		MainWindow window;
+-		public CopyAction (MainWindow w)
++		MainWindowBase window;
++		public CopyAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("Copy@Ctrl+C");
+@@ -590,8 +496,8 @@
+ 
+ 	static class PasteAction extends Action
+ 	{
+-		MainWindow window;
+-		public PasteAction (MainWindow w)
++		MainWindowBase window;
++		public PasteAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("Paste@Ctrl+V");
+@@ -608,8 +514,8 @@
+ 	 */
+ 	static class SaveAction extends Action 
+ 	{
+-		MainWindow window;
+-		public SaveAction (MainWindow w)
++		MainWindowBase window;
++		public SaveAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("&Save pathway@Ctrl+S");
+@@ -617,43 +523,16 @@
+ 			setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/save.gif")));
+ 		}
+ 		
+-		public void run () {
+-			Pathway gmmlData = Engine.getActivePathway();
+-			VPathway drawing = Engine.getActiveVPathway();
+-			
+-			double usedZoom = drawing.getPctZoom();
+-			// Set zoom to 100%
+-			drawing.setPctZoom(100);			
+-			// Overwrite the existing xml file
+-			if (gmmlData.getSourceFile() != null)
+-			{
+-				try
+-				{
+-					gmmlData.writeToXml(gmmlData.getSourceFile(), true);
+-				}
+-				catch (ConverterException e)
+-				{
+-					String msg = "While writing xml to " 
+-							+ gmmlData.getSourceFile().getAbsolutePath();					
+-					MessageDialog.openError (window.getShell(), "Error", 
+-							"Error: " + msg + "\n\n" + 
+-							"See the error log for details.");
+-					Engine.log.error(msg, e);
+-				}
+-			}
+-			else
+-			{
+-				SaveAsAction.do_run(window);
+-			}
+-			// Set zoom back
+-			drawing.setPctZoom(usedZoom);
++		public void run ()
++		{
++			SwtEngine.savePathway();
+ 		}
+ 	}
+ 	
+ 	static class BiopaxAction extends Action 
+ 	{
+-		MainWindow window;
+-		public BiopaxAction (MainWindow w)
++		MainWindowBase window;
++		public BiopaxAction (MainWindowBase w)
+ 		{
+ 			window = w;
+ 			setText ("Edit &BioPAX code");
+@@ -666,5 +545,81 @@
+ 			d.open();
+ 		}
+ 	}
++	
++	/**
++	 * {@link Action} to switch between edit and view mode
++	 */
++	static class SwitchEditModeAction extends Action implements ApplicationEventListener
++	{
++		final String ttChecked = "Exit edit mode";
++		final String ttUnChecked = "Switch to edit mode to edit the pathway content";
++		MainWindowBase window;
++		public SwitchEditModeAction (MainWindowBase w)
++		{
++			super("&Edit mode", IAction.AS_CHECK_BOX);
++			setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/edit.gif")));
++			setToolTipText(ttUnChecked);
++			window = w;
++			
++			Engine.addApplicationEventListener(this);
++		}
+ 
++		public void run ()
++		{
++			if(Engine.isDrawingOpen())
++			{
++				VPathway drawing = Engine.getActiveVPathway();
++				Pathway pathway = Engine.getActivePathway();
++				if(isChecked())
++				{
++					// give a warning that this can't be edited.
++					if (pathway.getSourceFile() != null && !pathway.getSourceFile().canWrite())
++					{
++						MessageDialog.openWarning(
++								window.getShell(), "Read-only Warning",
++								"You're trying to edit a Read-only file.\n" +
++						"When you want to save your changes, you have to save to a different file.");
++					}
++					//Switch to edit mode: show edit toolbar, show property table in sidebar
++					drawing.setEditMode(true);
++					window.showEditActionsCI(true);
++					window.showAlignActionsCI(true);
++					window.rightPanel.getTabFolder().setSelection(1);
++				}
++				else
++				{
++					//Switch to view mode: hide edit toolbar, show backpage browser in sidebar
++					drawing.setEditMode(false);
++					window.showEditActionsCI(false);
++					window.showAlignActionsCI(false);
++					window.rightPanel.getTabFolder().setSelection(0);
++				}
++			}
++			else //No gpml pathway loaded, deselect action and do nothing
++			{
++				setChecked(false);
++			}
++			window.getCoolBarManager().update(true);
++		}
++		
++		public void setChecked(boolean check) {
++			super.setChecked(check);
++			setToolTipText(check ? ttChecked : ttUnChecked);
++		}
++
++		public void switchEditMode(boolean edit) {
++			setChecked(edit);
++			run();
++
++		}
++
++		public void applicationEvent(ApplicationEvent e) {
++			if(e.type == ApplicationEvent.PATHWAY_OPENED) {
++				Engine.getActiveVPathway().setEditMode(isChecked());
++			}
++			else if(e.type == ApplicationEvent.PATHWAY_NEW) {
++				switchEditMode(true);
++			}
++		}
++	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/AlignActions.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/AlignActions.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/AlignActions.java	(revision 953)
+@@ -0,0 +1,177 @@
++//	 PathVisio,
++//	 a tool for data visualization and analysis using Biological Pathways
++//	 Copyright 2006-2007 BiGCaT Bioinformatics
++	//
++//	 Licensed under the Apache License, Version 2.0 (the "License"); 
++//	 you may not use this file except in compliance with the License. 
++//	 You may obtain a copy of the License at 
++//	 
++//	 http://www.apache.org/licenses/LICENSE-2.0 
++//	  
++//	 Unless required by applicable law or agreed to in writing, software 
++//	 distributed under the License is distributed on an "AS IS" BASIS, 
++//	 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++//	 See the License for the specific language governing permissions and 
++//	 limitations under the License.
++	//
++
++package org.pathvisio.gui.swt;
++
++import org.eclipse.jface.action.Action;
++import org.eclipse.jface.resource.ImageDescriptor;
++import org.pathvisio.Engine;
++public class AlignActions {
++
++		
++	public static final char CENTERX = 'x';
++	public static final char CENTERY = 'y';
++	public static final char LEFT = 'l';
++	public static final char RIGHT = 'r';
++	public static final char TOP = 't';
++	public static final char BOTTOM = 'b';
++	public static final char WIDTH = 'w';
++	public static final char HEIGHT = 'h';
++	
++	
++		static class AlignCenterXAction extends Action 
++		{
++			MainWindowBase window;
++			public AlignCenterXAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Align horizontal centers");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/aligncenterx.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().alignSelected(CENTERX);
++				
++			}
++		}
++		
++		static class AlignCenterYAction extends Action 
++		{
++			MainWindowBase window;
++			public AlignCenterYAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Align vertical centers");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/aligncentery.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().alignSelected(CENTERY);
++				
++			}
++		}
++		static class AlignLeftAction extends Action 
++		{
++			MainWindowBase window;
++			public AlignLeftAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Align left edges");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/alignleft.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().alignSelected(LEFT);
++				
++			}
++		}
++		static class AlignRightAction extends Action 
++		{
++			MainWindowBase window;
++			public AlignRightAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Align right edges");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/alignright.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().alignSelected(RIGHT);
++				
++			}
++		}
++		static class AlignTopAction extends Action 
++		{
++			MainWindowBase window;
++			public AlignTopAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Align top edges");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/aligntop.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().alignSelected(TOP);
++				
++			}
++		}
++		static class AlignBottomAction extends Action 
++		{
++			MainWindowBase window;
++			public AlignBottomAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Align bottom edges");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/alignbottom.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().alignSelected(BOTTOM);
++				
++			}
++		}
++		static class SetCommonHeightAction extends Action 
++		{
++			MainWindowBase window;
++			public SetCommonHeightAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Set common height");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/sizeheight.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().scaleSelected(HEIGHT);
++				
++			}
++		}
++		static class SetCommonWidthAction extends Action 
++		{
++			MainWindowBase window;
++			public SetCommonWidthAction (MainWindowBase w)
++			{
++				window = w;
++				setToolTipText ("Set common width");
++				setImageDescriptor(ImageDescriptor.createFromURL(Engine.getResourceURL("icons/sizewidth.gif")));
++				
++			}
++			public void run () 
++			{
++				
++				Engine.getActiveVPathway().scaleSelected(WIDTH);
++				
++			}
++		}
++
++
++	}
++
++
+Index: branches/g2d-branch/src/core/org/pathvisio/Engine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 953)
+@@ -134,6 +134,14 @@
+ 		
+ 	}
+ 	
++	public static void savePathway() throws ConverterException {
++		savePathway(pathway.getSourceFile());
++	}
++	
++	public static void savePathway(File toFile) throws ConverterException {
++		pathway.writeToXml(toFile, true);
++	}
++	
+ 	private static void createVPathway(Pathway p, VPathwayWrapper wrapper) {
+ 		vPathway = wrapper.createVPathway();
+ 		vPathway.fromGmmlData(pathway);
+Index: branches/g2d-branch/src/core/org/pathvisio/search/PathwaySearchComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/search/PathwaySearchComposite.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/search/PathwaySearchComposite.java	(revision 953)
+@@ -40,7 +40,7 @@
+ import org.eclipse.swt.widgets.Text;
+ import org.pathvisio.Engine;
+ import org.pathvisio.data.DataSources;
+-import org.pathvisio.gui.swt.MainWindow;
++import org.pathvisio.gui.swt.MainWindowBase;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.SearchMethods.SearchException;
+ import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+@@ -49,11 +49,11 @@
+ 
+ 	HashMap<String, SearchOptionComposite> searchControls;
+ 	
+-	MainWindow gmmlVision;
++	MainWindowBase window;
+ 	
+-	public PathwaySearchComposite(Composite parent, int style, MainWindow gmmlVision) {
++	public PathwaySearchComposite(Composite parent, int style, MainWindowBase window) {
+ 		super(parent, style);
+-		this.gmmlVision = gmmlVision;
++		this.window = window;
+ 				
+ 		setLayout(new GridLayout());
+ 		initSearchComposite();
+Index: branches/g2d-branch/src/core/org/pathvisio/data/GpmlTransfer.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/GpmlTransfer.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/data/GpmlTransfer.java	(revision 953)
+@@ -53,7 +53,7 @@
+ 		if (!(data instanceof List)) { return; } // wrong type of data
+ 		
+ 		byte[] result = null;
+-		List<PathwayElement> clipboard = (List<PathwayElement>)data;
++		List<PathwayElement> clipboard = (List<PathwayElement>)(data);
+ 		Document doc = new Document();
+ 		Namespace ns = Namespace.getNamespace("http://www.w3.org/2000/svg");
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 953)
+@@ -23,6 +23,7 @@
+ import java.awt.Rectangle;
+ import java.awt.RenderingHints;
+ import java.awt.geom.Point2D;
++import java.awt.geom.Rectangle2D;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.HashMap;
+@@ -32,6 +33,7 @@
+ import java.util.Set;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.AlignActions;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -1045,7 +1047,7 @@
+ 		List<Graphics> selection = getSelectedGraphics();
+ 		
+ 		for(Graphics g : selection) {
+-			PathwayElement pe = g.getGmmlData();
++			PathwayElement pe = g.getGmmlData(); 
+ 			String ref = pe.getGroupRef();
+ 			if(ref == null) {
+ 				pe.setGroupRef(id);
+@@ -1161,6 +1163,151 @@
+ 	}
+ 	
+ 	/**
++	 * Aligns selected objects based on user-selected align type
++	 * @param alignType
++	 */
++	public void alignSelected(char alignType)
++	{
++		List<Graphics> selectedGraphics = getSelectedGraphics();
++		
++		int aveC = 0;
++		int minC = java.lang.Integer.MAX_VALUE;
++		int maxC = 0;
++		
++		if (selectedGraphics.size() > 0){
++			switch (alignType){
++			case AlignActions.CENTERX : 
++				for(Graphics g : selectedGraphics) {
++					int c = g.getVCenterX();
++					aveC = aveC + c;
++				}
++				aveC = aveC/selectedGraphics.size();
++				for(Graphics g : selectedGraphics) {
++					g.vMoveBy(aveC - g.getVCenterX(), 0);
++				}
++				break;
++			case AlignActions.CENTERY : 
++				for(Graphics g : selectedGraphics) {
++					int c = g.getVCenterY();
++					aveC = aveC + c;
++				}
++				aveC = aveC/selectedGraphics.size();
++				for(Graphics g : selectedGraphics) {
++					g.vMoveBy(0, aveC-g.getVCenterY());
++				}
++				break;
++			case AlignActions.LEFT :
++				for(Graphics g : selectedGraphics) {
++					int c = g.getVLeft();
++					if (c < minC){ 
++						minC = c;
++						}
++				}
++				for(Graphics g : selectedGraphics) {	
++					g.vMoveBy(minC - g.getVLeft(),0);
++				}
++				break;
++			case AlignActions.RIGHT : 
++				for(Graphics g : selectedGraphics) {
++					int c = (g.getVLeft()+g.getVWidth());
++					if (c > maxC){
++						maxC = c;
++					}	
++				}
++				for(Graphics g : selectedGraphics) {
++					g.vMoveBy(maxC - (g.getVLeft()+g.getVWidth()),0);
++				}
++				break;
++			case AlignActions.TOP : 
++				for(Graphics g : selectedGraphics) {
++					int c = g.getVTop();
++					if (c < minC){
++						minC = c;
++					}
++				}
++				for(Graphics g : selectedGraphics) {
++					g.vMoveBy(0,minC - g.getVTop());
++				}
++				break;
++			case AlignActions.BOTTOM :
++				for(Graphics g : selectedGraphics) {
++					int c = (g.getVTop()+g.getVHeight());
++					if (c > maxC){
++						maxC = c;
++					}
++				}
++				for(Graphics g : selectedGraphics) {
++					g.getGmmlData().setMCenterY(mFromV(maxC-(g.getVHeight()/2)));
++					g.vMoveBy(0,maxC - (g.getVTop()+g.getVHeight()));
++				}
++				break;
++			}
++			redrawDirtyRect();
++	}
++	}
++	/**
++	 * Scales selected objects either by max width or max height
++	 * @param alignType
++	 */
++	public void scaleSelected (char alignType){
++		
++		List<Graphics> selectedGraphics = getSelectedGraphics();
++		double maxW = 0;
++		double maxH = 0;
++		
++		if (selectedGraphics.size() > 0){
++			switch (alignType){
++			case AlignActions.WIDTH:
++				for(Graphics g : selectedGraphics) {
++					Rectangle2D r = g.getVScaleRectangle();
++					double w = Math.abs(r.getWidth());
++					if (w > maxW){
++						maxW = w;
++					}
++				}
++				for(Graphics g : selectedGraphics) {
++					Rectangle2D r = g.getVScaleRectangle();
++					double oldWidth = r.getWidth();
++					if (oldWidth <0){
++						r.setRect(r.getX(), r.getY(), -(maxW), r.getHeight());
++						g.setVScaleRectangle(r);
++						g.vMoveBy((oldWidth+maxW)/2,0);
++					}
++					else{
++						r.setRect(r.getX(), r.getY(), maxW, r.getHeight());
++						g.setVScaleRectangle(r);
++						g.vMoveBy((oldWidth - maxW)/2,0);
++					}
++				}
++				break;
++			case AlignActions.HEIGHT:
++				for(Graphics g : selectedGraphics) {
++					Rectangle2D r = g.getVScaleRectangle();
++					double h = Math.abs(r.getHeight());
++					if (h > maxH){
++						maxH = h;
++					}
++				}
++				for(Graphics g : selectedGraphics) {
++					Rectangle2D r = g.getVScaleRectangle();
++					double oldHeight = r.getHeight();
++					if (oldHeight < 0){
++						r.setRect(r.getX(), r.getY(), r.getWidth(), -(maxH));
++						g.setVScaleRectangle(r);
++						g.vMoveBy(0,(maxH+oldHeight)/2);
++					}
++					else{
++					r.setRect(r.getX(), r.getY(), r.getWidth(), maxH);
++					g.setVScaleRectangle(r);
++					g.vMoveBy(0,(oldHeight - maxH)/2);
++					}
++				}
++				break;
++			}
++			redrawDirtyRect();
++		}
++	}
++	/**
+ 	 * TODO: document
+ 	 * @return
+ 	 */
+@@ -1317,6 +1464,7 @@
+ 		}
+ 	}	
+ 	
++	
+ 	/** 
+ 	 * helper method to convert view coordinates to model coordinates 
+ 	 * */
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Line.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Line.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Line.java	(revision 953)
+@@ -344,6 +344,48 @@
+ 		return points.get(points.size() - 1);
+ 	}
+ 	
++	public int getVCenterX() {
++		// TODO Auto-generated method stub
++		double start = gdata.getMStart().getX();
++		double end = gdata.getMEnd().getX();
++		return (int)vFromM(start + (end - start) / 2);
++	}
++	
++	public int getVCenterY() {
++		// TODO Auto-generated method stub
++		double start = gdata.getMStart().getY();
++		double end = gdata.getMEnd().getY();
++		return (int)vFromM(start + (end - start) / 2);
++	}
++	
++	public int getVLeft() {
++		// TODO Auto-generated method stub
++		double start = gdata.getMStart().getX();
++		double end = gdata.getMEnd().getX();
++		return (int)vFromM(Math.min(start, end));
++	}
++	
++	public int getVWidth() {
++		// TODO Auto-generated method stub
++		double start = gdata.getMStart().getX();
++		double end = gdata.getMEnd().getX();
++		return (int)vFromM(Math.abs(start-end));
++	}
++	
++	public int getVHeight() {
++		// TODO Auto-generated method stub
++		double start = gdata.getMStart().getY();
++		double end = gdata.getMEnd().getY();
++		return (int)vFromM(Math.abs(start-end));
++	}	
++	
++	public int getVTop() {
++		// TODO Auto-generated method stub
++		double start = gdata.getMStart().getY();
++		double end = gdata.getMEnd().getY();
++		return (int)vFromM(Math.min(start, end));
++	}
++	
+ 	protected void vMoveBy(double vdx, double vdy)
+ 	{
+ 		for(VPoint p : points) {
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Group.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Group.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Group.java	(revision 953)
+@@ -1,3 +1,19 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
+ package org.pathvisio.view;
+ 
+ import java.awt.Graphics2D;
+Index: branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 952)
++++ branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 953)
+@@ -351,7 +351,9 @@
+ 		/**
+ 		 * Constructor for this class<BR>
+ 		 * Sets the signature of the method to be called and its argument values
+-		 * @param fromClass	the Class to which the method belongs that has to be called
++		 * @param fromClass the Class to which the method belongs that
++		 * has to be called. you can get this with instance.getClass()
++		 * or StaticClass.class
+ 		 * @param method	the method to be called
+ 		 * @param parameters	the classes of the method's arguments
+ 		 * @param args	the argument values to pass to the method
+Index: branches/g2d-branch/webstart/pathvisio_v2.jnlp
+===================================================================
+--- branches/g2d-branch/webstart/pathvisio_v2.jnlp	(revision 952)
++++ branches/g2d-branch/webstart/pathvisio_v2.jnlp	(revision 953)
+@@ -40,15 +40,15 @@
+ 		 <jar href="batik/xml-apis.jar"/>
+ 	</resources>
+ 	<resources os="Windows">
+-		<jar href="swt-win32.jar"/>
++		<jar href="swt-win32-lib/swt.jar"/>
+ 		<nativelib href="swt-win32-lib.jar"/>	
+ 	</resources>
+ 	<resources os="Linux">
+-		<jar href="swt-linux.jar"/>
++		<jar href="swt-linux-lib/swt.jar"/>
+ 		<nativelib href="swt-linux-lib.jar"/>	
+ 	</resources>
+ 	<resources os="Mac OS X">
+-		<jar href="swt-mac.jar"/>
++		<jar href="swt-mac-lib/swt.jar"/>
+ 		<nativelib href="swt-mac-lib.jar"/>	
+ 	</resources>
+ 	<application-desc main-class="org.pathvisio.gui.GuiMain">
+Index: branches/g2d-branch/webstart/pathvisio_v1.jnlp
+===================================================================
+--- branches/g2d-branch/webstart/pathvisio_v1.jnlp	(revision 952)
++++ branches/g2d-branch/webstart/pathvisio_v1.jnlp	(revision 953)
+@@ -37,15 +37,15 @@
+ 		 <jar href="batik/xml-apis.jar"/>
+ 	</resources>
+ 	<resources os="Windows">
+-		<jar href="swt-win32.jar"/>
++		<jar href="swt-win32-lib/swt.jar"/>
+ 		<nativelib href="swt-win32-lib.jar"/>	
+ 	</resources>
+ 	<resources os="Linux">
+-		<jar href="swt-linux.jar"/>
++		<jar href="swt-linux-lib/swt.jar"/>
+ 		<nativelib href="swt-linux-lib.jar"/>	
+ 	</resources>
+ 	<resources os="Mac OS X">
+-		<jar href="swt-mac.jar"/>
++		<jar href="swt-mac-lib/swt.jar"/>
+ 		<nativelib href="swt-mac-lib.jar"/>	
+ 	</resources>
+ 	<application-desc main-class="org.pathvisio.gui.GuiMain"/>
+Index: branches/g2d-branch/GPML.xsd
+===================================================================
+--- branches/g2d-branch/GPML.xsd	(revision 952)
++++ branches/g2d-branch/GPML.xsd	(revision 953)
+@@ -11,25 +11,13 @@
+ 	</xsd:annotation>
+ 
+ 
+-<!-- Type Definitions -->
++	<!-- Type Definitions -->
+ 	<xsd:simpleType name="NameType">
+ 		<xsd:restriction base="xsd:string">
+ 			<xsd:maxLength value="50" fixed="true"/>
+ 		</xsd:restriction>
+ 	</xsd:simpleType>
+ 	
+-	<!-- allow inclusion of any element from the biopax namespace !-->
+-	<xsd:group name="BiopaxGroup">
+-		<xsd:sequence>
+-			<xsd:element name="PublicationXref" minOccurs="0" maxOccurs="unbounded">
+-				<xsd:complexType>
+-					<xsd:attribute name="ID" type="xsd:string" use="required"/>
+-					<xsd:attribute name="Database" type="xsd:string" use="required"/>
+-				</xsd:complexType>
+-			</xsd:element>			
+-		</xsd:sequence>
+-	</xsd:group>
+-
+ 	<xsd:attributeGroup name="FontAttributes">
+ 		<xsd:attribute name="FontName" default="Arial"
+ 			type="xsd:string"/>
+@@ -189,6 +177,7 @@
+ 	</xsd:simpleType>
+ 
+ 	<!-- One or more comments - bundles GenMAPP notes and GenMAPP remarks together !-->
++	<!-- plus one or more publications !-->
+ 	<xsd:group name="CommentGroup">
+ 		<xsd:sequence>
+ 			<xsd:element name="Comment" minOccurs="0"
+@@ -201,6 +190,12 @@
+ 					</xsd:simpleContent>
+ 				</xsd:complexType>
+ 			</xsd:element>
++			<xsd:element name="PublicationXref" minOccurs="0" maxOccurs="unbounded">
++				<xsd:complexType>
++					<xsd:attribute name="ID" type="xsd:string" use="required"/>
++					<xsd:attribute name="Database" type="xsd:string" use="required"/>
++				</xsd:complexType>
++			</xsd:element>			
+ 		</xsd:sequence>
+ 	</xsd:group>
+ 	
+@@ -212,7 +207,6 @@
+ 			<xsd:sequence>
+ 
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 				
+ 				<xsd:element name="Graphics" minOccurs="0" maxOccurs="1">
+ 					<xsd:complexType>
+@@ -329,7 +323,6 @@
+ 			<xsd:sequence>
+ 
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 				
+ 				<xsd:element name="Graphics" minOccurs="1" maxOccurs="1">
+ 					<xsd:complexType>
+@@ -389,7 +382,6 @@
+ 			<xsd:sequence>
+ 
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 
+ 				<xsd:element name="Graphics" minOccurs="1" maxOccurs="1">
+ 					<xsd:complexType>
+@@ -455,7 +447,6 @@
+ 			<xsd:sequence>
+ 
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 
+ 				<xsd:element name="Graphics" minOccurs="1" maxOccurs="1">
+ 					<xsd:complexType>
+@@ -507,7 +498,6 @@
+ 			<xsd:sequence>
+ 
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 
+ 				<xsd:element name="Graphics" minOccurs="1" maxOccurs="1">
+ 					<xsd:complexType>
+@@ -553,7 +543,6 @@
+ 			<xsd:sequence>
+ 
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 
+ 				<xsd:element name="Graphics" minOccurs="1" maxOccurs="1">
+ 					<xsd:complexType>
+@@ -603,7 +592,6 @@
+ 		<xsd:complexType>
+ 			<xsd:sequence>
+ 				<xsd:group ref="gpml:CommentGroup"/>
+-				<xsd:group ref="gpml:BiopaxGroup"/>
+ 			</xsd:sequence>
+ 			<xsd:attribute name="BiopaxRef" type="xsd:string" use="optional" />
+ 			<xsd:attribute name="GroupId" type="xsd:ID" use="required"/>
+Index: branches/g2d-branch/tools/gpmldiff/.classpath
+===================================================================
+--- branches/g2d-branch/tools/gpmldiff/.classpath	(revision 0)
++++ branches/g2d-branch/tools/gpmldiff/.classpath	(revision 953)
+@@ -0,0 +1,8 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<classpath>
++	<classpathentry kind="src" path="src"/>
++	<classpathentry kind="lib" path="lib/jdom.jar"/>
++	<classpathentry kind="lib" path="lib/junit.jar"/>
++	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
++	<classpathentry kind="output" path="build"/>
++</classpath>
+Index: branches/g2d-branch/tools/gpmldiff/gpmldiff.sh
+===================================================================
+--- branches/g2d-branch/tools/gpmldiff/gpmldiff.sh	(revision 952)
++++ branches/g2d-branch/tools/gpmldiff/gpmldiff.sh	(revision 953)
+@@ -1,3 +1,4 @@
++<<<<<<< .working
+ #!/bin/sh
+ MYCLASSPATH=\
+ build:\
+@@ -3,3 +4,9 @@
+ ../../lib/jdom.jar
+ 
+-java -cp $MYCLASSPATH org.pathvisio.gpmldiff.GpmlDiff $1 $2
+\ No newline at end of file
++java -cp $MYCLASSPATH org.pathvisio.gpmldiff.GpmlDiff $1 $2=======
++#!/bin/sh
++MYCLASSPATH=\
++build:\
++./lib/jdom.jar
++
++java -cp $MYCLASSPATH org.pathvisio.gpmldiff.GpmlDiff $1 $2>>>>>>> .merge-right.r952
+Index: branches/g2d-branch/tools/gpmldiff/.project
+===================================================================
+--- branches/g2d-branch/tools/gpmldiff/.project	(revision 0)
++++ branches/g2d-branch/tools/gpmldiff/.project	(revision 953)
+@@ -0,0 +1,17 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<projectDescription>
++	<name>GpmlDiff</name>
++	<comment></comment>
++	<projects>
++	</projects>
++	<buildSpec>
++		<buildCommand>
++			<name>org.eclipse.jdt.core.javabuilder</name>
++			<arguments>
++			</arguments>
++		</buildCommand>
++	</buildSpec>
++	<natures>
++		<nature>org.eclipse.jdt.core.javanature</nature>
++	</natures>
++</projectDescription>
+Index: branches/g2d-branch/tools/gpmldiff/lib/jdom.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/tools/gpmldiff/lib/jdom.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/tools/gpmldiff/lib/junit.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/tools/gpmldiff/lib/junit.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/pathvisio2.sh
+===================================================================
+--- branches/g2d-branch/pathvisio2.sh	(revision 952)
++++ branches/g2d-branch/pathvisio2.sh	(revision 953)
+@@ -2,4 +2,8 @@
+ export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/atlas:/usr/lib/firefox:/usr/lib/R/lib
+ export MOZILLA_FIVE_HOME=/usr/lib/firefox
+ export R_HOME=/usr/lib/R
+-java -cp lib/plugins.jar:lib/JRI.jar:lib/org.eclipse.equinox.common.jar:lib/org.eclipse.equinox.supplement.jar:lib/org.eclipse.jface.jar:lib/swt-linux-lib/swt.jar:lib/org.eclipse.core.commands.jar:lib/jdom.jar:build/v2:lib/derby.jar:lib/swt-linux-lib.jar:lib/resources.jar:lib/R-resources.jar -Djava.library.path="/usr/lib/firefox:./lib/swt-linux-lib" org.pathvisio.gui.swing.GuiMain -ur
++
++# read classpath from file named CLASSPATH
++MYCLASSPATH=`perl -e 'while (<>) { chomp; push @l, $_ } print join ":", @l' CLASSPATH`
++
++java -cp $MYCLASSPATH -Djava.library.path="/usr/lib/firefox:./lib/swt-linux-lib" org.pathvisio.gui.GuiMain -ur
+Index: branches/g2d-branch/CONTRIBUTORS.txt
+===================================================================
+--- branches/g2d-branch/CONTRIBUTORS.txt	(revision 0)
++++ branches/g2d-branch/CONTRIBUTORS.txt	(revision 953)
+@@ -0,0 +1,9 @@
++R.M.H. Besseling
++S.P.M. Crijns
++I. Kaashoek
++M.M. Palm
++E.D Pelgrim
++Thomas Kelder
++Martijn van Iersel
++Alex Pico
++Kristina Hanspers
+
+Property changes on: branches/g2d-branch/CONTRIBUTORS.txt
+___________________________________________________________________
+Name: svn:eol-style
+   + native
+
+Index: branches/g2d-branch/icons/aligntop.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/aligntop.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/alignright.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/alignright.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/alignleft.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/alignleft.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/alignbottom.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/alignbottom.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/aligncenterx.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/aligncenterx.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/aligncentery.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/aligncentery.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/sizeheight.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/sizeheight.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/sizewidth.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/sizewidth.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+

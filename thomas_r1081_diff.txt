@@ -1,0 +1,43 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1080)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1081)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.gui.wikipathways;
+ 
++import java.awt.Component;
+ import java.net.CookieHandler;
+ import java.net.URL;
+ import java.util.HashMap;
+@@ -71,7 +72,7 @@
+ 					mainPanel.getToolBar().addSeparator();
+ 					mainPanel.addToToolbar(saveAction, MainPanel.TB_GROUP_HIDE_ON_EDIT);
+ 					mainPanel.addToToolbar(discardAction);
+-
++			
+ 					mainPanel.getBackpagePane().addHyperlinkListener(new HyperlinkListener() {
+ 						public void hyperlinkUpdate(HyperlinkEvent e) {
+ 							if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1080)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1081)
+@@ -125,7 +125,7 @@
+ 	public boolean savePathwayAs() {
+ 		//Open file dialog
+ 		JFileChooser jfc = new JFileChooser();
+-		jfc.setAcceptAllFileFilterUsed(false);
++		jfc.setAcceptAllFileFilterUsed(true);
+ 		jfc.setDialogTitle("Save pathway");
+ 		jfc.setDialogType(JFileChooser.SAVE_DIALOG);
+ 		jfc.addChoosableFileFilter(new FileFilter() {
+@@ -142,7 +142,7 @@
+ 			}
+ 			
+ 		});
+-		int status = jfc.showDialog(null, "Import");
++		int status = jfc.showDialog(null, "Save");
+ 		if(status == JFileChooser.APPROVE_OPTION) {
+ 			File toFile = jfc.getSelectedFile();
+ 			try {

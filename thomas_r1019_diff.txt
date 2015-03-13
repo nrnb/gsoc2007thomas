@@ -1,0 +1,78 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/CreatePathwayPage/CreatePathwayPage_body.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/CreatePathwayPage/CreatePathwayPage_body.php	(revision 1018)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/CreatePathwayPage/CreatePathwayPage_body.php	(revision 1019)
+@@ -30,6 +30,7 @@
+ 				$html = tag('table', $html);
+ 				$html .= tag('input', "", array('type'=>'submit', 'value'=>'Create pathway'));
+ 				$html = tag('form', $html, array('action'=>$wpiScriptURL, 'method'=>'get'));
++				$html .= "<HR><A href='http://blog.bigcat.unimaas.nl/~gmmlvisio/pathvisio_v1.jnlp'>Create new local pathway</A>";
+ 				$wgOut->addHTML($html);
+         }
+ 
+@@ -55,4 +56,4 @@
+ 	$html .= ">$content</$name>";
+ 	return $html;
+ }
+-?>
+\ No newline at end of file
++?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1018)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1019)
+@@ -321,7 +321,8 @@
+ 	public function getGpml() {
+ 		$gpmlTitle = $this->getFileTitle(FILETYPE_GPML);
+ 		$gpmlRef = Revision::newFromTitle($gpmlTitle);
+-		return $gpmlRef->getText();
++		
++		return $gpmlRef == NULL ? "no gpml" : $gpmlRef->getText();
+ 	}
+ 
+ 	public function getFileName($fileType) {
+@@ -456,16 +457,17 @@
+ 
+ 	private function saveGpml($gpmlData, $description) {
+ 		global $wgLoadBalancer;
+-		$gpmlArticle = new Article($this->getFileTitle(FILETYPE_GPML));		
++		$gpmlTitle = $this->getFileTitle(FILETYPE_GPML);
++		$gpmlArticle = new Article($gpmlTitle);		
+ 		
+-		$new = $gpmlArticle->exists();
+-		
++		$new = !$gpmlArticle->exists();
++
+ 		$succ = true;
+ 		$succ =  $gpmlArticle->doEdit($gpmlData, $description);
+ 		$wgLoadBalancer->commitAll();
+ 		$this->updateCache();
+-				
+-		if($succ) $succ = $this->newPathwayArticle();
++			
++		if($new) $succ = $this->newPathwayArticle();
+ 		
+ 		return $succ;
+ 	}
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php	(revision 1018)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php	(revision 1019)
+@@ -190,7 +190,7 @@
+ 	</div>
+ 	<?php } ?>
+ 	<div id="p-search" class="portlet">
+-		<h5><label for="searchInput"><?php $this->msg('search') ?></label></h5>
++		<h5><label for="searchInput">Pathway search</label></h5>
+ 		<div id="searchBody" class="pBody">
+ 			<form action="<?php $this->text('searchaction') ?>" id="searchform"><div>
+ 				<input id="searchInput" name="search" type="text" <?php
+@@ -203,7 +203,7 @@
+ 		</div>
+ 	</div>
+ 	<div id="p-search" class="portlet">
+-		<h5><label for="searchInput">Google search</label></h5>
++		<h5><label for="searchInput">Full text search</label></h5>
+ 		<div id="googleSearch" class="pBody">
+ 			<!-- Google CSE Search Box Begins -->
+ 		  <form id="searchbox_002915365922082279465:6qd0wwvwtwu" action="http://www.wikipathways.org/index.php/WikiPathways:GoogleSearch"><div>

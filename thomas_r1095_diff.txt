@@ -1,0 +1,30 @@
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1094)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1095)
+@@ -852,6 +852,7 @@
+ 			} else
+ 			{
+ 				selection.addToSelection(pressedObject); //Not in selection: add
++				selection.stopSelecting();
+ 			}
+ 			pressedObject = null; //Disable dragging
+ 		} else
+Index: trunk/src/core/org/pathvisio/view/SelectionBox.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/SelectionBox.java	(revision 1094)
++++ trunk/src/core/org/pathvisio/view/SelectionBox.java	(revision 1095)
+@@ -114,12 +114,7 @@
+ 			doAdd(o);
+ 		}
+ 		fireSelectionEvent(new SelectionEvent(this, SelectionEvent.OBJECT_ADDED, o));
+-		if(isSelecting) return; //All we have to do if user is dragging selectionbox
+-		if(hasMultipleSelection())
+-		{ 
+-			stopSelecting(); //show and fit to SelectionBox if performed after dragging
+-		}
+-		 
++		if(isSelecting) return; //All we have to do if user is dragging selectionbox		 
+ 	}
+ 	
+ 	private void doAdd(VPathwayElement o)

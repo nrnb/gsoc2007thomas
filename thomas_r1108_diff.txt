@@ -1,0 +1,1063 @@
+Index: trunk/src/test/org/pathvisio/biopax/reflect/Test.java
+===================================================================
+--- trunk/src/test/org/pathvisio/biopax/reflect/Test.java	(revision 1107)
++++ trunk/src/test/org/pathvisio/biopax/reflect/Test.java	(revision 1108)
+@@ -1,12 +1,31 @@
+ package org.pathvisio.biopax.reflect;
+ 
++import java.io.File;
+ import java.util.List;
+ 
+ import junit.framework.TestCase;
+ 
+ import org.jdom.Element;
++import org.pathvisio.biopax.BiopaxElementManager;
++import org.pathvisio.model.ConverterException;
++import org.pathvisio.model.ObjectType;
++import org.pathvisio.model.Pathway;
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.model.PathwayEvent;
+ 
+ public class Test extends TestCase {
++	Pathway data;
++	PathwayElement o;
++	List<PathwayEvent> received;
++	PathwayElement l;
++	
++	public void setUp()
++	{
++		data = new Pathway();
++		o = new PathwayElement(ObjectType.DATANODE);
++		data.add (o);
++	}
++	
+ 	public void testProperties() {
+ 		PublicationXRef xref = new PublicationXRef("test");
+ 		
+@@ -35,29 +54,48 @@
+ 			fail("Succeeded to add an invalid property");
+ 		} catch(IllegalArgumentException e) { }
+ 	}
+-	
+-	public void testFromXML() {
+-		//Valid element
+-		Element xml = new Element("PublicationXRef", Namespaces.BIOPAX);
+-		xml.setAttribute("id", "testid", Namespaces.RDF);
+-		Element prop = new Element("TITLE", Namespaces.BIOPAX);
+-		prop.setAttribute("datatype", PropertyType.TITLE.datatype, Namespaces.RDF);
+-		prop.setText("a title");
+-		xml.addContent(prop);
+ 		
++	public void testReadWrite() {
++		//Add to datanode
++		BiopaxElementManager biopax = new BiopaxElementManager(o);
++		PublicationXRef xrefObject = new PublicationXRef(biopax.getUniqueID());
++		//Add one title and two authors
++		xrefObject.setTitle("title");
++		xrefObject.addAuthor("author1");
++		xrefObject.addAuthor("author2");
++		
++		biopax.addElementReference(xrefObject);
++		
++		//Add to pathway
++		biopax = new BiopaxElementManager(data.getMappInfo());
++		PublicationXRef xrefPathway = new PublicationXRef(biopax.getUniqueID());
++		//Add one title and two authors
++		xrefPathway.setTitle("title");
++		xrefPathway.addAuthor("author1");
++		xrefPathway.addAuthor("author2");
++		
++		biopax.addElementReference(xrefPathway);
++		
++		//Write
+ 		try {
+-			BiopaxElement.fromXML(xml);
+-		} catch(Exception e) {
+-			e.printStackTrace();
+-			fail("Failed to create BiopaxElement from valid XML: " + e.getMessage());
++			data.writeToXml(new File("testData/test-biopax.xml"), true);
++		} catch(ConverterException e) {
++			fail("Unable to write a pathway with PublicationXRef: " + e.toString());
+ 		}
+ 		
+-		//Invalid element
+-		prop.setName("doesntexist");
+-		prop.removeAttribute("datatype", Namespaces.RDF);
++		//Read
++		Pathway newData = new Pathway();
+ 		try {
+-			BiopaxElement.fromXML(xml);
+-			fail("Succeeded to create BiopaxElement from invalid XML");
+-		} catch(Exception e) {	}
++			newData.readFromXml(new File("testData/test-biopax.xml"), true);
++		} catch(ConverterException e) {
++			fail("Unable to read a pathway with PublicationXRef: " + e.toString());
++		}
++		
++		biopax = new BiopaxElementManager(newData.getMappInfo());
++		List<PublicationXRef> references = biopax.getPublicationXRefs();
++		//There has to be one reference
++		assertTrue("One literature reference, has " + references.size(), references.size() == 1);
++		//With two authors
++		assertTrue("Two authors", references.get(0).getAuthors().size() == 2);
+ 	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/PropertiesAction.java	(revision 1108)
+@@ -1,47 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.gui.swing.actions;
+-
+-import java.awt.event.ActionEvent;
+-
+-import javax.swing.AbstractAction;
+-import javax.swing.JOptionPane;
+-
+-import org.pathvisio.gui.swing.dialogs.DataNodeDialog;
+-import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
+-import org.pathvisio.model.ObjectType;
+-import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.view.Graphics;
+-import org.pathvisio.view.VPathwayElement;
+-
+-public class PropertiesAction extends AbstractAction {
+-	VPathwayElement element;
+-	
+-	public PropertiesAction(VPathwayElement e) {
+-		super("Properties");
+-		putValue(AbstractAction.SHORT_DESCRIPTION, "View this element's properties");
+-		element = e;
+-	}
+-	
+-	public void actionPerformed(ActionEvent e) {
+-		if(element instanceof Graphics) {
+-			PathwayElement p = ((Graphics)element).getGmmlData();
+-			PathwayElementDialog pd = PathwayElementDialog.getInstance(p, null, null);
+-			if(pd != null) pd.setVisible(true);
+-		}
+-	}
+-}
+Index: trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/actions/CommonActions.java	(revision 1108)
+@@ -30,12 +30,20 @@
+ import javax.swing.filechooser.FileFilter;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.biopax.BiopaxElementManager;
++import org.pathvisio.biopax.reflect.PublicationXRef;
+ import org.pathvisio.gui.swing.MainPanel;
+ import org.pathvisio.gui.swing.SwingEngine;
++import org.pathvisio.gui.swing.dialogs.PathwayElementDialog;
++import org.pathvisio.gui.swing.dialogs.PublicationXRefDialog;
++import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayImporter;
+ import org.pathvisio.view.AlignType;
++import org.pathvisio.view.Graphics;
++import org.pathvisio.view.SelectionBox;
+ import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayElement;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+ 
+@@ -329,5 +337,86 @@
+ 			VPathway vp = Engine.getCurrent().getActiveVPathway();
+ 			if(vp != null) vp.alignSelected(type);
+ 		}
+-	}	
++	}
++	
++	private static abstract class PathwayElementDialogAction extends AbstractAction {
++		VPathwayElement element;
++		Component parent;
++		
++		public PathwayElementDialogAction(Component parent, VPathwayElement e) {
++			this.parent = parent;
++			element = e;
++			//If the element is an empty selectionbox,
++			//the an empty space on the drawing is clicked
++			//Set element to mappinfo so the pathway properties
++			//will show up
++			if(element instanceof SelectionBox) {
++				SelectionBox s = (SelectionBox)element;
++				if(s.getSelection().size() == 0) {
++					element = element.getDrawing().getMappInfo();
++				}
++			}
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			if(element instanceof Graphics) {
++				PathwayElement p = ((Graphics)element).getGmmlData();
++				PathwayElementDialog pd = PathwayElementDialog.getInstance(p, null, parent);
++				if(pd != null) {
++					pd.selectPathwayElementPanel(getSelectedPanel());
++					pd.setVisible(true);
++				}
++			}
++		}
++		
++		protected abstract String getSelectedPanel();
++	}
++	public static class AddLiteratureAction extends PathwayElementDialogAction {
++		public AddLiteratureAction(Component parent, VPathwayElement e) {
++			super(parent, e);
++			putValue(Action.NAME, "Add literature reference");
++			putValue(Action.SHORT_DESCRIPTION, "Add a literature reference to this element");
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			if(element instanceof Graphics) {
++				BiopaxElementManager m = new BiopaxElementManager(((Graphics)element).getGmmlData());
++				PublicationXRef xref = new PublicationXRef(m.getUniqueID());
++				
++				PublicationXRefDialog d = new PublicationXRefDialog(xref, null, parent);
++				d.setVisible(true);
++				if(d.getExitCode().equals(PublicationXRefDialog.OK)) {
++					m.addElementReference(xref);		
++				}
++			}
++		}
++		
++		protected String getSelectedPanel() {
++			return null;
++		}
++	}
++	
++	public static class EditLiteratureAction extends PathwayElementDialogAction {
++		public EditLiteratureAction(Component parent, VPathwayElement e) {
++			super(parent, e);
++			putValue(Action.NAME, "Edit literature references");
++			putValue(Action.SHORT_DESCRIPTION, "Edit the literature references of this element");
++		}
++		
++		protected String getSelectedPanel() {
++			return PathwayElementDialog.TAB_LITERATURE;
++		}
++	}
++	
++	public static class PropertiesAction extends PathwayElementDialogAction {
++		public PropertiesAction(Component parent, VPathwayElement e) {
++			super(parent, e);
++			putValue(Action.NAME, "Properties");
++			putValue(Action.SHORT_DESCRIPTION, "View this element's properties");
++		}
++		
++		protected String getSelectedPanel() {
++			return PathwayElementDialog.TAB_COMMENTS;
++		}
++	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1108)
+@@ -5,7 +5,9 @@
+ import javax.swing.JMenu;
+ import javax.swing.JPopupMenu;
+ 
+-import org.pathvisio.gui.swing.actions.PropertiesAction;
++import org.pathvisio.gui.swing.actions.CommonActions.AddLiteratureAction;
++import org.pathvisio.gui.swing.actions.CommonActions.EditLiteratureAction;
++import org.pathvisio.gui.swing.actions.CommonActions.PropertiesAction;
+ import org.pathvisio.view.Handle;
+ import org.pathvisio.view.MouseEvent;
+ import org.pathvisio.view.VPathway;
+@@ -19,7 +21,7 @@
+ 	private static JPopupMenu getMenuInstance(VPathwayElement e) {
+ 		if(e instanceof Handle) e = ((Handle)e).getParent();
+ 		VPathway vp = e.getDrawing();
+-		
++		VPathwaySwing component = (VPathwaySwing)vp.getWrapper();
+ 		JPopupMenu menu = new JPopupMenu();
+ 		ViewActions vActions = vp.getViewActions();
+ 		menu.add(vActions.delete);
+@@ -29,9 +31,13 @@
+ 		selectMenu.add(vActions.selectDataNodes);
+ 		menu.add(selectMenu);
+ 		menu.addSeparator();
+-		menu.add(new PropertiesAction(e));
++		JMenu litMenu = new JMenu("Literature");
++		litMenu.add(new AddLiteratureAction(component, e));
++		litMenu.add(new EditLiteratureAction(component, e));
++		menu.add(litMenu);
++		menu.addSeparator();
++		menu.add(new PropertiesAction(component,e));
+ 
+-		
+ 		return menu;
+ 	}
+ 	
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/DataNodeDialog.java	(revision 1108)
+@@ -20,6 +20,8 @@
+ import java.awt.Frame;
+ import java.awt.GridBagConstraints;
+ import java.awt.GridBagLayout;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
+ 
+ import javax.swing.JComboBox;
+ import javax.swing.JLabel;
+@@ -61,7 +63,8 @@
+ 		
+ 		GridBagConstraints c = new GridBagConstraints();
+ 		c.ipadx = c.ipady = 5;
+-		c.anchor = GridBagConstraints.FIRST_LINE_START;
++		c.anchor = GridBagConstraints.NORTHWEST;
++		c.weightx = 0;
+ 		panel.add(symLabel, c);
+ 		c.gridy = 1;
+ 		panel.add(idLabel, c);
+@@ -70,6 +73,7 @@
+ 		c.gridx = 1;
+ 		c.gridy = 0;
+ 		c.fill = GridBagConstraints.HORIZONTAL;
++		c.weightx = 1;
+ 		panel.add(symText, c);
+ 		c.gridy = 1;
+ 		panel.add(idText, c);
+@@ -85,7 +89,23 @@
+ 			}
+ 		});
+ 		
++		idText.getDocument().addDocumentListener(new DocumentListener() {
++			public void changedUpdate(DocumentEvent e) { setText();	}
++			public void insertUpdate(DocumentEvent e) {	setText(); }
++			public void removeUpdate(DocumentEvent e) { setText(); }
++			private void setText() {
++				getInput().setGeneID(idText.getText());
++			}
++		});
++		
++		dbCombo.addActionListener(new ActionListener() {
++			public void actionPerformed(ActionEvent e) {
++				getInput().setDataSource(dbCombo.getSelectedItem().toString());
++			}
++		});
++		
+ 		parent.add("Annotation", panel);
+ 		parent.setSelectedComponent(panel);
+ 	}
++
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/OkCancelDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/OkCancelDialog.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/OkCancelDialog.java	(revision 1108)
+@@ -13,17 +13,18 @@
+ import javax.swing.BoxLayout;
+ import javax.swing.JButton;
+ import javax.swing.JDialog;
++import javax.swing.JOptionPane;
+ import javax.swing.JPanel;
+ 
+-import org.pathvisio.model.PathwayElement;
+-
+ public abstract class OkCancelDialog extends JDialog implements ActionListener {
+-	static final String OK = "Ok";
+-	static final String CANCEL = "Cancel";
+-		
+-	public OkCancelDialog(Frame frame, String title, Component locationComp, boolean modal) {
+-		super(frame, title, modal);
+-		
++	public static final String OK = "Ok";
++	public static final String CANCEL = "Cancel";
++	
++	private String exitCode = CANCEL;
++	
++	public OkCancelDialog(Frame frame, String title, Component locationComp, boolean modal, boolean cancellable) {
++		super((frame == null && locationComp != null) ? JOptionPane.getFrameForComponent(locationComp) : frame, 
++				title, modal);
+ 		JButton cancelButton = new JButton(CANCEL);
+ 		cancelButton.addActionListener(this);
+ 
+@@ -31,15 +32,17 @@
+ 		setButton.setActionCommand(OK);
+ 		setButton.addActionListener(this);
+ 		getRootPane().setDefaultButton(setButton);
++
++		Component dialogPane = createDialogPane();
+ 		
+-		Component dialogPane = createDialogPane();
+-
+ 		JPanel buttonPane = new JPanel();
+ 		buttonPane.setLayout(new BoxLayout(buttonPane, BoxLayout.LINE_AXIS));
+ 		buttonPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+ 		buttonPane.add(Box.createHorizontalGlue());
+-		buttonPane.add(cancelButton);
+-		buttonPane.add(Box.createRigidArea(new Dimension(10, 0)));
++		if(cancellable) {
++			buttonPane.add(cancelButton);
++			buttonPane.add(Box.createRigidArea(new Dimension(10, 0)));
++		}
+ 		buttonPane.add(setButton);
+ 
+ 		Container contentPane = getContentPane();
+@@ -48,14 +51,24 @@
+ 		pack();
+ 		setLocationRelativeTo(locationComp);
+ 	}
++	
++	public OkCancelDialog(Frame frame, String title, Component locationComp, boolean modal) {
++		this(frame, title, locationComp, modal, true);
++	}
+ 
+ 	protected abstract Component createDialogPane();
+ 	
++	public String getExitCode() {
++		return exitCode;
++	}
++	
+ 	protected void okPressed() {
++		exitCode = OK;
+ 		setVisible(false);
+ 	}
+ 	
+ 	protected void cancelPressed() {
++		exitCode = CANCEL;
+ 		setVisible(false);
+ 	}
+ 	
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PathwayElementDialog.java	(revision 1108)
+@@ -16,21 +16,11 @@
+ //
+ package org.pathvisio.gui.swing.dialogs;
+ 
+-import java.awt.BorderLayout;
+ import java.awt.Component;
+-import java.awt.Container;
+ import java.awt.Dimension;
+ import java.awt.Frame;
+-import java.awt.event.ActionEvent;
+-import java.awt.event.ActionListener;
+ import java.util.HashMap;
+ 
+-import javax.swing.BorderFactory;
+-import javax.swing.Box;
+-import javax.swing.BoxLayout;
+-import javax.swing.JButton;
+-import javax.swing.JDialog;
+-import javax.swing.JPanel;
+ import javax.swing.JTabbedPane;
+ 
+ import org.pathvisio.Engine;
+@@ -54,8 +44,10 @@
+ 		switch(e.getObjectType()) {
+ 		case ObjectType.DATANODE:
+ 			return new DataNodeDialog(e, frame, locationComp);
++		case ObjectType.INFOBOX:
++			return new PathwayElementDialog(e.getParent().getMappInfo(), frame, "Pathway properties", locationComp);
+ 		default:
+-			return new PathwayElementDialog(e, frame, "Properties", locationComp);
++			return new PathwayElementDialog(e, frame, "Element properties", locationComp);
+ 		}
+ 	}
+ 	
+@@ -65,11 +57,13 @@
+ 	private HashMap<PropertyType, Object> state = new HashMap<PropertyType, Object>();
+ 		
+ 	public PathwayElementDialog(PathwayElement e, Frame frame, String title, Component locationComp) {
+-		super(frame, "Element properties", locationComp, true);
++		super(frame, title, locationComp, true);
+ 		
+ 		panels = new HashMap<String, PathwayElementPanel>();
+ 		createTabs();
+ 		setInput(e);
++		setMinimumSize(new Dimension(200, 200));
++		pack();
+ 	}
+ 
+ 	protected Component createDialogPane() {
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1108)
+@@ -1,5 +1,145 @@
+ package org.pathvisio.gui.swing.dialogs;
+ 
+-public class PublicationXRefDialog {
++import java.awt.Color;
++import java.awt.Component;
++import java.awt.Frame;
++import java.awt.GridBagConstraints;
++import java.awt.GridBagLayout;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
+ 
++import javax.swing.JLabel;
++import javax.swing.JPanel;
++import javax.swing.JScrollPane;
++import javax.swing.JTextField;
++import javax.swing.JTextPane;
++import javax.swing.text.AttributeSet;
++import javax.swing.text.BadLocationException;
++import javax.swing.text.DefaultStyledDocument;
++import javax.swing.text.DocumentFilter;
++import javax.swing.text.JTextComponent;
++import javax.swing.text.SimpleAttributeSet;
++import javax.swing.text.StyleConstants;
++import javax.swing.text.StyledDocument;
++
++import org.pathvisio.biopax.reflect.PublicationXRef;
++
++public class PublicationXRefDialog extends OkCancelDialog {
++	final static String ADD = "Add";
++	final static String REMOVE = "Remove";
++	final static String PMID = "Pubmed ID";
++	final static String TITLE = "Title";
++	final static String SOURCE = "Source";
++	final static String YEAR = "Year";
++	final static String AUTHORS = "Authors (separate with " + PublicationXRef.AUTHOR_SEP + ")";
++	
++	PublicationXRef input;
++	JTextField pmId;
++	JTextField title;
++	JTextField source;
++	JTextField year;
++	JTextPane authors;
++	
++	public PublicationXRefDialog(PublicationXRef xref, Frame frame, Component locationComp, boolean cancellable) {
++		super(frame, "Literature reference properties", locationComp, true, cancellable);
++		input = xref;
++		refresh();
++		
++		setSize(400, 300);
++	}
++	
++	public PublicationXRefDialog(PublicationXRef xref, Frame frame, Component locationComp) {
++		this(xref, frame, locationComp, true);
++	}
++	
++	private void setText(String text, JTextComponent field) {
++		if(text != null && text.length() > 0) field.setText(text);
++	}
++	
++	protected void refresh() {
++		setText(input.getPubmedId(), pmId);
++		setText(input.getTitle(), title);
++		setText(input.getSource(), source);
++		setText(input.getYear(), year);
++		setText(input.getAuthorString(), authors);
++	}
++	
++	protected void okPressed() {
++		input.setPubmedId(pmId.getText());
++		input.setTitle(title.getText());
++		input.setSource(source.getText());
++		input.setYear(year.getText());
++		input.setAuthors(authors.getText());
++		super.okPressed();
++	}
++	
++	protected Component createDialogPane() {
++		JPanel contents = new JPanel();
++		contents.setLayout(new GridBagLayout());
++		
++		JLabel lbl_pmId = new JLabel(PMID);
++		JLabel lbl_title = new JLabel(TITLE);
++		JLabel lbl_source = new JLabel(SOURCE);
++		JLabel lbl_year = new JLabel(YEAR);
++		JLabel lbl_authors = new JLabel(AUTHORS);
++		
++		pmId = new JTextField();
++		title = new JTextField();
++		source = new JTextField();
++		year = new JTextField();
++		final DefaultStyledDocument doc = new DefaultStyledDocument();
++		doc.setDocumentFilter(new DocumentFilter() {
++			public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
++				string = replaceSeparators(string);
++				super.insertString(fb, offset, string, attr);
++				highlight((StyledDocument)fb.getDocument());
++			}
++			public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
++				text = replaceSeparators(text);
++				super.replace(fb, offset, length, text, attrs);
++				highlight((StyledDocument)fb.getDocument());
++			}
++			String replaceSeparators(String authors) {
++				return authors.replaceAll(PublicationXRef.AUTHOR_SEP + " ", PublicationXRef.AUTHOR_SEP + "\n");
++			}
++			void highlight(StyledDocument doc) {
++				SimpleAttributeSet sep = new SimpleAttributeSet();
++				sep.addAttribute(StyleConstants.ColorConstants.Foreground, Color.RED);
++				sep.addAttribute(StyleConstants.CharacterConstants.Bold, Boolean.TRUE);
++			    
++				String text = authors.getText();
++				Pattern p = Pattern.compile(PublicationXRef.AUTHOR_SEP);
++			    Matcher m = p.matcher(text);
++			    while(m.find()) {
++			    	doc.setCharacterAttributes(m.start(), 1, sep, true);
++			    }	
++			}
++		});
++		
++		authors = new JTextPane(doc);
++		
++		GridBagConstraints c = new GridBagConstraints();
++		c.ipadx = c.ipady = 5;
++		c.anchor = GridBagConstraints.FIRST_LINE_START;
++		c.gridx = 0;
++		c.gridy = GridBagConstraints.RELATIVE;
++		c.weightx = 0;
++		contents.add(lbl_pmId, c);
++		contents.add(lbl_title, c);
++		contents.add(lbl_source, c);
++		contents.add(lbl_year, c);
++		contents.add(lbl_authors, c);
++		c.gridx = 1;
++		c.fill = GridBagConstraints.HORIZONTAL;
++		c.weightx = 1;
++		contents.add(pmId, c);
++		contents.add(title, c);
++		contents.add(year, c);
++		contents.add(source, c);
++		c.fill = GridBagConstraints.BOTH;
++		c.weighty = 1;
++		contents.add(new JScrollPane(authors), c);
++		
++		return contents;
++	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/CommentPanel.java	(revision 1108)
+@@ -31,7 +31,6 @@
+ import javax.swing.JScrollPane;
+ import javax.swing.JTable;
+ import javax.swing.table.AbstractTableModel;
+-import javax.swing.table.JTableHeader;
+ 
+ import org.pathvisio.model.PathwayElement.Comment;
+ 
+@@ -46,9 +45,9 @@
+ 		setLayout(new BorderLayout(5, 5));
+ 		
+ 		commentsTable = new JTable();
+-		commentsTable.setMinimumSize(new Dimension(40, 40));
+ 		commentsTable.setBorder(BorderFactory.createCompoundBorder());
+ 		commentsTable.setRowHeight(20);
++		commentsTable.setMinimumSize(new Dimension(200, 200));
+ 		JPanel buttonPanel = new JPanel();
+ 		JButton add = new JButton(ADD);
+ 		add.setActionCommand(ADD);
+Index: trunk/src/swing/org/pathvisio/gui/swing/panels/LitReferencePanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/panels/LitReferencePanel.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/panels/LitReferencePanel.java	(revision 1108)
+@@ -3,10 +3,11 @@
+ import java.awt.BorderLayout;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
++import java.awt.event.MouseAdapter;
++import java.awt.event.MouseEvent;
+ import java.util.ArrayList;
+ import java.util.List;
+ 
+-import javax.swing.AbstractListModel;
+ import javax.swing.BorderFactory;
+ import javax.swing.BoxLayout;
+ import javax.swing.JButton;
+@@ -16,6 +17,7 @@
+ 
+ import org.pathvisio.biopax.BiopaxElementManager;
+ import org.pathvisio.biopax.reflect.PublicationXRef;
++import org.pathvisio.gui.swing.dialogs.PublicationXRefDialog;
+ import org.pathvisio.model.PathwayElement;
+ 
+ public class LitReferencePanel extends PathwayElementPanel implements ActionListener {
+@@ -34,7 +36,13 @@
+ 		
+ 		references = new JList();
+ 		references.setBorder(BorderFactory.createTitledBorder("References"));
+-		
++		references.addMouseListener(new MouseAdapter() {
++			public void mouseClicked(MouseEvent e) {
++				if(e.getClickCount() == 2) {
++					editPressed();
++				}
++			}
++		});
+ 		JPanel buttons = new JPanel();
+ 		buttons.setLayout(new BoxLayout(buttons, BoxLayout.PAGE_AXIS));
+ 		
+@@ -74,21 +82,29 @@
+ 	}
+ 	
+ 	private void editPressed() {
+-		// TODO Auto-generated method stub
+-		
++		PublicationXRef xref = (PublicationXRef)references.getSelectedValue();
++		if(xref != null) {
++			PublicationXRefDialog d = new PublicationXRefDialog(xref, null, this, false);
++			d.setVisible(true);
++		}
++		refresh();
+ 	}
+ 
+ 	private void removePressed() {
+ 		for(Object o : references.getSelectedValues()) {
+ 			biopax.removeElementReference((PublicationXRef)o);
+ 		}
+-		
++		refresh();
+ 	}
+ 
+ 	private void addPressed() {
+ 		PublicationXRef xref = new PublicationXRef(biopax.getUniqueID());
+-		//TODO: dialog to fill in information
+-		biopax.addElementReference(xref);
+-		refresh();
++		
++		PublicationXRefDialog d = new PublicationXRefDialog(xref, null, this);
++		d.setVisible(true);
++		if(d.getExitCode().equals(PublicationXRefDialog.OK)) {
++			biopax.addElementReference(xref);
++			refresh();			
++		}
+ 	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1108)
+@@ -32,7 +32,6 @@
+ import javax.swing.JMenu;
+ import javax.swing.JMenuBar;
+ import javax.swing.JMenuItem;
+-import javax.swing.JOptionPane;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
+ import javax.swing.JSplitPane;
+@@ -340,8 +339,7 @@
+ 					!(e.getAffectedElement() instanceof SelectionBox)) {
+ 				PathwayElement p = ((Graphics)e.getAffectedElement()).getGmmlData();
+ 				if(p != null) {
+-					PathwayElementDialog.getInstance(p, 
+-							JOptionPane.getFrameForComponent(this), this).setVisible(true);
++					PathwayElementDialog.getInstance(p, null, this).setVisible(true);
+ 				}
+ 			}
+ 			break;
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1108)
+@@ -18,11 +18,9 @@
+ 
+ import java.util.ArrayList;
+ import java.util.Collection;
+-import java.util.Collections;
+ import java.util.HashMap;
+ import java.util.HashSet;
+ import java.util.List;
+-import java.util.Set;
+ 
+ import javax.swing.DefaultCellEditor;
+ import javax.swing.JTextField;
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1108)
+@@ -288,7 +288,7 @@
+ 			if (EDIT.equals(e.getActionCommand()) && property != null) {
+ 				currentElement = property.getFirstElement();
+ 				if(currentElement != null) {
+-					PathwayElementDialog d = PathwayElementDialog.getInstance(currentElement);
++					PathwayElementDialog d = PathwayElementDialog.getInstance(currentElement, null, this.button);
+ 					d.selectPathwayElementPanel(PathwayElementDialog.TAB_COMMENTS);
+ 					d.setVisible(true);
+ 					fireEditingCanceled(); //Value is directly saved in dialog
+Index: trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1107)
++++ trunk/src/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 1108)
+@@ -24,13 +24,11 @@
+ import javax.swing.JOptionPane;
+ import javax.swing.filechooser.FileFilter;
+ 
+-import org.eclipse.jface.dialogs.MessageDialog;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+ import org.pathvisio.debug.Logger;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+-import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+Index: trunk/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1107)
++++ trunk/src/core/org/pathvisio/model/GpmlFormat.java	(revision 1108)
+@@ -339,13 +339,9 @@
+ 				setAttribute("Pathway", "Last-Modified", root, o.getLastModified());
+ 				setAttribute("Pathway", "Organism", root, o.getOrganism());
+ 
+-				for (PathwayElement.Comment c : o.getComments())
+-				{
+-					Element f = new Element ("Comment", ns);
+-					f.setText (c.getComment());
+-					setAttribute("Comment", "Source", f, c.getSource());
+-					root.addContent(f);
+-				}				
++				updateComments(o, root);
++				updateBiopax(o, root);
++				updateBiopaxRef(o, root);
+ 				
+ 				Element graphics = new Element("Graphics", ns);
+ 				root.addContent(graphics);
+@@ -429,6 +425,8 @@
+ 				break;
+ 			case ObjectType.MAPPINFO:
+ 				mapMappInfoData(o, e);
++				mapBiopaxRef(o, e);
++				mapComments(o, e);
+ 				break;
+ 			case ObjectType.SHAPE:
+ 				mapShapeData(o, e, "Shape");
+Index: trunk/src/core/org/pathvisio/model/Pathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/Pathway.java	(revision 1107)
++++ trunk/src/core/org/pathvisio/model/Pathway.java	(revision 1108)
+@@ -150,9 +150,11 @@
+ 			return;
+ 		}
+ 		// There can be zero or one Biopax object, so if we're trying to add it, remove the old one.
+-		if(o.getObjectType() == ObjectType.BIOPAX && biopax != null && o != biopax)
++		if(o.getObjectType() == ObjectType.BIOPAX && o != biopax)
+ 		{
+-			replaceUnique (biopax, o);
++			if(biopax != null) {
++				replaceUnique (biopax, o);
++			}
+ 			biopax = o;
+ 			return;
+ 		}
+Index: trunk/src/core/org/pathvisio/biopax/reflect/BiopaxProperty.java
+===================================================================
+--- trunk/src/core/org/pathvisio/biopax/reflect/BiopaxProperty.java	(revision 1107)
++++ trunk/src/core/org/pathvisio/biopax/reflect/BiopaxProperty.java	(revision 1108)
+@@ -10,7 +10,12 @@
+ 	
+ 	protected int maxCardinality;
+ 	
++	private BiopaxProperty() {
++		setNamespace(Namespaces.BIOPAX);
++	}
++	
+ 	BiopaxProperty(String name, String value, String datatype, int maxCardinality) {
++		this();
+ 		setName(name);
+ 		setText(value);
+ 		setDatatype(datatype);
+@@ -21,8 +26,13 @@
+ 		this(name, value, datatype, UNBOUND);
+ 	}
+ 	
++	BiopaxProperty(PropertyType type, String value) {
++		this(type.name(), value, type.datatype, type.maxCardinality);
++	}
++	
+ 	BiopaxProperty(Element e) {
+-		name = e.getName();
++		this();
++		setName(e.getName());
+ 		PropertyType pt = PropertyType.valueOf(name);
+ 		if(pt == null) {
+ 			throw new IllegalArgumentException("Unknown property: " + name);
+Index: trunk/src/core/org/pathvisio/biopax/reflect/BiopaxElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/biopax/reflect/BiopaxElement.java	(revision 1107)
++++ trunk/src/core/org/pathvisio/biopax/reflect/BiopaxElement.java	(revision 1108)
+@@ -46,8 +46,17 @@
+ 		} else {
+ 			properties.add(p);
+ 		}
++		addContent(p);
+ 	}
+ 	
++	public void removeProperty(BiopaxProperty p) {
++		BiopaxProperty existing = properties.get(properties.indexOf(p));
++		if(existing != null) {
++			properties.remove(p);
++			removeContent(p);
++		}
++	}
++	
+ 	private int getFirstPropertyIndex(String name) {
+ 		int i = 0;
+ 		for(BiopaxProperty p : properties) {
+Index: trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java
+===================================================================
+--- trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java	(revision 1107)
++++ trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java	(revision 1108)
+@@ -1,6 +1,7 @@
+ package org.pathvisio.biopax.reflect;
+ 
+ import java.util.ArrayList;
++import java.util.Collection;
+ import java.util.List;
+ 
+ public class PublicationXRef extends BiopaxElement {
+@@ -22,15 +23,52 @@
+ 		setId(id);
+ 	}
+ 	
+-	public String getTitle() { 
+-		BiopaxProperty p = getProperty(PropertyType.TITLE.name());
++	private String getPropertyValue(PropertyType pt) {
++		BiopaxProperty p = getProperty(pt.name());
+ 		if(p != null) {
+-			return p.getName();
++			return p.getText();
+ 		} else {
+ 			return null;
+ 		}
+ 	}
+ 	
++	private void setPropertyValue(PropertyType pt, String value) {
++		addProperty(new BiopaxProperty(pt, value));	
++	}
++	
++	public String getTitle() { 
++		return getPropertyValue(PropertyType.TITLE);
++	}
++	
++	public void setTitle(String title) {
++		setPropertyValue(PropertyType.TITLE, title);
++	}
++	
++	public String getSource() {
++		return getPropertyValue(PropertyType.SOURCE);
++	}
++	
++	public void setSource(String source) {
++		setPropertyValue(PropertyType.SOURCE, source);
++	}
++	
++	public String getYear() {
++		return getPropertyValue(PropertyType.YEAR);
++	}
++	
++	public void setYear(String year) {
++		setPropertyValue(PropertyType.YEAR, year);
++	}
++	
++	public String getPubmedId() {
++		return getPropertyValue(PropertyType.ID);
++	}
++	
++	public void setPubmedId(String id) {
++		setPropertyValue(PropertyType.ID, id);
++		setPropertyValue(PropertyType.DB, "PubMed");
++	}
++	
+ 	public List<String> getAuthors() {
+ 		List<String> authors = new ArrayList<String>();
+ 		for(BiopaxProperty p : getProperties(PropertyType.AUTHORS.name())) {
+@@ -39,12 +77,60 @@
+ 		return authors;
+ 	}
+ 	
+-	public String toString() {
+-		String title = getTitle();
++	public void addAuthor(String author) {
++		setPropertyValue(PropertyType.AUTHORS, author);
++	}
++	
++	public void removeAuthor(String author) {
++		for(BiopaxProperty p : getProperties(PropertyType.AUTHORS.name())) {
++			if(author.equals(p.getValue())) {
++				removeProperty(p);
++			}
++		}
++	}
++	
++	private void clearAuthors() {
++		for(BiopaxProperty p : getProperties(PropertyType.AUTHORS.name())) {
++			removeProperty(p);
++		}
++	}
++	
++	public void setAuthors(String authorString) {
++		clearAuthors();
++		String[] authors = parseAuthorString(authorString);
++		for(String a : authors) {
++			addAuthor(a);
++		}
++	}
++		
++	public static final String AUTHOR_SEP = ";";
++	
++	public String[] parseAuthorString(String s) {
++		String[] splitted = s.split(AUTHOR_SEP);
++		String[] result = new String[splitted.length];
++		for(int i = 0; i < result.length; i++) {
++			result[i] = splitted[i].trim();
++		}
++		return result;
++	}
++	
++	public String getAuthorString() {
+ 		String authors = "";
+-		for(String s : getAuthors()) {
+-			authors += "," + s;
++		for(String a : getAuthors()) {
++			authors += a + AUTHOR_SEP + " ";
+ 		}
+-		return title + "; " + authors;
++		if(authors.length() > 0) {
++			authors = authors.substring(0, authors.length() - AUTHOR_SEP.length() - 1);
++		}
++		return authors;
+ 	}
++	
++	public String toString() {
++		String title = getTitle();
++		String pmid = getPubmedId();
++		String authors = getAuthorString();
++		return 	(title != null && title.length() > 0 ? title + "; " : "") + 
++				(pmid != null && pmid.length() > 0 ? authors + "; ": "") + 
++				(authors != null && authors.length() > 0 ? " pmid=" + pmid : "");
++	}
+ }
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1107)
++++ trunk/build.xml	(revision 1108)
+@@ -302,7 +302,7 @@
+ 	</target> -->
+ 		
+ 	<target name="test" depends="compile-v2">
+-		<javac srcdir="src" 
++		<javac srcdir="src" debug="true" 
+ 					includes="test/**"
+ 					destdir="${build.v2.dir}">
+ 					<classpath refid="project.v2.class.path"/>

@@ -1,0 +1,44 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/sitemap/runSiteMap.sh
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/sitemap/runSiteMap.sh	(revision 1108)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/sitemap/runSiteMap.sh	(revision 1109)
+@@ -8,11 +8,11 @@
+ 
+ # Generate new sitemap
+ echo "Generating sitemap"
+-wget -O sitemap.xml http://www.wikipathways.org/wpi/sitemap/createSiteMap.php
++wget -O /var/www/wikipathways/sitemap.xml http://www.wikipathways.org/wpi/sitemap/createSiteMap.php
+ 
+ # Set the correct permissions for sitemap.xml
+ echo "Setting permissions of sitemap.xml to 777"
+-chmod 777 sitemap.xml
++chmod 777 /var/www/wikipathwayssitemap.xml
+ 
+ # Restore permissions
+ echo "Restoring permissions of createSiteMap.php"
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/sitemap/createSiteMap.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/sitemap/createSiteMap.php	(revision 1108)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/sitemap/createSiteMap.php	(revision 1109)
+@@ -67,7 +67,7 @@
+ ?>
+ <!-- MediaWiki - Google Sitemaps - v0.3 -->
+ <!-- <?php echo $totalRows_rsPages ?> wikipages found. -->
+-<!-- Created on <?php echo fnTimestampToIso(timestamp()); ?> -->
++<!-- Created on <?php echo fnTimestampToIso(time()); ?> -->
+ <urlset xmlns="http://www.google.com/schemas/sitemap/0.84">
+ <?php 
+ 
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1108)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/LocalSettings.php	(revision 1109)
+@@ -167,7 +167,7 @@
+ $wgContentNamespaces += array(NS_PATHWAY, NS_PATHWAY_TALK, NS_GPML, NS_GPML_TALK);
+ 
+ ##Debug
+-$wgDebugLogFile = '/var/www/wpi/tmp/wikipathwaysdebug.txt';
++$wgDebugLogFile = '/var/www/wikipathways/wpi/tmp/wikipathwaysdebug.txt';
+ $wgProfiling = true; //Set to true for debugging info
+ 
+ ##Extensions

@@ -1,0 +1,288 @@
+Index: trunk/tools/ComponentTest/src/TestPanel.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestPanel.java	(revision 0)
++++ trunk/tools/ComponentTest/src/TestPanel.java	(revision 1082)
+@@ -0,0 +1,14 @@
++import java.awt.Color;
++import java.awt.Component;
++import java.awt.Graphics;
++
++import javax.swing.JPanel;
++
++
++public class TestPanel extends JPanel {
++
++	public TestPanel() {
++		setBackground(Color.WHITE);
++		setLayout(null);
++	}
++}
+Index: trunk/tools/ComponentTest/src/TestComponent.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestComponent.java	(revision 0)
++++ trunk/tools/ComponentTest/src/TestComponent.java	(revision 1082)
+@@ -0,0 +1,81 @@
++import java.awt.AWTEvent;
++import java.awt.Color;
++import java.awt.Component;
++import java.awt.Dimension;
++import java.awt.Graphics;
++import java.awt.Graphics2D;
++import java.awt.Point;
++import java.awt.event.MouseEvent;
++
++import javax.swing.SwingUtilities;
++
++
++public class TestComponent extends Component {
++	Color color;
++	
++	public TestComponent(Dimension size, Color c) {
++		setSize(size);
++		color = c;
++		enableEvents(AWTEvent.MOUSE_MOTION_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK);
++	}
++	
++	public void setColor(Color c) {
++		if(c != null && !c.equals(color)) {
++			color = c; 
++			repaint();
++		}
++	}
++	
++	public Color getColor() { return color; }
++	
++	public void paint(Graphics g) {
++		Graphics2D g2d = (Graphics2D)g.create();
++		g2d.setColor(getColor());
++		g2d.fillOval(0, 0, getSize().width, getSize().height);
++	}	
++
++	public Dimension getPreferredSize() {
++		return getSize();
++	}
++	
++	protected void processMouseMotionEvent(MouseEvent e) {
++		System.out.println("Mouse Motion Event: " + e.getID() + " at " + e.getX() + ", " + e.getY());
++		System.out.println("\tsource: " + e.getSource());
++		if(e.getID() == MouseEvent.MOUSE_DRAGGED) {
++			System.out.println("\tDRAGGED");
++			MouseEvent ne = SwingUtilities.convertMouseEvent(this, e, getParent());
++			ne.translatePoint(-downLocation.x, -downLocation.y);
++			Point p = ne.getPoint();
++			setLocation(p);
++			repaint();
++		}
++		super.processMouseMotionEvent(e);
++	}
++	
++	Point downLocation;
++	int oldZOrder;
++	Color oldColor;
++	protected void processMouseEvent(MouseEvent e) {
++		System.out.println("Mouse event " + MouseEvent.MOUSE_MOVED + ", " + e.getID());
++		switch(e.getID()) {
++		case MouseEvent.MOUSE_PRESSED:
++			//Move to top
++			oldZOrder = getParent().getComponentZOrder(this);
++			getParent().setComponentZOrder(this, 0);
++			//Set clicked location within component
++			downLocation = e.getPoint();
++			break;
++		case MouseEvent.MOUSE_RELEASED:
++			//getParent().setComponentZOrder(this, oldZOrder - 1);
++			break;
++		case MouseEvent.MOUSE_ENTERED:
++			oldColor = getColor();
++			setColor(Color.YELLOW);
++			break;
++		case MouseEvent.MOUSE_EXITED:
++			setColor(oldColor);
++			break;
++		}
++		super.processMouseEvent(e);
++	}
++}
+Index: trunk/tools/ComponentTest/src/TestGui.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestGui.java	(revision 0)
++++ trunk/tools/ComponentTest/src/TestGui.java	(revision 1082)
+@@ -0,0 +1,21 @@
++import java.awt.BorderLayout;
++import java.awt.Container;
++
++import javax.swing.JFrame;
++
++
++public class TestGui extends TestMain {
++	JFrame frame;
++	public TestGui(int w, int h, int nr) {
++		super(w, h, nr);
++
++		frame = new JFrame("Component test");
++		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
++		
++		Container content = frame.getContentPane();
++		content.setLayout(new BorderLayout());
++		
++		content.add(panel);
++		frame.setSize(w, h);
++	}
++}
+Index: trunk/tools/ComponentTest/src/TestMain.java
+===================================================================
+--- trunk/tools/ComponentTest/src/TestMain.java	(revision 0)
++++ trunk/tools/ComponentTest/src/TestMain.java	(revision 1082)
+@@ -0,0 +1,102 @@
++import java.awt.Color;
++import java.awt.Dimension;
++import java.io.FileWriter;
++import java.io.OutputStreamWriter;
++import java.io.Writer;
++import java.util.Random;
++
++import javax.swing.SwingUtilities;
++
++import org.apache.batik.dom.GenericDOMImplementation;
++import org.apache.batik.svggen.SVGGraphics2D;
++import org.w3c.dom.DOMImplementation;
++import org.w3c.dom.Document;
++
++
++public class TestMain {
++	TestPanel panel;
++	int width;
++	int height;
++	int number;
++	
++	public TestMain(int w, int h, int nr) {
++		number = nr;
++		width = w;
++		height = h;
++		panel = new TestPanel();
++		panel.setSize(w, h);
++	}
++	
++	void fill(boolean hook) {
++		if(hook) {
++			new Thread(addObjects).start();
++		} else {
++			addObjects.run();
++		}
++	}
++	
++	void toSVG(String f) throws Exception {
++		DOMImplementation domImpl = GenericDOMImplementation.getDOMImplementation();
++		Document document = domImpl.createDocument ("http://www.w3.org/2000/svg", "svg", null);
++		SVGGraphics2D svg = new SVGGraphics2D(document);
++		svg.setSVGCanvasSize(new Dimension(width, height));
++		panel.print(svg);
++		Writer out = null;
++		if(f == null) {
++			out = new OutputStreamWriter (System.out, "UTF-8");
++		} else {
++			out = new FileWriter(f);
++		}
++		
++		svg.stream(out, true);
++	}
++	
++	Runnable addObjects = new Runnable() {
++		public void run() {
++			final Dimension size = new Dimension(20, 20);
++			final Random r = new Random();
++			for(int i = 0; i < number; i++) {
++				final int x = (int)(r.nextDouble() * width);
++				final int y = (int)(r.nextDouble() * height);
++				
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						TestComponent c = new TestComponent(size, randomColor(r, 128));
++						c.setLocation(x, y);
++						panel.add(c);
++						c.repaint();
++					};
++				});
++			}
++		}
++	};
++	
++	public static void main(String[] args) {
++		int w = 1000; int h = 1000; int nr = 1000;
++		
++		if(args[0] == null || args[0].equals("gui")) {
++			TestGui test = new TestGui(w, h, nr);
++			test.fill(true);
++			test.frame.setVisible(true);
++		} else if(args[0].equals("svg")) {
++			String file = args.length > 1 ? args[1] : null;
++			TestMain test = new TestMain(w, h, nr);
++			test.fill(false);
++			try {
++				test.toSVG(file);
++			} catch(Exception e) {
++				e.printStackTrace();
++			}
++		} else {
++			System.err.println(
++					"Invalid arguments, use 'gui' or 'svg'"
++			);
++		}
++	}
++	
++	static Color randomColor(Random rnd, int alpha) {
++		int rgb = java.awt.Color.HSBtoRGB(rnd.nextFloat(), 1, 1);
++		Color c = new Color(rgb);
++		return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
++	}
++}
+Index: trunk/tools/ComponentTest/build.xml
+===================================================================
+--- trunk/tools/ComponentTest/build.xml	(revision 0)
++++ trunk/tools/ComponentTest/build.xml	(revision 1082)
+@@ -0,0 +1,44 @@
++<?xml version="1.0"?>
++<project name="ComponentTest" default="run-svg" basedir=".">
++	
++	<property name="src.dir" value="src"/>       
++	<property name="build.dir" value="build"/>
++	<property name="lib.dir" value="../../lib/batik"/>
++	
++	<path id="class.path">
++		<pathelement location="${build.dir}"/>
++		<fileset dir="${lib.dir}">
++		        <include name="**/*.jar"/>
++		</fileset>
++	</path>
++
++	<target name="prepare">
++			<mkdir dir="${build.dir}"/>
++	</target>
++	
++	<target name="clean" description="Remove all generated files">
++			<delete dir="${build.dir}"/>
++	</target>
++	
++	<target name="compile" depends="prepare" description="Compile all sources">
++		<javac srcdir="${src.dir}"
++			destdir="${build.dir}">
++			<classpath refid="class.path"/>
++		</javac>
++	</target>
++	
++	<target name="run-svg" depends="compile">
++		<java classname="TestMain" fork="true">
++			<jvmarg value="-Djava.awt.headless=true"/>
++			<arg value="svg"/>
++			<classpath refid="class.path"/>
++		</java>
++	</target>
++	
++	<target name="run-gui" depends="compile">
++		<java classname="TestMain" fork="true">
++			<arg value="gui"/>
++			<classpath refid="class.path"/>
++		</java>
++	</target>
++</project>
+\ No newline at end of file

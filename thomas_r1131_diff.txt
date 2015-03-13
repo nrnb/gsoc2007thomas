@@ -1,0 +1,412 @@
+Index: trunk/src/test/org/pathvisio/data/Test.java
+===================================================================
+--- trunk/src/test/org/pathvisio/data/Test.java	(revision 0)
++++ trunk/src/test/org/pathvisio/data/Test.java	(revision 1131)
+@@ -0,0 +1,20 @@
++package org.pathvisio.data;
++
++import junit.framework.TestCase;
++
++public class Test extends TestCase {
++
++	public void testPubMedQuery() {
++		String id = "17588266";
++		PubMedQuery pmq = new PubMedQuery(id);
++		try {
++			pmq.execute();
++		} catch (Exception e) {
++			fail(e.getMessage());
++		}
++		
++		PubMedResult pmr = pmq.getResult();
++		assertTrue(pmr.getId().equals(id));
++		assertTrue("GenMAPP 2: new features and resources for pathway analysis.".equals(pmr.getTitle()));
++	}
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1130)
++++ trunk/src/swing/org/pathvisio/gui/swing/dialogs/PublicationXRefDialog.java	(revision 1131)
+@@ -5,10 +5,13 @@
+ import java.awt.Frame;
+ import java.awt.GridBagConstraints;
+ import java.awt.GridBagLayout;
++import java.awt.event.ActionEvent;
+ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
+ 
++import javax.swing.JButton;
+ import javax.swing.JLabel;
++import javax.swing.JOptionPane;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
+ import javax.swing.JTextField;
+@@ -22,7 +25,13 @@
+ import javax.swing.text.StyleConstants;
+ import javax.swing.text.StyledDocument;
+ 
++import org.jdesktop.swingworker.SwingWorker;
+ import org.pathvisio.biopax.reflect.PublicationXRef;
++import org.pathvisio.data.PubMedQuery;
++import org.pathvisio.data.PubMedResult;
++import org.pathvisio.gui.swing.progress.ProgressDialog;
++import org.pathvisio.gui.swing.progress.SwingProgressKeeper;
++import org.pathvisio.util.ProgressKeeper;
+ 
+ public class PublicationXRefDialog extends OkCancelDialog {
+ 	final static String ADD = "Add";
+@@ -32,6 +41,7 @@
+ 	final static String SOURCE = "Source";
+ 	final static String YEAR = "Year";
+ 	final static String AUTHORS = "Authors (separate with " + PublicationXRef.AUTHOR_SEP + ")";
++	final static String QUERY = "Query PubMed";
+ 	
+ 	PublicationXRef input;
+ 	JTextField pmId;
+@@ -73,6 +83,41 @@
+ 		super.okPressed();
+ 	}
+ 	
++	protected void queryPressed() {
++		final PubMedQuery pmq = new PubMedQuery(pmId.getText());
++		final SwingProgressKeeper pk = new SwingProgressKeeper(ProgressKeeper.PROGRESS_UNKNOWN);
++		ProgressDialog d = new ProgressDialog(
++				JOptionPane.getFrameForComponent(this), 
++				"Querying PubMed", pk, true, true);
++				
++		SwingWorker sw = new SwingWorker() {
++			protected Object doInBackground() throws Exception {
++				pmq.execute();
++				pk.finished();
++				return null;
++			}
++		};
++		
++		sw.execute();
++		
++		d.setVisible(true);
++		
++		PubMedResult pmr = pmq.getResult();
++		if(pmr != null) {
++			title.setText(pmr.getTitle());
++			year.setText(pmr.getYear());
++			source.setText(pmr.getSource());
++			authors.setText(PublicationXRef.createAuthorString(pmr.getAuthors()));
++		}
++	}
++	
++	public void actionPerformed(ActionEvent e) {
++		if(QUERY.equals(e.getActionCommand())) {
++			queryPressed();
++		}
++		super.actionPerformed(e);
++	}
++	
+ 	protected Component createDialogPane() {
+ 		JPanel contents = new JPanel();
+ 		contents.setLayout(new GridBagLayout());
+@@ -118,6 +163,10 @@
+ 		
+ 		authors = new JTextPane(doc);
+ 		
++		JButton query = new JButton(QUERY);
++		query.addActionListener(this);
++		query.setToolTipText("Query publication information from PubMed");
++		
+ 		GridBagConstraints c = new GridBagConstraints();
+ 		c.ipadx = c.ipady = 5;
+ 		c.anchor = GridBagConstraints.FIRST_LINE_START;
+@@ -126,9 +175,10 @@
+ 		c.weightx = 0;
+ 		contents.add(lbl_pmId, c);
+ 		contents.add(lbl_title, c);
++		contents.add(lbl_year, c);
+ 		contents.add(lbl_source, c);
+-		contents.add(lbl_year, c);
+ 		contents.add(lbl_authors, c);
++				
+ 		c.gridx = 1;
+ 		c.fill = GridBagConstraints.HORIZONTAL;
+ 		c.weightx = 1;
+@@ -140,6 +190,10 @@
+ 		c.weighty = 1;
+ 		contents.add(new JScrollPane(authors), c);
+ 		
++		c.gridx = 2;
++		c.fill = GridBagConstraints.NONE;
++		contents.add(query);
++		
+ 		return contents;
+ 	}
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1130)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1131)
+@@ -144,17 +144,17 @@
+ 		
+ 		alignMenu.add(new AlignAction(AlignType.CENTERX));
+ 		alignMenu.add(new AlignAction(AlignType.CENTERY));
+-		alignMenu.add(new AlignAction(AlignType.LEFT));
+-		alignMenu.add(new AlignAction(AlignType.RIGHT));
+-		alignMenu.add(new AlignAction(AlignType.TOP));
++//		alignMenu.add(new AlignAction(AlignType.LEFT));
++//		alignMenu.add(new AlignAction(AlignType.RIGHT));
++//		alignMenu.add(new AlignAction(AlignType.TOP));
+ 		alignMenu.add(new AlignAction(AlignType.WIDTH));
+ 		alignMenu.add(new AlignAction(AlignType.HEIGHT));
+ 		stackMenu.add(new StackAction(StackType.CENTERX));
+ 		stackMenu.add(new StackAction(StackType.CENTERY));
+-		stackMenu.add(new StackAction(StackType.LEFT));
+-		stackMenu.add(new StackAction(StackType.RIGHT));
+-		stackMenu.add(new StackAction(StackType.TOP));
+-		stackMenu.add(new StackAction(StackType.BOTTOM));
++//		stackMenu.add(new StackAction(StackType.LEFT));
++//		stackMenu.add(new StackAction(StackType.RIGHT));
++//		stackMenu.add(new StackAction(StackType.TOP));
++//		stackMenu.add(new StackAction(StackType.BOTTOM));
+ 		
+ 		selectionMenu.add(alignMenu);
+ 		selectionMenu.add(stackMenu);
+Index: trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java
+===================================================================
+--- trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java	(revision 1130)
++++ trunk/src/core/org/pathvisio/biopax/reflect/PublicationXRef.java	(revision 1131)
+@@ -115,14 +115,18 @@
+ 	}
+ 	
+ 	public String getAuthorString() {
+-		String authors = "";
+-		for(String a : getAuthors()) {
+-			authors += a + AUTHOR_SEP + " ";
++		return createAuthorString(getAuthors());
++	}
++	
++	public static String createAuthorString(List<String> authors) {
++		String as = "";
++		for(String a : authors) {
++			as += a + AUTHOR_SEP + " ";
+ 		}
+-		if(authors.length() > 0) {
+-			authors = authors.substring(0, authors.length() - AUTHOR_SEP.length() - 1);
++		if(as.length() > 0) {
++			as = as.substring(0, as.length() - AUTHOR_SEP.length() - 1);
+ 		}
+-		return authors;
++		return as;
+ 	}
+ 	
+ 	public String toString() {
+Index: trunk/src/core/org/pathvisio/data/PubMedQuery.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/PubMedQuery.java	(revision 0)
++++ trunk/src/core/org/pathvisio/data/PubMedQuery.java	(revision 1131)
+@@ -0,0 +1,150 @@
++package org.pathvisio.data;
++
++import java.io.IOException;
++import java.io.InputStream;
++import java.net.URL;
++
++import org.xml.sax.Attributes;
++import org.xml.sax.InputSource;
++import org.xml.sax.SAXException;
++import org.xml.sax.XMLReader;
++import org.xml.sax.helpers.DefaultHandler;
++import org.xml.sax.helpers.XMLReaderFactory;
++
++public class PubMedQuery extends DefaultHandler {
++	static final String URL_BASE = "http://www.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
++	
++	String id;
++	PubMedResult result;
++	
++	public PubMedQuery(String id) {
++		this.id = id;
++	}
++	
++	public void execute() throws IOException, SAXException {
++		String urlString = URL_BASE;
++		urlString += "?db=pubmed&id=" + id;
++		
++		URL url = new URL(urlString);
++		InputStream is = url.openStream();
++				
++		XMLReader xmlReader = XMLReaderFactory.createXMLReader();
++		xmlReader.setContentHandler(this);
++		xmlReader.setEntityResolver(this);
++		
++		result = new PubMedResult();
++		result.setId(id);
++		xmlReader.parse(new InputSource(is));
++		
++		is.close();
++	}
++	
++	public PubMedResult getResult() {
++		return result;
++	}
++	
++	String parsingId;
++	String parsingName;
++	String parsingElement;
++	public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
++		parsingElement = localName;
++		parsingName = attributes.getValue(NAME);
++	}
++	
++	public void characters(char[] ch, int start, int length) throws SAXException {		
++		String value = new String(ch, start, length).trim();
++		if(value.length() == 0) return;
++		
++		if(parsingElement == ID) {
++			parsingId = value;
++		}
++		if		(TITLE.equalsIgnoreCase(parsingName)) {
++//			System.out.println("Parsing title: " + value);
++			result.setTitle(value);
++		}
++		else if (PUBDATE.equalsIgnoreCase(parsingName)) {
++//			System.out.println("Parsing pubdate: " + value);
++			result.setYear(value);
++		}
++		else if (SOURCE.equalsIgnoreCase(parsingName)) {
++//			System.out.println("Parsing source: " + value);
++			result.setSource(value);
++		}
++		else if (AUTHOR.equalsIgnoreCase(parsingName)) {
++//			System.out.println("Parsing author: " + value);
++			result.addAuthor(value);
++		}
++	}
++	
++	static final String ITEM = "Item";
++	static final String ID = "Id";
++	static final String NAME = "Name";
++	static final String TITLE = "Title";
++	static final String PUBDATE = "PubDate";
++	static final String SOURCE = "Source";
++	static final String AUTHOR_LIST = "AuthorList";
++	static final String AUTHOR = "Author";
++	
++	/*
++<DocSum>
++	<Id>17588266</Id>
++	<Item Name="PubDate" Type="Date">2007 Jun 24</Item>
++	<Item Name="EPubDate" Type="Date">2007 Jun 24</Item>
++	<Item Name="Source" Type="String">BMC Bioinformatics</Item>
++	<Item Name="AuthorList" Type="List">
++
++		<Item Name="Author" Type="String">Salomonis N</Item>
++		<Item Name="Author" Type="String">Hanspers K</Item>
++		<Item Name="Author" Type="String">Zambon AC</Item>
++		<Item Name="Author" Type="String">Vranizan K</Item>
++		<Item Name="Author" Type="String">Lawlor SC</Item>
++		<Item Name="Author" Type="String">Dahlquist KD</Item>
++
++		<Item Name="Author" Type="String">Doniger SW</Item>
++		<Item Name="Author" Type="String">Stuart J</Item>
++		<Item Name="Author" Type="String">Conklin BR</Item>
++		<Item Name="Author" Type="String">Pico AR</Item>
++	</Item>
++	<Item Name="LastAuthor" Type="String">Pico AR</Item>
++
++	<Item Name="Title" Type="String">GenMAPP 2: new features and resources for pathway analysis.</Item>
++	<Item Name="Volume" Type="String">8</Item>
++	<Item Name="Issue" Type="String"></Item>
++	<Item Name="Pages" Type="String">217</Item>
++	<Item Name="LangList" Type="List">
++		<Item Name="Lang" Type="String">English</Item>
++	</Item>
++
++	<Item Name="NlmUniqueID" Type="String">100965194</Item>
++	<Item Name="ISSN" Type="String"></Item>
++	<Item Name="ESSN" Type="String">1471-2105</Item>
++	<Item Name="PubTypeList" Type="List">
++		<Item Name="PubType" Type="String">Journal Article</Item>
++	</Item>
++	<Item Name="RecordStatus" Type="String">PubMed - in process</Item>
++
++	<Item Name="PubStatus" Type="String">epublish</Item>
++	<Item Name="ArticleIds" Type="List">
++		<Item Name="pii" Type="String">1471-2105-8-217</Item>
++		<Item Name="doi" Type="String">10.1186/1471-2105-8-217</Item>
++		<Item Name="pubmed" Type="String">17588266</Item>
++	</Item>
++	<Item Name="DOI" Type="String">10.1186/1471-2105-8-217</Item>
++
++	<Item Name="History" Type="List">
++		<Item Name="received" Type="Date">2006/11/16 00:00</Item>
++		<Item Name="accepted" Type="Date">2007/06/24 00:00</Item>
++		<Item Name="aheadofprint" Type="Date">2007/06/24 00:00</Item>
++		<Item Name="pubmed" Type="Date">2007/06/26 09:00</Item>
++		<Item Name="medline" Type="Date">2007/06/26 09:00</Item>
++
++	</Item>
++	<Item Name="References" Type="List"></Item>
++	<Item Name="HasAbstract" Type="Integer">1</Item>
++	<Item Name="PmcRefCount" Type="Integer">0</Item>
++	<Item Name="FullJournalName" Type="String">BMC bioinformatics</Item>
++	<Item Name="SO" Type="String">2007 Jun 24;8:217</Item>
++</DocSum>
++
++*/
++}
+Index: trunk/src/core/org/pathvisio/data/PubMedResult.java
+===================================================================
+--- trunk/src/core/org/pathvisio/data/PubMedResult.java	(revision 0)
++++ trunk/src/core/org/pathvisio/data/PubMedResult.java	(revision 1131)
+@@ -0,0 +1,53 @@
++package org.pathvisio.data;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class PubMedResult {
++	private String id;
++	private String title;
++	private String source;
++	private String year;
++	private List<String> authors = new ArrayList<String>();
++	
++	public String getId() {
++		return id;
++	}
++	
++	void setId(String id) {
++		this.id = id;
++	}
++		
++	public String getSource() {
++		return source;
++	}
++	
++	void setSource(String source) {
++		this.source = source;
++	}
++	
++	public String getTitle() {
++		return title;
++	}
++	
++	void setTitle(String title) {
++		this.title = title;
++	}
++	
++	public String getYear() {
++		return year;
++	}
++	
++	void setYear(String year) {
++		this.year = year;
++	}
++	
++	public List<String> getAuthors() {
++		return authors;
++	}
++	
++	void addAuthor(String author) {
++		authors.add(author);
++	}
++	
++}

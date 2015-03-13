@@ -1,0 +1,2394 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 924)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 925)
+@@ -16,8 +16,11 @@
+ 		JFrame frame = new JFrame("PathVisio...swing it baby!");
+ 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+ 
+-		frame.add(testcase());
++		VPathwaySwing test = testcase();
++		frame.add(test);
+ 
++		test.setSize(400, 400);
++		
+ 		//Display the window.
+ 		frame.pack();
+ 		frame.setVisible(true);
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/SwingKeyEvent.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/SwingKeyEvent.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/SwingKeyEvent.java	(revision 925)
+@@ -0,0 +1,45 @@
++package org.pathvisio.view.swing;
++
++import java.awt.event.KeyEvent;
++
++public class SwingKeyEvent extends org.pathvisio.view.KeyEvent {
++	KeyEvent awtEvent;
++	
++	public SwingKeyEvent(KeyEvent e) {
++		super(e.getSource(), convertKeyCode(e), convertType(e), e.getModifiers());
++		awtEvent = e;
++		System.out.println(getKeyCode());
++	}
++	
++	protected static int convertKeyCode(KeyEvent e) {
++		if(e.getID() == KeyEvent.KEY_TYPED) {
++			return e.getKeyChar();
++		} else {
++			switch(e.getKeyCode()) {
++				case KeyEvent.VK_CONTROL:
++					return org.pathvisio.view.KeyEvent.CTRL;
++				case KeyEvent.VK_ALT:
++					return org.pathvisio.view.KeyEvent.ALT;
++				case KeyEvent.VK_DELETE:
++					return org.pathvisio.view.KeyEvent.DEL;
++				case KeyEvent.VK_SHIFT:
++					return org.pathvisio.view.KeyEvent.SHIFT;
++				case KeyEvent.VK_INSERT:
++					return org.pathvisio.view.KeyEvent.INSERT;
++				default:
++					return e.getKeyCode();
++			}
++		}
++	}
++	
++	protected static int convertType(KeyEvent e) {
++		switch(e.getID()) {
++		case KeyEvent.KEY_PRESSED:
++			return org.pathvisio.view.KeyEvent.KEY_PRESSED;
++		case KeyEvent.KEY_RELEASED:
++			return org.pathvisio.view.KeyEvent.KEY_RELEASED;
++		default:
++			throw new IllegalArgumentException("KeyEvent type not supported");
++		}
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/SwingMouseEvent.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 925)
+@@ -0,0 +1,35 @@
++package org.pathvisio.view.swing;
++
++import java.awt.Point;
++import java.awt.event.MouseEvent;
++
++public class SwingMouseEvent extends org.pathvisio.view.MouseEvent {
++	MouseEvent awtEvent;
++	
++	public SwingMouseEvent(MouseEvent e) {
++		super(e.getSource(), convertType(e), e.getButton(), 
++				e.getX(), e.getY(), e.getClickCount(), e.getModifiers());
++		awtEvent = e;
++	}
++
++	protected static int convertType(MouseEvent e) {
++		if(e.isPopupTrigger()) return MOUSE_HOVER;
++
++		switch(e.getID()) {
++		case MouseEvent.MOUSE_ENTERED:
++			return org.pathvisio.view.MouseEvent.MOUSE_ENTER;
++		case MouseEvent.MOUSE_EXITED:
++			return org.pathvisio.view.MouseEvent.MOUSE_EXIT;
++		case MouseEvent.MOUSE_MOVED:
++			return org.pathvisio.view.MouseEvent.MOUSE_MOVE;
++		case MouseEvent.MOUSE_PRESSED:
++			return org.pathvisio.view.MouseEvent.MOUSE_DOWN;
++		case MouseEvent.MOUSE_RELEASED:
++			return org.pathvisio.view.MouseEvent.MOUSE_UP;
++		case MouseEvent.MOUSE_CLICKED:
++			return org.pathvisio.view.MouseEvent.MOUSE_CLICK;
++		default:
++			throw new IllegalArgumentException("Mouse event type not supported");
++		}
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 924)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 925)
+@@ -4,19 +4,24 @@
+ import java.awt.Graphics;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
++import java.awt.event.KeyEvent;
++import java.awt.event.KeyListener;
+ import java.awt.event.MouseEvent;
+ import java.awt.event.MouseListener;
++import java.awt.event.MouseMotionListener;
+ 
+ import javax.swing.JComponent;
+ 
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ 
+-public class VPathwaySwing extends JComponent implements VPathwayWrapper, MouseListener {
++public class VPathwaySwing extends JComponent implements VPathwayWrapper, MouseMotionListener, MouseListener, KeyListener {
+ 	VPathway child;
+ 	
+ 	public VPathwaySwing() {
+-		
++		addMouseListener(this);
++		addMouseMotionListener(this);
++		addKeyListener(this);
+ 	}
+ 	
+ 	public void setChild(VPathway c) {
+@@ -52,27 +57,43 @@
+ 	}
+ 
+ 	public void mouseClicked(MouseEvent arg0) {
+-		
++		//TODO: find out how to handle this one
+ 	}
+ 
+ 	public void mouseEntered(MouseEvent e) {
+-		// TODO Auto-generated method stub
+-		
++		child.mouseEnter(new SwingMouseEvent(e));		
+ 	}
+ 
+ 	public void mouseExited(MouseEvent e) {
+-		// TODO Auto-generated method stub
++		child.mouseExit(new SwingMouseEvent(e));
+ 		
+ 	}
+ 
+ 	public void mousePressed(MouseEvent e) {
+-		// TODO Auto-generated method stub
+-		
++		child.mouseDown(new SwingMouseEvent(e));
+ 	}
+ 
+ 	public void mouseReleased(MouseEvent e) {
+-		// TODO Auto-generated method stub
+-		
++		child.mouseUp(new SwingMouseEvent(e));
+ 	}
+ 
++	public void keyPressed(KeyEvent e) {
++		child.keyPressed(new SwingKeyEvent(e));
++	}
++
++	public void keyReleased(KeyEvent e) {
++		child.keyReleased(new SwingKeyEvent(e));		
++	}
++
++	public void keyTyped(KeyEvent e) {
++		// TODO: find out how to handle this one	
++	}
++
++	public void mouseDragged(MouseEvent e) {
++		// TODO: find out how to handle this one, as mouseMove?
++	}
++
++	public void mouseMoved(MouseEvent e) {
++		child.mouseMove(new SwingMouseEvent(e));
++	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/model/Color.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/Color.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/model/Color.java	(revision 925)
+@@ -1,31 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.model;
+-
+-public class Color 
+-{
+-	public int red, green, blue;
+-	public Color(int r, int g, int b) 
+-	{
+-		red = r;
+-		green = g;
+-		blue = b;
+-	}
+-	public java.awt.Color toAwt() {
+-		return new java.awt.Color(red, green, blue);
+-	}
+-}
+Index: branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.model;
+ 
++import java.awt.Color;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collections;
+@@ -964,9 +965,9 @@
+ 	 */
+ 	public static String color2HexBin(Color color)
+ 	{
+-		String red = padding(Integer.toBinaryString(color.red), 8, '0');
+-		String green = padding(Integer.toBinaryString(color.green), 8, '0');
+-		String blue = padding(Integer.toBinaryString(color.blue), 8, '0');
++		String red = padding(Integer.toBinaryString(color.getRed()), 8, '0');
++		String green = padding(Integer.toBinaryString(color.getGreen()), 8, '0');
++		String blue = padding(Integer.toBinaryString(color.getBlue()), 8, '0');
+ 		String hexBinary = Integer.toHexString(Integer.valueOf(red + green + blue, 2));
+ 		return padding(hexBinary, 6, '0');
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/model/SvgFormat.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/SvgFormat.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/model/SvgFormat.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.model;
+ 
++import java.awt.Color;
+ import java.io.File;
+ import java.io.FileWriter;
+ import java.io.IOException;
+@@ -256,7 +257,7 @@
+ 	}
+ 	
+ 	static String rgb2String(Color rgb) {
+-		return "rgb(" + rgb.red + "," + rgb.green + "," + rgb.blue + ")";
++		return "rgb(" + rgb.getRed() + "," + rgb.getGreen() + "," + rgb.getBlue() + ")";
+ 	}
+ 	
+ 	static int toPixel(double coordinate) {
+Index: branches/g2d-branch/src/core/org/pathvisio/model/ConvertType.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/ConvertType.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/model/ConvertType.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.model;
+ 
++import java.awt.Color;
+ import java.math.BigDecimal;
+ 
+ public class ConvertType
+@@ -102,7 +103,7 @@
+     		return "-1";
+     	else
+     	{
+-	    	int c = ((int)rgb.red) + ((int)rgb.green << 8) + ((int)rgb.blue << 16);
++	    	int c = (rgb.getRed()) + (rgb.getGreen() << 8) + (rgb.getBlue() << 16);
+ 	    	return "" + c;
+     	}
+     }
+Index: branches/g2d-branch/src/core/org/pathvisio/model/PathwayElement.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/PathwayElement.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/model/PathwayElement.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.model;
+ 
++import java.awt.Color;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.HashSet;
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/GlobalPreference.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/GlobalPreference.java	(revision 925)
+@@ -29,6 +29,10 @@
+ 		return defaultValue;
+ 	}
+ 	
++	public void setDefault(String defValue) {
++		defaultValue = defValue;
++	}
++	
+ 	public void setValue(String newValue) {
+ 		value = newValue;
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 925)
+@@ -153,6 +153,10 @@
+ 			return defaultValue;
+ 		}
+ 		
++		public void setDefault(String defValue) {
++			defaultValue = defValue;
++		}
++		
+ 		public void setValue(String newValue) {
+ 			value = newValue;
+ 		}
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/Preference.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/Preference.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/Preference.java	(revision 925)
+@@ -4,6 +4,8 @@
+ public interface Preference {
+ 	public String name();
+ 	
++	public void setDefault(String defValue);
++	
+ 	public String getDefault();
+ 	
+ 	public void setValue(String newValue);
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetObject.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetObject.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetObject.java	(revision 925)
+@@ -20,13 +20,13 @@
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.events.ModifyEvent;
+ import org.eclipse.swt.events.ModifyListener;
+-import org.eclipse.swt.graphics.RGB;
+ import org.eclipse.swt.layout.GridData;
+ import org.eclipse.swt.layout.GridLayout;
+ import org.eclipse.swt.widgets.Composite;
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Text;
+ import org.jdom.Element;
++import java.awt.Color;
+ 
+ import org.pathvisio.visualization.VisualizationManager;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+@@ -86,7 +86,7 @@
+ 	 * null if the input data doesn't result in a valid color
+ 	 * @throws Exception 
+ 	 */
+-	abstract RGB getColor(HashMap<Integer, Object> data, int idSample) throws Exception;
++	abstract Color getColor(HashMap<Integer, Object> data, int idSample) throws Exception;
+ 	
+ 	/**
+ 	 * Returns the parent colorset
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSet.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSet.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSet.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.visualization.colorset;
+ 
++import java.awt.Color;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.Iterator;
+@@ -24,9 +25,8 @@
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.swt.graphics.RGB;
+ import org.jdom.Element;
+-
+ import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.preferences.swt.SwtPreferences;
++import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.visualization.VisualizationManager;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+@@ -40,9 +40,9 @@
+ 	public static final int ID_COLOR_NO_GENE_FOUND = 2;
+ 	public static final int ID_COLOR_NO_DATA_FOUND = 3;
+ 	
+-	RGB color_no_criteria_met = SwtPreferences.getColorProperty(SwtPreferences.PREF_COL_NO_CRIT_MET);
+-	RGB color_no_gene_found = SwtPreferences.getColorProperty(SwtPreferences.PREF_COL_NO_GENE_FOUND);
+-	RGB color_no_data_found = SwtPreferences.getColorProperty(SwtPreferences.PREF_COL_NO_DATA_FOUND);
++	Color color_no_criteria_met = GlobalPreference.getValueColor(GlobalPreference.COLOR_NO_CRIT_MET);
++	Color color_no_gene_found = GlobalPreference.getValueColor(GlobalPreference.COLOR_NO_GENE_FOUND);
++	Color color_no_data_found = GlobalPreference.getValueColor(GlobalPreference.COLOR_NO_DATA_FOUND);
+ 		
+ 	String name;
+ 	
+@@ -65,7 +65,7 @@
+ 		fireModifiedEvent();
+ 	}
+ 	
+-	public void setColor(int id, RGB rgb) {
++	public void setColor(int id, Color rgb) {
+ 		switch(id) {
+ 		case ID_COLOR_NO_CRITERIA_MET:
+ 			color_no_criteria_met = rgb;
+@@ -80,7 +80,7 @@
+ 		fireModifiedEvent();
+ 	}
+ 	
+-	public RGB getColor(int id) {
++	public Color getColor(int id) {
+ 		switch(id) {
+ 		case ID_COLOR_NO_CRITERIA_MET:
+ 			return color_no_criteria_met;
+@@ -143,20 +143,20 @@
+ 	 * @param sampleId	the id of the sample that will be visualized
+ 	 * @return	an {@link RGB} object representing the color for the given data
+ 	 */
+-	public RGB getColor(HashMap<Integer, Object> data, int sampleId)
++	public Color getColor(HashMap<Integer, Object> data, int sampleId)
+ 	{
+ 		if(data == null) return color_no_data_found;
+ 		Object value = data.get(sampleId);
+ 		if(value == null || value.equals(Double.NaN)) return color_no_data_found;
+ 		
+-		RGB rgb = color_no_criteria_met; //The color to return
++		Color rgb = color_no_criteria_met; //The color to return
+ 		Iterator it = colorSetObjects.iterator();
+ 		//Evaluate all colorset objects, return when a valid color is found
+ 		while(it.hasNext())
+ 		{
+ 			ColorSetObject gc = (ColorSetObject)it.next();
+ 			try{ 
+-				RGB gcRgb = gc.getColor(data, sampleId);
++				Color gcRgb = gc.getColor(data, sampleId);
+ 				if(gcRgb != null) {
+ 					return gcRgb;
+ 				}
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorGradient.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorGradient.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorGradient.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.visualization.colorset;
+ 
++import java.awt.Color;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.HashMap;
+@@ -45,9 +46,9 @@
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+ import org.jdom.Element;
+-
+ import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.util.ColorConverter;
++import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.util.TableColumnResizer;
+ 
+ /**
+@@ -81,9 +82,9 @@
+ 	{ 
+ 		if(colorValuePairs == null) {//Not initialized yet, use defaults
+ 			colorValuePairs = new ArrayList<ColorValuePair>();
+-			colorValuePairs.add(new ColorValuePair(new RGB(0,255,0), -1));
+-			colorValuePairs.add(new ColorValuePair(new RGB(255,255,0), 0));
+-			colorValuePairs.add(new ColorValuePair(new RGB(255,0,0), 1));
++			colorValuePairs.add(new ColorValuePair(new Color(0,255,0), -1));
++			colorValuePairs.add(new ColorValuePair(new Color(255,255,0), 0));
++			colorValuePairs.add(new ColorValuePair(new Color(255,0,0), 1));
+ 		}
+ 		return colorValuePairs;
+ 	}
+@@ -114,13 +115,13 @@
+ 	 * @return	{@link RGB} containing the color information for the corresponding value
+ 	 * or null if the value does not have a valid color for this gradient
+ 	 */
+-	public RGB getColor(double value)
++	public Color getColor(double value)
+ 	{
+ 		double[] minmax = getMinMax(); //Get the minimum and maximum values of the gradient
+ 		double valueStart = 0;
+ 		double valueEnd = 0;
+-		RGB colorStart = null;
+-		RGB colorEnd = null;
++		Color colorStart = null;
++		Color colorEnd = null;
+ 		Collections.sort(colorValuePairs);
+ 		//If value is larger/smaller than max/min then set the value to max/min
+ 		//TODO: make this optional
+@@ -142,15 +143,15 @@
+ 		if(colorStart == null || colorEnd == null) return null; //Check if the values/colors are found
+ 		// Interpolate to find the color belonging to the given value
+ 		double alpha = (value - valueStart) / (valueEnd - valueStart);
+-		double red = colorStart.red + alpha*(colorEnd.red - colorStart.red);
+-		double green = colorStart.green + alpha*(colorEnd.green - colorStart.green);
+-		double blue = colorStart.blue + alpha*(colorEnd.blue - colorStart.blue);
+-		RGB rgb = null;
++		double red = colorStart.getRed() + alpha*(colorEnd.getRed() - colorStart.getRed());
++		double green = colorStart.getGreen() + alpha*(colorEnd.getGreen() - colorStart.getGreen());
++		double blue = colorStart.getBlue() + alpha*(colorEnd.getBlue() - colorStart.getBlue());
++		Color rgb = null;
+ 		
+ 		//Try to create an RGB, if the color values are not valid (outside 0 to 255)
+ 		//This method returns null
+ 		try {
+-			rgb = new RGB((int)red, (int)green, (int)blue);
++			rgb = new Color((int)red, (int)green, (int)blue);
+ 		} catch (Exception e) { 
+ 			Engine.log.error("GmmlColorGradient:getColor: " + 
+ 					red + "," + green + "," +blue + ", for value " + value, e);
+@@ -158,7 +159,7 @@
+ 		return rgb;
+ 	}
+ 	
+-	public RGB getColor(HashMap<Integer, Object> data, int idSample) throws NumberFormatException
++	public Color getColor(HashMap<Integer, Object> data, int idSample) throws NumberFormatException
+ 	{
+ 		double value = (Double)data.get(idSample);
+ 		return getColor(value);
+@@ -204,10 +205,10 @@
+ 		static final String XML_ELEMENT = "color-value";
+ 		static final String XML_ATTR_VALUE = "value";
+ 		static final String XML_ELM_COLOR = "color";
+-		private RGB color;
++		private Color color;
+ 		private double value;
+ 		
+-		public ColorValuePair(RGB color, double value)
++		public ColorValuePair(Color color, double value)
+ 		{
+ 			this.color = color;
+ 			this.value = value;
+@@ -219,8 +220,8 @@
+ 			value = Double.parseDouble(xml.getAttributeValue(XML_ATTR_VALUE));
+ 		}
+ 		
+-		public RGB getColor() { return color; }
+-		public void setColor(RGB rgb) {
++		public Color getColor() { return color; }
++		public void setColor(Color rgb) {
+ 			color = rgb;
+ 			fireModifiedEvent();
+ 		}
+@@ -262,7 +263,7 @@
+ 		}
+ 				
+ 		void addColor() {
+-			getInput().addColorValuePair(getInput().new ColorValuePair(new RGB(255, 0, 0), 0));
++			getInput().addColorValuePair(getInput().new ColorValuePair(Color.RED, 0));
+     		colorTable.refresh();
+ 		}
+ 		
+@@ -358,7 +359,7 @@
+ 				
+ 				public Image getColumnImage(Object element, int columnIndex) { 
+ 					if(columnIndex == 0) {
+-						RGB rgb = ((ColorValuePair)element).color;
++						RGB rgb = SwtUtils.color2rgb(((ColorValuePair)element).color);
+ 						colorImage = new Image(null, ColorSetComposite.createColorImage(rgb));
+ 						return colorImage;
+ 					}
+@@ -401,7 +402,7 @@
+ 					}
+ 					ColorValuePair cvp = (ColorValuePair)element;
+ 					if(property.equals(tableColumns[0])) {
+-						cvp.setColor((RGB)value);
++						cvp.setColor(SwtUtils.rgb2color((RGB)value));
+ 					} else {
+ 						cvp.setValue(Double.parseDouble((String)value));
+ 					}
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorCriterion.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorCriterion.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorCriterion.java	(revision 925)
+@@ -20,7 +20,7 @@
+ 
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.custom.CLabel;
+-import org.eclipse.swt.graphics.Color;
++import java.awt.Color;
+ import org.eclipse.swt.graphics.RGB;
+ import org.eclipse.swt.layout.GridData;
+ import org.eclipse.swt.layout.GridLayout;
+@@ -32,7 +32,6 @@
+ import org.eclipse.swt.widgets.Listener;
+ import org.eclipse.swt.widgets.Text;
+ import org.jdom.Element;
+-
+ import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+@@ -42,14 +41,14 @@
+ 	
+ 	Criterion criterion;
+ 	
+-	public static final RGB INITIAL_COLOR = new RGB(255, 255, 255);
+-	private RGB color;
+-	public void setColor(RGB color) { 
++	public static final Color INITIAL_COLOR = Color.WHITE;
++	private Color color;
++	public void setColor(Color color) { 
+ 		this.color = color;
+ 		fireModifiedEvent();
+ 	}
+ 	
+-	public RGB getColor() { return color == null ? INITIAL_COLOR : color; }
++	public Color getColor() { return color == null ? INITIAL_COLOR : color; }
+ 	
+ 	public Criterion getCriterion() { return criterion; }
+ 	
+@@ -62,7 +61,7 @@
+ 		super(parent, xml);
+ 	}
+ 	
+-	RGB getColor(HashMap<Integer, Object> data, int idSample) throws Exception {
++	Color getColor(HashMap<Integer, Object> data, int idSample) throws Exception {
+ 		if(criterion.evaluate(data, idSample)) return color;
+ 		return null;
+ 	}
+@@ -100,7 +99,7 @@
+ 		CriterionComposite critComp;
+ 		Text exprText;
+ 		CLabel colorLabel;
+-		Color color;
++		org.eclipse.swt.graphics.Color color;
+ 		
+ 		public ColorCriterionComposite(Composite parent, int style) {
+ 			super(parent, style);
+@@ -109,7 +108,7 @@
+ 		void refresh() {
+ 			super.refresh();
+ 			critComp.refresh();
+-			changeColorLabel(getInput() == null ? null : getInput().getColor());
++			changeColorLabel(getInput() == null ? null : SwtUtils.color2rgb(getInput().getColor()));
+ 		}
+ 		
+ 		ColorCriterion getInput() {
+@@ -134,14 +133,14 @@
+ 		
+ 		RGB askColor() {
+ 			ColorDialog dg = new ColorDialog(getShell());
+-			dg.setRGB(getInput().getColor());
++			dg.setRGB(SwtUtils.color2rgb(getInput().getColor()));
+ 			return dg.open();
+ 		}
+ 		
+ 		void changeColor(RGB rgb) {
+ 			if(rgb != null) {
+ 				ColorCriterion c = getInput();
+-				if(c != null) c.setColor(rgb);
++				if(c != null) c.setColor(SwtUtils.rgb2color(rgb));
+ 				changeColorLabel(rgb);
+ 			}
+ 		}
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetComposite.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetComposite.java	(revision 925)
+@@ -124,9 +124,9 @@
+ 	}
+ 	
+ 	void initColorLabels() {
+-		changeColorLabel(labelColorNCM, colorSet.getColor(ColorSet.ID_COLOR_NO_CRITERIA_MET));
+-		changeColorLabel(labelColorNGF, colorSet.getColor(ColorSet.ID_COLOR_NO_GENE_FOUND));
+-		changeColorLabel(labelColorNDF, colorSet.getColor(ColorSet.ID_COLOR_NO_DATA_FOUND));
++		changeColorLabel(labelColorNCM, SwtUtils.color2rgb(colorSet.getColor(ColorSet.ID_COLOR_NO_CRITERIA_MET)));
++		changeColorLabel(labelColorNGF, SwtUtils.color2rgb(colorSet.getColor(ColorSet.ID_COLOR_NO_GENE_FOUND)));
++		changeColorLabel(labelColorNDF, SwtUtils.color2rgb(colorSet.getColor(ColorSet.ID_COLOR_NO_DATA_FOUND)));
+ 	}
+ 		
+ 	public void refreshCombo() {
+@@ -197,7 +197,7 @@
+ 				if(element instanceof ColorCriterion) {
+ 					disposeImage(img);
+ 					img = new Image(null, createColorImage(
+-							((ColorCriterion)element).getColor()));
++							SwtUtils.color2rgb(((ColorCriterion)element).getColor())));
+ 					images.put(element, img);
+ 					return img;
+ 				}
+@@ -289,7 +289,7 @@
+ 
+ 		if(id >= 0) {
+ 			if(rgb != null) {
+-				colorSet.setColor(id, rgb);
++				colorSet.setColor(id, SwtUtils.rgb2color(rgb));
+ 				changeColorLabel(label, rgb);
+ 			}
+ 		}
+@@ -574,7 +574,7 @@
+ 		double[] minmax = cg.getMinMax();
+ 		for(int i = 0; i < 16; i++)
+ 		{
+-			RGB rgb = cg.getColor(minmax[0] + (i * (minmax[1]- minmax[0])) / 16 );
++			RGB rgb = SwtUtils.color2rgb(cg.getColor(minmax[0] + (i * (minmax[1]- minmax[0])) / 16 ));
+ 			if(rgb == null)
+ 				rgb = new RGB(255,255,255);
+ 			for(int j = 0; j < 16; j++)
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/LegendPanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/LegendPanel.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/LegendPanel.java	(revision 925)
+@@ -434,9 +434,9 @@
+ 			//Draw label for special criteria ('no gene found', 'no criteria met')
+ 			String[] specialLabels = {"No criteria met", "Gene not found", "No data found"};
+ 			RGB[] specialColors = {
+-					colorSet.getColor(ColorSet.ID_COLOR_NO_CRITERIA_MET), 
+-					colorSet.getColor(ColorSet.ID_COLOR_NO_GENE_FOUND),
+-					colorSet.getColor(ColorSet.ID_COLOR_NO_DATA_FOUND) };
++					SwtUtils.color2rgb(colorSet.getColor(ColorSet.ID_COLOR_NO_CRITERIA_MET)), 
++					SwtUtils.color2rgb(colorSet.getColor(ColorSet.ID_COLOR_NO_GENE_FOUND)),
++					SwtUtils.color2rgb(colorSet.getColor(ColorSet.ID_COLOR_NO_DATA_FOUND)) };
+ 
+ 			for(int i = 0; i < specialColors.length; i++)
+ 			{
+@@ -579,7 +579,7 @@
+ 			// Fill squares with color cg.getColor()
+ 			for(int i = start; i < end; i++) {
+ 				double colorValue = min + (i-start) * (max - min) / n;
+-				RGB rgb = cg.getColor(colorValue);
++				RGB rgb = SwtUtils.color2rgb(cg.getColor(colorValue));
+ 				if(rgb != null) {
+ 					c = SwtUtils.changeColor(c, rgb, e.display);
+ 					e.gc.setBackground(c);
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.gui.swt;
+ 
++import java.awt.Color;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collections;
+@@ -43,7 +44,6 @@
+ import org.eclipse.swt.widgets.TableItem;
+ import org.pathvisio.biopax.gui.BiopaxCellEditor;
+ import org.pathvisio.data.DataSources;
+-import org.pathvisio.model.Color;
+ import org.pathvisio.model.DataNodeType;
+ import org.pathvisio.model.LineType;
+ import org.pathvisio.model.MappFormat;
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java	(revision 925)
+@@ -87,6 +87,7 @@
+ 	public static void initiate() {
+ 		//initiate logger
+ 		try { 
++			GlobalPreference.FILE_LOG.setDefault(new File(Engine.getApplicationDir(), ".PathVisioLog").toString());
+ 			Engine.log.setStream(new PrintStream(GlobalPreference.FILE_LOG.getValue())); 
+ 		} catch(Exception e) {}
+ 		Engine.log.setLogLevel(true, true, true, true, true, true);//Modify this to adjust log level
+Index: branches/g2d-branch/src/core/org/pathvisio/data/GexImportWizard.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/GexImportWizard.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/data/GexImportWizard.java	(revision 925)
+@@ -50,7 +50,7 @@
+ import org.eclipse.swt.widgets.Text;
+ import org.pathvisio.Globals;
+ import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.preferences.swt.SwtPreferences;
++import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.TableColumnResizer;
+ 
+ /**
+@@ -160,7 +160,7 @@
+ 							"*.*" });
+ 					fileDialog.setFilterNames(new String[] { "Text file",
+ 							"All files" });
+-					fileDialog.setFilterPath(Engine.getPreferences().getString(SwtPreferences.PREF_DIR_EXPR));
++					fileDialog.setFilterPath(SwtPreference.SWT_DIR_EXPR.getValue());
+ 					String file = fileDialog.open();
+ 					if (file != null) {
+ 						txtText.setText(file);
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Shape.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Shape.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Shape.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.Color;
+ import java.awt.Graphics2D;
+ 
+ import org.pathvisio.model.PathwayElement;
+@@ -47,97 +48,55 @@
+ 		}
+ 	}
+ 	
+-	public void draw(Graphics2D g2d)
+-	{	
+-//		Color c = null;
+-//		Color b = null;
+-//		if (isSelected())
+-//		{
+-//			c = SwtUtils.changeColor(c, selectColor, e.display);
+-//		}
+-//		else if (isHighlighted())
+-//		{
+-//			RGB rgb = Preferences.getColorProperty(Preferences.PREF_COL_HIGHLIGHTED);
+-//			c = SwtUtils.changeColor(c, rgb, e.display);
+-//		}
+-//		else 
+-//		{
+-//			c = SwtUtils.changeColor(c, gdata.getColor(), e.display);
+-//		}
+-//		buffer.setForeground (c);
+-//		buffer.setLineStyle (SWT.LINE_SOLID);
+-//		b = SwtUtils.changeColor(c, gdata.getFillColor(), e.display);
+-//		buffer.setBackground (b);
+-//		
+-//		Transform tr = new Transform(e.display);
+-//		rotateGC(buffer, tr);
+-//		
+-//		int vStartX = getVLeft();
+-//		int vStartY = getVTop();
+-//		int vWidth = getVWidth();
+-//		int vHeight = getVHeight();
+-//		
+-//		switch (gdata.getShapeType())
+-//		{
+-//			case RECTANGLE: 
+-//				buffer.setLineWidth (1);
+-//				if (!gdata.isTransparent())
+-//					buffer.fillRectangle (
+-//						vStartX,	vStartY,	vWidth, vHeight);
+-//				buffer.drawRectangle (
+-//					vStartX,	vStartY,	vWidth, vHeight);				
+-//				break;
+-//			case OVAL:				
+-//				buffer.setLineWidth (1);
+-//				if (!gdata.isTransparent())
+-//					buffer.fillOval (
+-//						vStartX, vStartY,	vWidth, vHeight);
+-//				buffer.drawOval (
+-//					vStartX, vStartY,	vWidth, vHeight);
+-//				break;
+-//			case ARC:
+-//				buffer.setLineWidth (1);
+-//				/**
+-//				 * Arcs are different from Oval and Rect, in that
+-//				 * they are not filled in GenMAPP, and that the
+-//				 * color column is used for the line color.
+-//				 * Likewise, we don't fill them in PathVisio.
+-//				 */
+-////				if (!gdata.isTransparent())
+-////					buffer.fillArc(
+-////							startX, startY,	width, height, 0, 180);					
+-//				buffer.drawArc(
+-//						vStartX, vStartY,	vWidth, vHeight, 0, -180);
+-//				break;
+-//			case BRACE:
+-//				buffer.setLineWidth (2);
+-//								
+-//				int cx = getVCenterX();
+-//				int cy = getVCenterY();
+-//				int w = getVWidth();
+-//				int d = getVHeight();
+-//				
+-//				buffer.drawLine (cx + d/2, cy, cx + w/2 - d/2, cy); //line on the right
+-//				buffer.drawLine (cx - d/2, cy, cx - w/2 + d/2, cy); //line on the left
+-//				buffer.drawArc (cx - w/2, cy, d, d, -180, -90); //arc on the left
+-//				buffer.drawArc (cx - d, cy - d,	d, d, -90, 90); //left arc in the middle
+-//				buffer.drawArc (cx, cy - d, d, d, -90, -90); //right arc in the middle
+-//				buffer.drawArc (cx + w/2 - d, cy, d, d, 0, 90); //arc on the right
+-//				break;
+-//		}
+-//
+-//		buffer.setTransform(null);
+-//		
+-//		c.dispose();
+-//		b.dispose();
+-//		tr.dispose();
++	public void doDraw(Graphics2D g)
++	{					
++		Color fillcolor = gdata.getFillColor();
++		Color linecolor = gdata.getColor();
++		if(isSelected()) {
++			linecolor = selectColor;
++		} else if (isHighlighted()) {
++			linecolor = highlightColor;
++		}
+ 		
+-		int vStartX = getVLeft();
+-		int vStartY = getVTop();
+-		int vWidth = getVWidth();
+-		int vHeight = getVHeight();
+-		g2d.rotate(gdata.getRotation(), getVCenterX(), getVCenterY());
+-		g2d.drawRect(vStartX,	vStartY,	vWidth, vHeight);
+-		g2d.rotate(-gdata.getRotation(), getVCenterX(), getVCenterY());
++		int x = getVLeft();
++		int y = getVTop();
++		int w = getVWidth();
++		int h = getVHeight();
++		int cx = getVCenterX();
++		int cy = getVCenterY();
++						
++		g.rotate(gdata.getRotation(), cx, cy);
++		
++		switch(gdata.getShapeType()) {
++		case OVAL:
++			g.setColor(linecolor);
++			g.drawOval(x, y, w, h);
++			if(!gdata.isTransparent()) {
++				g.setColor(fillcolor);
++				g.fillOval(x, y, w, h);
++			}
++			break;
++		case ARC:
++			g.setColor(linecolor);
++			g.drawArc(x, y, w, h, 0, -180);
++			break;
++		case BRACE:
++			g.setColor(linecolor);
++			g.drawLine (cx + h/2, cy, cx + w/2 - h/2, cy); //line on the right
++			g.drawLine (cx - h/2, cy, cx - w/2 + h/2, cy); //line on the left
++			g.drawArc (cx - w/2, cy, h, h, -180, -90); //arc on the left
++			g.drawArc (cx - h, cy - h,	h, h, -90, 90); //left arc in the middle
++			g.drawArc (cx, cy - h, h, h, -90, -90); //right arc in the middle
++			g.drawArc (cx + w/2 - h, cy, h, h, 0, 90); //arc on the right
++			break;
++		default:
++			g.setColor(linecolor);
++			g.drawRect(x, y, w, h);
++			if(!gdata.isTransparent()) {
++				g.setColor(fillcolor);
++				g.fillRect(x, y, w, h);
++			}
++			break;
++		}
+ 	}	
+ }
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Graphics.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Graphics.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Graphics.java	(revision 925)
+@@ -17,6 +17,7 @@
+ package org.pathvisio.view;
+ 
+ import java.awt.Color;
++import java.awt.Font;
+ 
+ import org.eclipse.swt.graphics.Region;
+ import org.pathvisio.model.Pathway;
+@@ -24,7 +25,6 @@
+ import org.pathvisio.model.PathwayEvent;
+ import org.pathvisio.model.PathwayListener;
+ import org.pathvisio.preferences.GlobalPreference;
+-import org.pathvisio.preferences.swt.SwtPreferences;
+ 
+ 
+ /**
+@@ -122,6 +122,23 @@
+ 	public double getVTopDouble() { return vFromM(gdata.getMTop()); }
+ 	public double getVHeightDouble() { return vFromM(gdata.getMHeight()); }
+ 	
++	/**
++	 * Returns the fontstyle to create a java.awt.Font
++	 * @return the fontstyle, or Font.PLAIN if no font is available
++	 */
++	public int getVFontStyle() {
++		int style = Font.PLAIN;
++		if(gdata.getFontName() != null) {
++			if(gdata.isBold()) {
++				style &= Font.BOLD;
++			}
++			if(gdata.isItalic()) {
++				style &= Font.ITALIC;
++			}//TODO: underline / strikethrough
++		}
++		return style;
++	}
++	
+ 	protected void destroy() {
+ 		super.destroy();
+ 		gdata.removeListener(canvas);
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 925)
+@@ -16,9 +16,11 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Point;
+ import java.awt.Rectangle;
++import java.awt.RenderingHints;
+ import java.awt.geom.Point2D;
+ import java.util.ArrayList;
+ import java.util.Collections;
+@@ -29,7 +31,6 @@
+ import java.util.Set;
+ 
+ import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.model.Color;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -495,6 +496,10 @@
+ 		if(area == null) {
+ 			area = g2d.getClipBounds();
+ 		}
++		
++		g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
++		g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
++		
+ 		g2d.setColor(java.awt.Color.WHITE);
+ 		g2d.fillRect(area.x, area.y, area.width, area.height);
+ 		g2d.setColor(java.awt.Color.BLACK);
+@@ -806,8 +811,8 @@
+ 			gdata.setMHeight(Label.M_INITIAL_HEIGHT);
+ 			gdata.setMFontSize (Label.M_INITIAL_FONTSIZE);
+ 			gdata.setGraphId(data.getUniqueId());
++			gdata.setTextLabel("Label");
+ 			data.add (gdata); // will cause lastAdded to be set
+-			//((Label)lastAdded).createTextControl();
+ 			h = null;
+ 			break;
+ 		case NEWARC:
+Index: branches/g2d-branch/src/core/org/pathvisio/view/InfoBox.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/InfoBox.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/InfoBox.java	(revision 925)
+@@ -16,13 +16,19 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.Font;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
++import java.awt.font.FontRenderContext;
++import java.awt.font.TextLayout;
++import java.awt.geom.Rectangle2D;
+ 
+ import org.pathvisio.model.PathwayElement;
+ 
+ public class InfoBox extends Graphics {
++	static final int V_SPACING = 5;
++	static final int H_SPACING = 10;
+ 	
+ 	//Elements not stored in gpml
+ 	String fontName			= "Times New Roman";
+@@ -56,50 +62,44 @@
+ //		markDirty();
+ 	}
+ 	
+-	public void draw(Graphics2D g2d) 
++	public void doDraw(Graphics2D g) 
+ 	{		
+-//		sizeX = 1; //Reset sizeX
+-//		
+-//		Font fBold = new Font(e.display, fontName, getVFontSize(), SWT.BOLD);
+-//		Font fNormal = new Font(e.display, fontName, getVFontSize(), SWT.NONE);
+-//		
+-//		if (isSelected())
+-//		{
+-//			buffer.setForeground(e.display.getSystemColor(SWT.COLOR_RED));
+-//		}
+-//		else 
+-//		{
+-//			buffer.setForeground(e.display.getSystemColor(SWT.COLOR_BLACK));
+-//		}
+-//				
+-//		//Draw Name, Organism, Data-Source, Version, Author, Maintained-by, Email, Availability and last modified
+-//		String[][] text = new String[][] {
+-//				{"Name: ", gdata.getMapInfoName()},
+-//				{"Maintained by: ", gdata.getMaintainer()},
+-//				{"Email: ", gdata.getEmail()},
+-//				{"Availability: ", gdata.getCopyright()},
+-//				{"Last modified: ", gdata.getLastModified()},
+-//				{"Organism: ", gdata.getOrganism()},
+-//				{"Data Source: ", gdata.getDataSource()}};
+-//		int shift = 0;
+-//		int vLeft = (int)vFromM(gdata.getMLeft());
+-//		int vTop = (int)vFromM(gdata.getMTop());
+-//		for(String[] s : text)
+-//		{
+-//			if(s[1] == null || s[1].equals("")) continue; //Skip empty labels
+-//			buffer.setFont(fBold);
+-//			Point labelSize = buffer.textExtent(s[0], SWT.DRAW_TRANSPARENT);
+-//			buffer.drawString(s[0], vLeft, vTop + shift, true);
+-//			buffer.setFont(fNormal);
+-//			Point infoSize = buffer.textExtent(s[1], SWT.DRAW_TRANSPARENT);
+-//			buffer.drawString(s[1], vLeft + labelSize.x, vTop + shift, true);
+-//			shift += Math.max(infoSize.y, labelSize.y);
+-//			sizeX = Math.max(sizeX, infoSize.x + labelSize.x);
+-//		}
+-//		sizeY = shift;
+-//		
+-//		fBold.dispose();
+-//		fNormal.dispose();
++		Font f = new Font(fontName, Font.PLAIN, getVFontSize());
++		Font fb = new Font(f.getFontName(), Font.BOLD, f.getSize());
++		
++		if(isSelected()) {
++			g.setColor(selectColor);
++		}
++		
++		//Draw Name, Organism, Data-Source, Version, Author, Maintained-by, Email, Availability and last modified
++		String[][] text = new String[][] {
++				{"Name: ", gdata.getMapInfoName()},
++				{"Maintained by: ", gdata.getMaintainer()},
++				{"Email: ", gdata.getEmail()},
++				{"Availability: ", gdata.getCopyright()},
++				{"Last modified: ", gdata.getLastModified()},
++				{"Organism: ", gdata.getOrganism()},
++				{"Data Source: ", gdata.getDataSource()}};
++		int shift = 0;
++		int vLeft = (int)vFromM(gdata.getMLeft());
++		int vTop = (int)vFromM(gdata.getMTop());
++		
++		FontRenderContext frc = g.getFontRenderContext();
++		for(String[] s : text) {
++			if(s[1] == null || s[1].equals("")) continue; //Skip empty labels
++			TextLayout tl0 = new TextLayout(s[0], fb, frc);
++			TextLayout tl1 = new TextLayout(s[1], f, frc);
++			Rectangle2D b0 = tl0.getBounds();
++			Rectangle2D b1 = tl1.getBounds();
++			shift += (int)Math.max(b0.getHeight(), b1.getHeight()) + V_SPACING;
++			g.setFont(fb);
++			tl0.draw(g, vLeft, vTop + shift);
++			g.setFont(f);
++			tl1.draw(g, vLeft + (int)b0.getWidth() + H_SPACING, vTop + shift);
++			
++			sizeX = Math.max(sizeX, (int)b0.getWidth() + (int)b1.getWidth() + H_SPACING);
++		}
++		sizeY = shift;
+ 	}
+ 
+ 	protected Shape getVOutline() {
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayElement.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayElement.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayElement.java	(revision 925)
+@@ -36,8 +36,21 @@
+ 	
+ 	private boolean isSelected;
+ 		
+-	protected abstract void draw(Graphics2D g2d);
++	protected final void draw(Graphics2D g2d) {
++		//Create a copy to ensure that the state of this Graphics2D will be intact
++		//see: http://java.sun.com/docs/books/tutorial/uiswing/painting/concepts2.html
+ 		
++		Graphics2D g = (Graphics2D)g2d.create();
++				
++		//Perform the drawing
++		doDraw(g);
++		
++		//Free resources from the copied Graphics2D
++		g.dispose();
++	}
++		
++	protected abstract void doDraw(Graphics2D g2d);
++	
+ 	/** 
+ 	 * mark both the area currently and previously occupied by this object for redraw 
+ 	 */
+@@ -179,9 +192,13 @@
+ 		return getVOutline().getBounds();
+ 	}
+ 	
++	/**
++	 * Get the outline of this element. The outline is used to check 
++	 * whether a point is contained in this element or not
++	 * @return the outline of this element
++	 */
+ 	abstract protected Shape getVOutline();
+ 
+-
+ 	/**
+ 	 * Scales the object to the given rectangle
+ 	 * @param r
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Label.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Label.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Label.java	(revision 925)
+@@ -16,7 +16,14 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.Dimension;
++import java.awt.Font;
+ import java.awt.Graphics2D;
++import java.awt.Polygon;
++import java.awt.Rectangle;
++import java.awt.Shape;
++import java.awt.font.TextLayout;
++import java.awt.geom.Rectangle2D;
+ 
+ import org.pathvisio.model.PathwayElement;
+ 
+@@ -113,18 +120,16 @@
+ //		textComposite.pack();
+ //	}
+ 	
+-//	Point mComputeTextSize() {
+-//		GC gc = new GC(canvas.getDisplay());
+-//		Font f = new Font(canvas.getDisplay(), 
+-//				gdata.getFontName(), 
+-//				(int)gdata.getMFontSize(), getFontStyle());
+-//		gc.setFont (f);
+-//		Point ts = gc.textExtent(gdata.getTextLabel());
+-//		f.dispose();
+-//		gc.dispose();
+-//		
+-//		return ts;
+-//	}
++	Dimension mComputeTextSize(Graphics2D g) {
++		Rectangle2D tb = null;
++		if(g != null) {
++			TextLayout tl = new TextLayout(gdata.getTextLabel(), g.getFont(), g.getFontRenderContext());
++			tb = tl.getBounds();
++		} else { //No graphics context, we can only guess...
++			tb = new Rectangle2D.Double(0, 0, getVWidthDouble(), getVHeightDouble()); 
++		}
++		return new Dimension((int)tb.getWidth(), (int)tb.getHeight());
++	}
+ 	
+ //	protected void disposeTextControl()
+ //	{
+@@ -138,59 +143,27 @@
+ 	{
+ 		return vFromM(gdata.getMFontSize());
+ 	}
+-
+-//	private int getFontStyle() {
+-//		int style = SWT.NONE;
+-//		
+-//		if (gdata.isBold())
+-//		{
+-//			style |= SWT.BOLD;
+-//		}
+-//		
+-//		if (gdata.isItalic())
+-//		{
+-//			style |= SWT.ITALIC;
+-//		}
+-//		return style;
+-//	}
+ 	
+-	public void draw(Graphics2D g2d)
+-	{
+-		g2d.drawString (gdata.getTextLabel(), 
+-		(int) getVCenterX(), 
+-		(int) getVCenterY());
++	Graphics2D g2d = null; //last Graphics2D for determining text size
++	public void doDraw(Graphics2D g)
++	{		
++		g2d = g;
+ 		
+-//		int style = getFontStyle();
+-//		
+-//		Font f = new Font(e.display, gdata.getFontName(), (int)getVFontSize(), style);
+-//		
+-//		buffer.setFont (f);
+-//		
+-//		Point textSize = buffer.textExtent (gdata.getTextLabel());
+-//		
+-//		Color c = null;
+-//		if (isSelected())
+-//		{
+-//			c = SwtUtils.changeColor(c, selectColor, e.display);
+-//		}
+-//		else if (isHighlighted())
+-//		{
+-//			RGB rgb = Preferences.getColorProperty(Preferences.PREF_COL_HIGHLIGHTED);
+-//			c = SwtUtils.changeColor(c, rgb, e.display);
+-//		}
+-//		else 
+-//		{
+-//			c = SwtUtils.changeColor(c, gdata.getColor(), e.display);
+-//		}
+-//		buffer.setForeground (c);
+-//		
+-//		buffer.drawString (gdata.getTextLabel(), 
+-//			(int) getVCenterX() - (textSize.x / 2) , 
+-//			(int) getVCenterY() - (textSize.y / 2), true);
+-//		
+-//		f.dispose();
+-//		c.dispose();
++		if(isSelected()) {
++			g.setColor(selectColor);
++		} else {
++			g.setColor(gdata.getColor());
++		}
++						
++		g.setFont(new Font(gdata.getFontName(), getVFontStyle(), (int)getVFontSize()));
+ 		
++		Rectangle area = getVOutline().getBounds();
++		
++		String label = gdata.getTextLabel();
++		TextLayout tl = new TextLayout(label, g.getFont(), g.getFontRenderContext());
++		Rectangle2D tb = tl.getBounds();
++		tl.draw(g, 	area.x + (int)(area.width / 2) - (int)(tb.getWidth() / 2), 
++					area.y + (int)(area.height / 2) + (int)(tb.getHeight() / 2));		
+ 	}
+ 		
+ //	public void gmmlObjectModified(PathwayEvent e) {
+@@ -200,37 +173,37 @@
+ //		}
+ //	}
+ 	
+-//	/**
+-//	 * Outline of a label is determined by
+-//	 * - position of the handles
+-//	 * - size of the text
+-//	 * Because the text can sometimes be larger than the handles
+-//	 */
+-//	protected Shape getVOutline()
+-//	{
+-//		int[] vx = new int[4];
+-//		int[] vy = new int[4];
+-//		
+-//		int[] p = getVHandleLocation(handleNE).asIntArray();
+-//		vx[0] = p[0]; vy[0] = p[1];
+-//		p = getVHandleLocation(handleSE).asIntArray();
+-//		vx[1] = p[0]; vy[1] = p[1];
+-//		p = getVHandleLocation(handleSW).asIntArray();
+-//		vx[2] = p[0]; vy[2] = p[1];
+-//		p = getVHandleLocation(handleNW).asIntArray();
+-//		vx[3] = p[0]; vy[3] = p[1];
+-//		
+-//		Polygon pol = new Polygon(vx, vy, 4);		
+-//		Rectangle bounds = pol.getBounds();
+-//		
+-//		Point mq = mComputeTextSize();
+-//		double vqx = vFromM(mq.x);
+-//		double vqy = vFromM(mq.y);
+-//		
+-//		LinAlg.Point c = getVCenter();
+-//		bounds.add(new Rectangle2D.Double(c.x - vqx / 2, c.y - vqy / 2, vqx, vqy)); 
+-//		
+-//		return bounds;
+-//	}
++	/**
++	 * Outline of a label is determined by
++	 * - position of the handles
++	 * - size of the text
++	 * Because the text can sometimes be larger than the handles
++	 */
++	protected Shape getVOutline()
++	{
++		int[] vx = new int[4];
++		int[] vy = new int[4];
++		
++		int[] p = getVHandleLocation(handleNE).asIntArray();
++		vx[0] = p[0]; vy[0] = p[1];
++		p = getVHandleLocation(handleSE).asIntArray();
++		vx[1] = p[0]; vy[1] = p[1];
++		p = getVHandleLocation(handleSW).asIntArray();
++		vx[2] = p[0]; vy[2] = p[1];
++		p = getVHandleLocation(handleNW).asIntArray();
++		vx[3] = p[0]; vy[3] = p[1];
++		
++		Polygon pol = new Polygon(vx, vy, 4);		
++		Rectangle bounds = pol.getBounds();
++		
++		Dimension mq = mComputeTextSize(g2d);
++		double vqx = vFromM(mq.getWidth());
++		double vqy = vFromM(mq.getHeight());
++		
++		LinAlg.Point c = getVCenter();
++		bounds.add(new Rectangle2D.Double(c.x - vqx / 2, c.y - vqy / 2, vqx, vqy)); 
++		
++		return bounds;
++	}
+ 	
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/view/GeneProduct.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/GeneProduct.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/GeneProduct.java	(revision 925)
+@@ -16,9 +16,13 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.BasicStroke;
+ import java.awt.Color;
++import java.awt.Font;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
++import java.awt.font.TextLayout;
++import java.awt.geom.Rectangle2D;
+ 
+ import org.pathvisio.data.DataSources;
+ import org.pathvisio.model.PathwayElement;
+@@ -30,10 +34,10 @@
+ public class GeneProduct extends GraphicsShape
+ {
+ 	private static final long serialVersionUID = 1L;
+-	//public static final RGB INITIAL_FILL_COLOR = new RGB(255, 255, 255);
++	public static final Color INITIAL_FILL_COLOR = Color.WHITE;
+ 	
+-	// note: not the same as color!
+-	//RGB fillColor = INITIAL_FILL_COLOR;
++	//note: not the same as color!
++	Color fillColor = INITIAL_FILL_COLOR;
+ 		
+ 	public GeneProduct (VPathway canvas, PathwayElement o) {
+ 		super(canvas, o);		
+@@ -67,55 +71,6 @@
+ 			systemCode = DataSources.sysName2Code.get(gdata.getDataSource());
+ 		return systemCode;
+ 	}
+-	
+-//	private Text t;
+-//	public void createTextControl()
+-//	{		
+-//		Color background = canvas.getShell().getDisplay()
+-//		.getSystemColor(SWT.COLOR_INFO_BACKGROUND);
+-//		
+-//		Composite textComposite = new Composite(canvas, SWT.NONE);
+-//		textComposite.setLayout(new GridLayout());
+-//		textComposite.setLocation(getCenterX(), getCenterY() - 10);
+-//		textComposite.setBackground(background);
+-//		
+-//		Label label = new Label(textComposite, SWT.CENTER);
+-//		label.setText("Specify gene name:");
+-//		label.setBackground(background);
+-//		t = new Text(textComposite, SWT.SINGLE | SWT.BORDER);
+-//				
+-//		t.addSelectionListener(new SelectionAdapter() {
+-//			public void widgetDefaultSelected(SelectionEvent e) {
+-//				disposeTextControl();
+-//			}
+-//		});
+-//				
+-//		t.setFocus();
+-//		
+-//		Button b = new Button(textComposite, SWT.PUSH);
+-//		b.setText("OK");
+-//		b.addSelectionListener(new SelectionAdapter() {
+-//			public void widgetSelected(SelectionEvent e) {
+-//				disposeTextControl();
+-//			}
+-//		});
+-//		
+-//		textComposite.pack();
+-//	}
+-	
+-//	protected void disposeTextControl()
+-//	{	
+-//		markDirty();
+-//		gdata.setGeneID (t.getText());
+-//		markDirty();
+-//		//TODO: implement listener. 
+-//		//canvas.updatePropertyTable(this);
+-//		Composite c = t.getParent();
+-//		c.setVisible(false);
+-//		c.dispose();
+-//		
+-//		canvas.redrawDirtyRect();
+-//	}
+ 			
+ 	/**
+ 	 * Calculate the font size adjusted to the canvas zoom factor.
+@@ -125,74 +80,44 @@
+ 		return (int)(vFromM (gdata.getMFontSize()));
+ 	}
+ 
+-	public void draw(Graphics2D g2d)
++	public void doDraw(Graphics2D g)
+ 	{
+-		Graphics2D g = (Graphics2D)g2d.create();
+-		if(isSelected()) g.setColor(Color.RED);
++		//Color
++		if(isSelected()) {
++			g.setColor(selectColor);
++		} else {
++			g.setColor(gdata.getColor());
++		}
++		
++		//Gene box
++		g.setStroke(new BasicStroke());
++		
+ 		Rectangle area = new Rectangle(
+ 				getVLeft(), getVTop(), getVWidth(), getVHeight());
+ 		
+ 		g.draw(area);
+ 		
+-//		Color c = null;
+-//		Color b = SwtUtils.changeColor(c, new RGB(255, 255, 255), e.display);
+-//		Font f = null;
+-//		
+-//		if(isSelected())
+-//		{
+-//			c = SwtUtils.changeColor(c, selectColor, e.display);
+-//		}
+-//		else 
+-//		{
+-//			c = SwtUtils.changeColor(c, gdata.getColor(), e.display);
+-//		}
+-//		
+-//		buffer.setForeground(c);
+-//		buffer.setBackground(b);
+-//		buffer.setLineStyle (SWT.LINE_SOLID);
+-//		buffer.setLineWidth (1);		
+-//		
+-//		Rectangle area = new Rectangle(
+-//				getVLeft(), getVTop(), getVWidth(), getVHeight());
+-//		
+-//		buffer.fillRectangle (area); // white background
+-//		buffer.drawRectangle (area);
+-//		
+-//		buffer.setClipping ( area.x - 1, area.y - 1, area.width + 1, area.height + 1);
+-//		
+-//		f = SwtUtils.changeFont(f, new FontData(gdata.getFontName(), getVFontSize(), SWT.NONE), e.display);
+-//		buffer.setFont(f);
+-//		
+-//		String label = gdata.getTextLabel();
+-//		Point textSize = buffer.textExtent (label);
+-//		buffer.drawString (label, 
+-//				area.x + (int)(area.width / 2) - (int)(textSize.x / 2),
+-//				area.y + (int)(area.height / 2) - (int)(textSize.y / 2), true);
+-//				
+-//				
+-//		Region r = null;
+-//		buffer.setClipping(r);
+-//		
+-//		c.dispose();
+-//		b.dispose();
+-//		f.dispose();
++		//Label
++		//Don't draw label outside gene box
++		g.setClip ( area.x - 1, area.y - 1, area.width + 1, area.height + 1);
++	
++		g.setFont(new Font(gdata.getFontName(), getVFontStyle(), getVFontSize()));
++		
++		String label = gdata.getTextLabel();
++		TextLayout tl = new TextLayout(label, g.getFont(), g.getFontRenderContext());
++		Rectangle2D tb = tl.getBounds();
++		tl.draw(g, 	area.x + (int)(area.width / 2) - (int)(tb.getWidth() / 2), 
++					area.y + (int)(area.height / 2) + (int)(tb.getHeight() / 2));
++		
++		drawHighlight(g);
+ 	}
+ 	
+-	public void drawHighlight(Graphics2D g2d)
++	public void drawHighlight(Graphics2D g)
+ 	{
+-//		if(isHighlighted())
+-//		{
+-//			Color c = null;
+-//			c = SwtUtils.changeColor(c, highlightColor, e.display);
+-//			buffer.setForeground(c);
+-//			buffer.setLineWidth(2);
+-//			buffer.drawRectangle (
+-//					getVLeft() - 1,
+-//					getVTop() - 1,
+-//					getVWidth() + 3,
+-//					getVHeight() + 3
+-//				);
+-//			if(c != null) c.dispose();
+-//		}
++		if(isHighlighted()) {
++			int os = 1;
++			g.setColor(highlightColor);
++			g.drawRect(getVLeft() - os, getVTop() - os, getVWidth() + 2*os, getVHeight() + 2*os);
++		}
+ 	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPoint.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPoint.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPoint.java	(revision 925)
+@@ -124,7 +124,7 @@
+ 		return new Handle[] { handle };
+ 	}
+ 	
+-	protected void draw(Graphics2D g2d) {
++	protected void doDraw(Graphics2D g2d) {
+ 		// TODO Auto-generated method stub
+ 	}
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/view/GraphicsShape.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/GraphicsShape.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/GraphicsShape.java	(revision 925)
+@@ -22,11 +22,11 @@
+ import java.util.HashSet;
+ import java.util.Set;
+ 
+-import org.pathvisio.view.LinAlg.Point;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
++import org.pathvisio.model.GraphLink.GraphRefContainer;
+ import org.pathvisio.model.PathwayElement.MPoint;
+-import org.pathvisio.model.GraphLink.GraphRefContainer;
++import org.pathvisio.view.LinAlg.Point;
+ 
+ /**
+  * This is an {@link Graphics} class representing shapelike forms,
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Line.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Line.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Line.java	(revision 925)
+@@ -17,15 +17,21 @@
+ package org.pathvisio.view;
+ 
+ import java.awt.BasicStroke;
++import java.awt.Color;
+ import java.awt.Graphics2D;
++import java.awt.Polygon;
+ import java.awt.Shape;
++import java.awt.geom.AffineTransform;
++import java.awt.geom.Arc2D;
+ import java.awt.geom.Line2D;
++import java.awt.geom.Point2D;
+ import java.awt.geom.Rectangle2D;
+ import java.util.ArrayList;
+ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Set;
+ 
++import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
+ import org.pathvisio.model.GraphLink.GraphRefContainer;
+@@ -36,7 +42,17 @@
+  */
+ public class Line extends Graphics
+ {
+-
++	private static final int ARROWHEIGHT = 65;
++	private static final int ARROWWIDTH = 140;
++	private static final int TBARHEIGHT = 225;
++	private static final int TBARWIDTH = 15;
++	private static final int LRDIAM = 175;
++	private static final int RRDIAM = LRDIAM + 50;
++	private static final int LIGANDWIDTH = 125;
++	private static final int LIGANDHEIGHT = 175;
++	private static final int RECEPWIDTH = LIGANDWIDTH + 30;
++	private static final int RECEPHEIGHT = LIGANDHEIGHT + 30;
++	
+ 	private static final long serialVersionUID = 1L;
+ 	
+ 	private List<VPoint> points;
+@@ -72,153 +88,163 @@
+ 		}
+ 	}
+ 			
+-	public void draw(Graphics2D g2d)
++	public void doDraw(Graphics2D g)
+ 	{
+-		double vEndx = getVEndX();
+-		double vEndy = getVEndY();
+-		double vStartx = getVStartX();
+-		double vStarty = getVStartY();
++		Color c = gdata.getColor();
++		if(isSelected()) {
++			c = selectColor;
++		} else if (isHighlighted()) {
++			c = highlightColor;
++		}
++		g.setColor(c);
++				
++		int ls = gdata.getLineStyle();
++		if (ls == LineStyle.SOLID) {
++			g.setStroke(new BasicStroke());
++		}
++		else if (ls == LineStyle.DASHED) { 
++			g.setStroke(new BasicStroke(1, 
++									BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 
++									10, new float[] {4, 4}, 0));
++		}			
+ 
+-		g2d.drawLine((int)vStartx, (int)vStarty, (int)vEndx, (int)vEndy);
++		Line2D l = getVLine();
++		Point2D start = l.getP1();
++		Point2D end = l.getP2();
+ 		
+-//		Color c = null;
+-//		if (isSelected())
+-//		{
+-//			c = SwtUtils.changeColor(c, selectColor, e.display);
+-//		}
+-//		else if (isHighlighted())
+-//		{
+-//			RGB rgb = Preferences.getColorProperty(Preferences.PREF_COL_HIGHLIGHTED);
+-//			c = SwtUtils.changeColor(c, rgb, e.display);
+-//		}
+-//		else 
+-//		{
+-//			c = SwtUtils.changeColor(c, gdata.getColor(), e.display);
+-//		}
+-//		buffer.setForeground (c);
+-//		buffer.setBackground (c);
+-//		
+-//		buffer.setLineWidth (1);
+-//		int ls = gdata.getLineStyle();
+-//		if (ls == LineStyle.SOLID)
+-//		{
+-//			buffer.setLineStyle (SWT.LINE_SOLID);
+-//		}
+-//		else if (ls == LineStyle.DASHED)
+-//		{ 
+-//			// TODO: This works well on windows. I wonder if this is the same on all platforms
+-//			buffer.setLineDash (new int[] {4, 4});
+-//		}			
+-//
+-//		double s = Math.sqrt(((vEndx-vStartx)*(vEndx-vStartx)) + ((vEndy - vStarty)*(vEndy - vStarty)));
+-//		
+-//		switch (gdata.getLineType())
+-//		{
+-//		
+-//			case LINE:
+-//				buffer.drawLine ((int)vStartx, (int)vStarty, (int)vEndx, (int)vEndy);
+-//				break;
+-//			case ARROW:				
+-//				buffer.drawLine ((int)vStartx, (int)vStarty, (int)vEndx, (int)vEndy);
+-//				drawArrowhead(buffer);
+-//				break;
+-//			case TBAR:
+-//			{
+-//				s /= 8;
+-//	
+-//				double capx1 = ((-vEndy + vStarty)/s) + vEndx;
+-//				double capy1 = (( vEndx - vStartx)/s) + vEndy;
+-//				double capx2 = (( vEndy - vStarty)/s) + vEndx;
+-//				double capy2 = ((-vEndx + vStartx)/s) + vEndy;
+-//	
+-//				buffer.drawLine ((int)vStartx, (int)vStarty, (int)vEndx, (int)vEndy);
+-//				buffer.drawLine ((int)capx1, (int)capy1, (int)capx2, (int)capy2);
+-//			}
+-//				break;
+-//			case LIGAND_ROUND:
+-//			{
+-//				if (vEndx != vStartx || vEndy != vStarty)
+-//				{
+-//					double dx = (vEndx - vStartx)/s;
+-//					double dy = (vEndy - vStarty)/s;
+-//								
+-//					buffer.drawLine ((int)vStartx, (int)vStarty, (int)(vEndx - 6 * dx), (int)(vEndy - 6 * dy));
+-//					buffer.drawOval ((int)vEndx - 5, (int)vEndy - 5, 10, 10);
+-//					buffer.fillOval ((int)vEndx - 5, (int)vEndy - 5, 10, 10);
+-//				}
+-//			}
+-//				break;
+-//			case RECEPTOR_ROUND:
+-//			{
+-//				if (vEndx != vStartx || vEndy != vStarty)
+-//				{
+-//					double theta 	= Math.toDegrees(Math.atan2((vEndx - vStartx),(vEndy - vStarty)));
+-//					double dx 		= (vEndx - vStartx)/s;
+-//					double dy 		= (vEndy - vStarty)/s;	
+-//					
+-//					buffer.drawLine ((int)vStartx, (int)vStarty, (int)(vEndx - (8*dx)), (int)(vEndy - (8*dy)));
+-//					buffer.drawArc ((int)vEndx - 8, (int)vEndy - 8, 16, 16, (int)theta + 180, -180);
+-//				}
+-//			}
+-//				break;
+-//			case RECEPTOR: //TODO: implement receptor
+-//			case RECEPTOR_SQUARE:
+-//			{
+-//				if (vEndx != vStartx || vEndy != vStarty)
+-//				{
+-//					s /= 8;
+-//					
+-//					double x3 		= vEndx - ((vEndx - vStartx)/s);
+-//					double y3 		= vEndy - ((vEndy - vStarty)/s);
+-//					double capx1 	= ((-vEndy + vStarty)/s) + x3;
+-//					double capy1 	= (( vEndx - vStartx)/s) + y3;
+-//					double capx2 	= (( vEndy - vStarty)/s) + x3;
+-//					double capy2 	= ((-vEndx + vStartx)/s) + y3;			
+-//					double rx1		= capx1 + 1.5*(vEndx - vStartx)/s;
+-//					double ry1 		= capy1 + 1.5*(vEndy - vStarty)/s;
+-//					double rx2 		= capx2 + 1.5*(vEndx - vStartx)/s;
+-//					double ry2 		= capy2 + 1.5*(vEndy - vStarty)/s;
+-//				
+-//					buffer.drawLine ((int)vStartx, (int)vStarty, (int)x3, (int)y3);
+-//					buffer.drawLine ((int)capx1, (int)capy1, (int)capx2, (int)capy2);
+-//					buffer.drawLine ((int)capx1, (int)capy1, (int)rx1, (int)ry1);
+-//					buffer.drawLine ((int)capx2, (int)capy2, (int)rx2, (int)ry2);
+-//				}
+-//			}
+-//				break;
+-//			case LIGAND_SQUARE:
+-//			{
+-//				if (vEndx != vStartx || vEndy != vStarty)
+-//				{
+-//					s /= 6;
+-//					double x3 		= vEndx - ((vEndx - vStartx)/s);
+-//					double y3 		= vEndy - ((vEndy - vStarty)/s);
+-//		
+-//					int[] points = new int[4 * 2];
+-//					
+-//					points[0] = (int) (((-vEndy + vStarty)/s) + x3);
+-//					points[1] = (int) ((( vEndx - vStartx)/s) + y3);
+-//					points[2] = (int) ((( vEndy - vStarty)/s) + x3);
+-//					points[3] = (int) (((-vEndx + vStartx)/s) + y3);
+-//		
+-//					points[4] = (int) (points[2] + 1.5*(vEndx - vStartx)/s);
+-//					points[5] = (int) (points[3] + 1.5*(vEndy - vStarty)/s);
+-//					points[6] = (int) (points[0] + 1.5*(vEndx - vStartx)/s);
+-//					points[7] = (int) (points[1] + 1.5*(vEndy - vStarty)/s);
+-//					
+-//					buffer.drawLine ((int)vStartx, (int)vStarty, (int)x3, (int)y3);
+-//					buffer.drawPolygon(points);
+-//					buffer.fillPolygon(points);
+-//				}
+-//			}
+-//				break;
+-//		}
+-//		
+-//		c.dispose();
+-
++		g.draw(l);
+ 		
++		double xs = start.getX();
++		double ys = start.getY();
++		double xe = end.getX();
++		double ye = end.getY();
++		
++		switch (gdata.getLineType()) {
++			case ARROW:				
++				paintArrowHead(g, xs, ys, xe, ye, vFromM(ARROWWIDTH), vFromM(ARROWHEIGHT));
++				break;
++			case TBAR:	
++				paintTBar(g, xs, ys, xe, ye, vFromM(TBARWIDTH), vFromM(TBARHEIGHT));
++				break;
++			case LIGAND_ROUND:	
++				paintLRound(g, xe, ye, vFromM(LRDIAM));
++				break;
++			case RECEPTOR_ROUND:
++				paintRRound(g, xs, ys, xe, ye, vFromM(RRDIAM));
++				break;
++			case RECEPTOR: //TODO: implement receptor
++			case RECEPTOR_SQUARE:
++				paintReceptor(g, xs, ys, xe, ye, vFromM(RECEPWIDTH), vFromM(RECEPHEIGHT));
++				break;
++			case LIGAND_SQUARE:
++			{
++				paintLigand(g, xs, ys, xe, ye, vFromM(LIGANDWIDTH), vFromM(LIGANDHEIGHT));
++			}
++			break;
+ 	}
+-			
++	}
++	
++	private double getAngle(double xs, double ys, double xe, double ye) {
++		if(xs == xe && ys == ye) return 0; //Unable to determine direction
++		Point2D ps = new Point2D.Double(xe - xs, ye - ys);
++		Point2D pe = new Point2D.Double(1, 0);
++		
++		return LinAlg.angle(new LinAlg.Point(ps.getX(), ps.getY()), new LinAlg.Point(pe.getX(), pe.getY()));
++	}
++	
++	private void paintArrowHead(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {			
++		double angle = getAngle(xs, ys, xe, ye);
++		int[] xpoints = new int[] { (int)xe, (int)(xe - w), (int)(xe - w) };
++		int[] ypoints = new int[] { (int)ye, (int)(ye - h), (int)(ye + h) };
++		
++		Polygon arrow = new Polygon(xpoints, ypoints, 3);
++		AffineTransform f = new AffineTransform();
++		f.rotate(-angle, xe, ye);
++		Shape rotArrow = f.createTransformedShape(arrow);
++		g2d.fill(rotArrow);
++	}
++	
++	private void paintTBar(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {
++		double angle = getAngle(xs, ys, xe, ye);
++	
++		Rectangle2D bar = new Rectangle2D.Double(xe - w, ye - h/2, w, h);
++		AffineTransform f = new AffineTransform();
++		f.rotate(-angle, xe, ye);
++		Shape rotBar = f.createTransformedShape(bar);
++		g2d.fill(rotBar);
++	}
++	
++	private void paintLRound(Graphics2D g2d, double xe, double ye, double d) {	
++		g2d.fillOval ((int)(xe - d/2), (int)(ye - d/2), (int)d, (int)d);
++	}
++	
++	private void paintRRound(Graphics2D g2d, double xs, double ys, double xe, double ye, double d) {
++		double angle = getAngle(xs, ys, xe, ye);
++		AffineTransform f = new AffineTransform();
++		f.rotate(-angle, xe, ye);
++		
++		Rectangle2D hideRect = new Rectangle2D.Double(xe - d/2, ye - 2, d/2 + 1, 4);
++		Shape hide = f.createTransformedShape(hideRect);
++		
++		Arc2D arc = new Arc2D.Double((int)(xe - d/2), (int)(ye - d/2), d, d, 90, 180, Arc2D.OPEN);
++		Shape rotArc = f.createTransformedShape(arc);
++		
++		//Hide top of line
++		Color cOld = g2d.getColor();
++		g2d.setColor(Color.WHITE);
++		g2d.fill(hide);
++		g2d.setColor(cOld);
++		g2d.draw(rotArc);		
++	}
++	
++	private void paintReceptor(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {					
++		/* Path2D Only in Java 1.6....
++		Path2D rec = new Path2D.Double();
++		rec.moveTo(xe + w, ye + h/2);
++		rec.lineTo(xe, ye + h/2);
++		rec.lineTo(xe, ye - h/2);
++		rec.lineTo(xe + w, ye - h/2);
++		AffineTransform f = new AffineTransform();
++		f.rotate(-angle, xe, ye);
++		Shape rotRec = f.createTransformedShape(rec);
++		g2d.draw(rotRec);
++		*/
++		
++		double angle = getAngle(xs, ys, xe, ye);
++		AffineTransform f = new AffineTransform();
++		f.rotate(-angle, xe, ye);
++		
++		Rectangle2D hideRect = new Rectangle2D.Double(xe - w, ye - 2, w + 1, 4);
++		Shape hide = f.createTransformedShape(hideRect);
++		
++		//Hide top of line
++		Color cOld = g2d.getColor();
++		g2d.setColor(Color.WHITE);
++		g2d.fill(hide);
++		g2d.setColor(cOld);
++		
++		Shape l = new Line2D.Double(xe, ye + h/2, xe - w, ye + h/2);
++		Shape r = f.createTransformedShape(l);
++		g2d.draw(r);
++		l = new Line2D.Double(xe - w, ye + h/2, xe - w, ye - h/2);
++		r = f.createTransformedShape(l);
++		g2d.draw(r);
++		l = new Line2D.Double(xe - w, ye - h/2, xe, ye - h/2);
++		r = f.createTransformedShape(l);
++		g2d.draw(r);
++	}
++	
++	private void paintLigand(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {
++		double angle = getAngle(xs, ys, xe, ye);
++	
++		Rectangle2D bar = new Rectangle2D.Double(xe - w, ye - h/2, w, h);
++		AffineTransform f = new AffineTransform();
++		f.rotate(-angle, xe, ye);
++		Shape rotBar = f.createTransformedShape(bar);
++		g2d.fill(rotBar);
++		g2d.draw(rotBar);
++	}
++	
+ 	protected Shape getVOutline()
+ 	{
+ 		//TODO: bigger than necessary, just to include the arrowhead / shape at the end
+Index: branches/g2d-branch/src/core/org/pathvisio/view/KeyEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/KeyEvent.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/KeyEvent.java	(revision 925)
+@@ -1,6 +1,5 @@
+ package org.pathvisio.view;
+ 
+-import java.util.EventObject;
+ 
+ public class KeyEvent extends InputEvent {
+ 	//Types
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Handle.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Handle.java	(revision 925)
+@@ -16,9 +16,11 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
++import java.awt.geom.Ellipse2D;
+ import java.awt.geom.Rectangle2D;
+ 
+ import org.pathvisio.view.LinAlg.Point;
+@@ -149,53 +151,23 @@
+ 	 * draws itself, but only if isVisible() is true, there is 
+ 	 * no need for a check for isVisible() before calling draw().
+ 	 */
+-	public void draw(Graphics2D g2d)
++	public void doDraw(Graphics2D g)
+ 	{
+ 		if(!isVisible) return;
+-		double vCenterx = vFromM (mCenterx);
+-		double vCentery = vFromM (mCentery);
+-		g2d.drawRect(
+-				(int)(vCenterx - WIDTH/2), 
+-				(int)(vCentery - HEIGHT/2), 
+-				(int)WIDTH, 
+-				(int)HEIGHT);
+ 		
+-//		if (!isVisible) return;
+-//		double vCenterx = vFromM (mCenterx);
+-//		double vCentery = vFromM (mCentery);
+-//		
+-//		if(direction == DIRECTION_ROT) {
+-//			buffer.setLineWidth (1);
+-//			buffer.setLineStyle(SWT.LINE_SOLID);
+-//			buffer.setBackground (e.display.getSystemColor (SWT.COLOR_GREEN));
+-//			buffer.setForeground (e.display.getSystemColor (SWT.COLOR_BLACK));
+-//			buffer.fillOval(
+-//					(int)(vCenterx - WIDTH/2), 
+-//					(int)(vCentery - HEIGHT/2), 
+-//					(int)WIDTH, 
+-//					(int)HEIGHT);
+-//			buffer.drawOval(
+-//					(int)(vCenterx - WIDTH/2), 
+-//					(int)(vCentery - HEIGHT/2), 
+-//					(int)WIDTH, 
+-//					(int)HEIGHT);
+-//		} else {			
+-//			buffer.setLineWidth (1);
+-//			buffer.setLineStyle(SWT.LINE_SOLID);
+-//			buffer.setBackground (e.display.getSystemColor (SWT.COLOR_YELLOW));
+-//			buffer.setForeground (e.display.getSystemColor (SWT.COLOR_BLACK));
+-//			buffer.fillRectangle (
+-//					(int)(vCenterx - WIDTH/2), 
+-//					(int)(vCentery - HEIGHT/2), 
+-//					(int)WIDTH, 
+-//					(int)HEIGHT);	
+-//			buffer.drawRectangle (
+-//					(int)(vCenterx - WIDTH/2), 
+-//					(int)(vCentery - HEIGHT/2), 
+-//					(int)WIDTH, 
+-//					(int)HEIGHT);	
+-//		}
++		Shape outline = getVOutline();
+ 		
++		if(direction == DIRECTION_ROT) {
++			g.setColor(Color.GREEN);
++		} else {
++			g.setColor(Color.YELLOW);
++		}
++		
++		g.fill(outline);
++		
++		g.setColor(Color.BLACK);
++		
++		g.draw(outline);		
+ 	}
+ 		
+ 	/**
+@@ -237,8 +209,18 @@
+ 	}
+ 			
+ 	public Shape getVOutline() {
+-		return new Rectangle2D.Double(vFromM(mCenterx) - WIDTH/2, vFromM(mCentery) - HEIGHT/2, 
+-				WIDTH, HEIGHT);
++		Shape s = null;
++		switch(direction) {
++		case DIRECTION_ROT:
++			s = new Ellipse2D.Double(getVCenterX() - WIDTH/2, getVCenterY() - HEIGHT/2, 
++					WIDTH, HEIGHT);
++			break;
++		default:
++			s = new Rectangle2D.Double(getVCenterX() - WIDTH/2, getVCenterY() - HEIGHT/2, 
++					WIDTH, HEIGHT);
++			break;
++		}
++		return s;
+ 	}
+ 		
+ 	public String toString() { 
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Group.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Group.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Group.java	(revision 925)
+@@ -96,7 +96,7 @@
+ 	}
+ 
+ 	@Override
+-	protected void draw(Graphics2D g2d) {
++	protected void doDraw(Graphics2D g2d) {
+ 		// TODO make unique selection box for groups
+ 		
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT2.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT2.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT2.java	(revision 925)
+@@ -1,106 +0,0 @@
+-package org.pathvisio.view.swt;
+-
+-import java.awt.Dimension;
+-import java.awt.Graphics2D;
+-import java.awt.Point;
+-import java.awt.Rectangle;
+-
+-import org.eclipse.swt.events.PaintEvent;
+-import org.eclipse.swt.events.PaintListener;
+-import org.eclipse.swt.graphics.GC;
+-import org.eclipse.swt.widgets.Canvas;
+-import org.eclipse.swt.widgets.Composite;
+-import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.VPathwayWrapper;
+-
+-public class VPathwaySWT2 extends Canvas implements VPathwayWrapper, PaintListener {
+-	final SWTGraphics2DRenderer renderer = new SWTGraphics2DRenderer();
+-	
+-	private VPathway child;
+-	
+-	public VPathwaySWT2(Composite parent, int style) {
+-		super(parent, style);
+-	}
+-
+-	public void setChild(VPathway c) {
+-		child = c;
+-		addPaintListener(this);
+-		addMouseListener(child);
+-		addMouseMoveListener(child);
+-		addMouseTrackListener(child);
+-		addKeyListener(child);
+-	}
+-	
+-	public void redraw(Rectangle r) {
+-		redraw(r.x, r.y, r.width, r.height, false);
+-	}
+-
+-	public void setVSize(Dimension size) {
+-		setVSize(size.width, size.height);
+-	}
+-
+-	public void setVSize(int w, int h) {
+-		setSize(w, h);
+-	}
+-	
+-	public Dimension getVSize() {
+-		org.eclipse.swt.graphics.Point p = getSize();
+-		return new Dimension(p.x, p.y);
+-	}
+-	
+-	public Rectangle getVBounds() {
+-		org.eclipse.swt.graphics.Rectangle b = getBounds();
+-		return new Rectangle(b.x, b.y, b.width, b.height);
+-	}
+-	
+-	public void paintControl(PaintEvent e) {
+-		GC gc = e.gc; // gets the SWT graphics context from the event
+-		
+-		Graphics2D g2d = new SWTGraphics2D(gc, gc.getDevice());
+-		
+-		child.draw(g2d, new Rectangle(e.x, e.y, e.width, e.height));
+-	}
+-}
+-
+-/*
+-Canvas canvas = new Canvas(shell, SWT.NO_BACKGROUND);
+-final Graphics2DRenderer renderer = new Graphics2DRenderer();
+-
+-canvas.addPaintListener(new PaintListener() {
+-  public void paintControl(PaintEvent e) {
+-    Point controlSize = ((Control) e.getSource()).getSize();
+-
+-    GC gc = e.gc; // gets the SWT graphics context from the event
+-
+-    renderer.prepareRendering(gc); // prepares the Graphics2D renderer
+-
+-    // gets the Graphics2D context and switch on the antialiasing
+-    Graphics2D g2d = renderer.getGraphics2D();
+-    g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+-      RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+-
+-    // paints the background with a color gradient
+-    g2d.setPaint(new GradientPaint(0.0f, 0.0f, java.awt.Color.yellow,
+-      (float) controlSize.x, (float) controlSize.y, java.awt.Color.white));
+-    g2d.fillRect(0, 0, controlSize.x, controlSize.y);
+-
+-    // draws rotated text
+-    g2d.setFont(new java.awt.Font("SansSerif", java.awt.Font.BOLD, 16));
+-    g2d.setColor(java.awt.Color.blue);
+-
+-    g2d.translate(controlSize.x / 2, controlSize.y / 2);
+-    int nbOfSlices = 18;
+-    for (int i = 0; i < nbOfSlices; i++) {
+-      g2d.drawString("Angle = " + (i * 360 / nbOfSlices) + "\u00B0", 30, 0);
+-      g2d.rotate(-2 * Math.PI / nbOfSlices);
+-    }
+-
+-    // now that we are done with Java 2D, renders Graphics2D operation
+-    // on the SWT graphics context
+-    renderer.render(gc);
+-
+-    // now we can continue with pure SWT paint operations
+-    gc.drawOval(0, 0, controlSize.x, controlSize.y);
+-  }
+-});
+-*/
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 925)
+@@ -4,6 +4,7 @@
+ import java.awt.Dimension;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
++import java.awt.RenderingHints;
+ 
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.events.KeyEvent;
+@@ -62,6 +63,7 @@
+ 		return new Rectangle(b.x, b.y, b.width, b.height);
+ 	}
+ 	
++	//Method 1: transfer from BufferedImage
+ 	public void paintControl(PaintEvent e) {
+ 		GC gc = e.gc; // gets the SWT graphics context from the event
+ 
+@@ -70,14 +72,21 @@
+ 		renderer.prepareRendering(gc); // prepares the Graphics2D renderer
+ 
+ 		Graphics2D g2d = renderer.getGraphics2D();
+-		g2d.setBackground(new Color(255, 255, 255));
+-		g2d.setColor(new Color(0, 0, 0));
+-		
++			
+ 		child.draw(g2d, new Rectangle(e.x, e.y, e.width, e.height));
+ 		
+ 		renderer.render(gc);
+ 	}
+ 
++	//Method 2: use Graphics2D extension
++//	public void paintControl(PaintEvent e) {
++//		GC gc = e.gc; // gets the SWT graphics context from the event
++//		
++//		Graphics2D g2d = new SWTGraphics2D(gc, gc.getDevice());
++//		child.draw(g2d, new Rectangle(e.x, e.y, e.width, e.height));
++//		
++//	}
++	
+ 	public static int convertStateMask(int swtMask) {
+ 		int newMask = 0;
+ 		newMask = addModifier(swtMask, SWT.CTRL, newMask, InputEvent.M_CTRL);
+Index: branches/g2d-branch/src/core/org/pathvisio/view/SelectionBox.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/SelectionBox.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/view/SelectionBox.java	(revision 925)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.BasicStroke;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ import java.awt.geom.Point2D;
+@@ -381,18 +382,14 @@
+ 		}
+ 	}
+ 	
+-	public void draw(Graphics2D g2d)
++	public void doDraw(Graphics2D g)
+ 	{
+-//		if(isVisible) {
+-//			buffer.setAntialias(SWT.OFF);
+-//			buffer.setForeground (e.display.getSystemColor (SWT.COLOR_BLACK));
+-//			buffer.setBackground (e.display.getSystemColor (SWT.COLOR_BLACK));
+-//			buffer.setLineStyle (SWT.LINE_DOT);
+-//			buffer.setLineWidth (1);
+-//			buffer.drawRectangle (getVLeft(), getVTop(), getVWidth(), getVHeight());
+-//			buffer.setAntialias(SWT.ON);
+-//		}
+-		g2d.drawRect(getVLeft(), getVTop(), getVWidth(), getVHeight());
++		if(isVisible) {
++			g.setStroke(new BasicStroke(1, 
++					BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 
++					1, new float[] {1, 2}, 0));
++			g.drawRect(getVLeft(), getVTop(), getVWidth(), getVHeight());
++		}
+ 	}
+ 		
+ 	public void adjustToZoom(double factor) { fitToSelection(); }
+Index: branches/g2d-branch/src/core/org/pathvisio/util/ColorConverter.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/ColorConverter.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/util/ColorConverter.java	(revision 925)
+@@ -16,11 +16,11 @@
+ //
+ package org.pathvisio.util;
+ 
+-import org.biopax.paxtools.util.IllegalRDFIDException;
++import java.awt.Color;
++
+ import org.eclipse.swt.graphics.RGB;
+ import org.jdom.Element;
+ import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.model.Color;
+ 
+ public abstract class ColorConverter
+ {		    
+@@ -39,7 +39,7 @@
+ 	}
+ 	
+ 	public static RGB toRGB(Color c) {
+-		return new RGB(c.red, c.green, c.blue);
++		return new RGB(c.getRed(), c.getGreen(), c.getBlue());
+ 	}
+ 	
+ 	public static Color fromRGB(RGB rgb) {
+@@ -89,20 +89,20 @@
+ 	final static String XML_COLOR_R = "red";
+ 	final static String XML_COLOR_G = "green";
+ 	final static String XML_COLOR_B = "blue";
+-    public static Element createColorElement(String name, RGB rgb) {
++    public static Element createColorElement(String name, Color rgb) {
+     	Element elm = new Element(XML_ELEMENT_COLOR);
+     	elm.setName(name);
+-    	elm.setAttribute(XML_COLOR_R, Integer.toString(rgb.red));
+-    	elm.setAttribute(XML_COLOR_G, Integer.toString(rgb.green));
+-    	elm.setAttribute(XML_COLOR_B, Integer.toString(rgb.blue));
++    	elm.setAttribute(XML_COLOR_R, Integer.toString(rgb.getRed()));
++    	elm.setAttribute(XML_COLOR_G, Integer.toString(rgb.getGreen()));
++    	elm.setAttribute(XML_COLOR_B, Integer.toString(rgb.getBlue()));
+     	
+     	return elm;
+     }
+     
+-    public static RGB parseColorElement(Element xml) {
++    public static Color parseColorElement(Element xml) {
+     	int r = Integer.parseInt(xml.getAttributeValue(XML_COLOR_R));
+     	int g = Integer.parseInt(xml.getAttributeValue(XML_COLOR_G));
+     	int b = Integer.parseInt(xml.getAttributeValue(XML_COLOR_B));
+-    	return new RGB(r,g,b);
++    	return new Color(r,g,b);
+     }
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 924)
++++ branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 925)
+@@ -43,10 +43,9 @@
+ import org.eclipse.swt.widgets.Display;
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Shell;
+-
+ import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.model.Pathway;
+ import org.pathvisio.view.VPathway;
+-import org.pathvisio.model.Pathway;
+ 
+ public class SwtUtils {
+ 
+@@ -74,6 +73,13 @@
+ 		return new Color(display, rgbNew);
+ 	}
+ 	
++	public static RGB color2rgb(java.awt.Color c) {
++		return new RGB(c.getRed(), c.getGreen(), c.getBlue());
++	}
++	
++	public static java.awt.Color rgb2color(RGB rgb) {
++		return new java.awt.Color(rgb.red, rgb.green, rgb.blue);
++	}
+ 	/**
+ 	 * Change the given {@link Color}; this method disposes the old color for you
+ 	 * @param cOld	the old {@link Color}
+@@ -81,14 +87,14 @@
+ 	 * @param display	the display to assign the color to
+ 	 * @return	a brand new {@link Color}
+ 	 */
+-	public static Color changeColor(Color cOld, org.pathvisio.model.Color rgbNew, Display display)
++	public static Color changeColor(Color cOld, java.awt.Color rgbNew, Display display)
+ 	{
+ 		if(cOld != null && !cOld.isDisposed())
+ 		{
+ 			cOld.dispose();
+ 			cOld = null;
+ 		}
+-		if(rgbNew == null) rgbNew = new org.pathvisio.model.Color(0,0,0);
++		if(rgbNew == null) rgbNew = new java.awt.Color(0,0,0);
+ 		return new Color(display, ColorConverter.toRGB(rgbNew));
+ 	}
+ 	

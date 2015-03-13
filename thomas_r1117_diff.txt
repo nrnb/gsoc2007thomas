@@ -1,0 +1,1827 @@
+Index: trunk/src/test/org/pathvisio/util/Test.java
+===================================================================
+--- trunk/src/test/org/pathvisio/util/Test.java	(revision 0)
++++ trunk/src/test/org/pathvisio/util/Test.java	(revision 1117)
+@@ -0,0 +1,15 @@
++package org.pathvisio.util;
++
++import junit.framework.TestCase;
++
++public class Test extends TestCase {
++	
++	public void testConverter() {
++		try {
++			Converter.main(new String[] { "testData/test.gpml", "testData/test.svg" });
++		} catch(Exception e) {
++			e.printStackTrace(System.err);
++			fail("Unable to convert GPML file to SVG");
++		}
++	}
++}
+Index: trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WikiPathways.java	(revision 1116)
++++ trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WikiPathways.java	(revision 1117)
+@@ -1,466 +0,0 @@
+-package org.pathvisio.wikipathways.swt;
+-import java.io.File;
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.io.RandomAccessFile;
+-import java.lang.reflect.InvocationTargetException;
+-import java.net.HttpURLConnection;
+-import java.net.URL;
+-import java.net.URLConnection;
+-import java.util.HashMap;
+-
+-import org.apache.commons.codec.binary.Base64;
+-import org.apache.xmlrpc.XmlRpcException;
+-import org.apache.xmlrpc.XmlRpcRequest;
+-import org.apache.xmlrpc.client.XmlRpcClient;
+-import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
+-import org.apache.xmlrpc.client.XmlRpcClientException;
+-import org.apache.xmlrpc.client.XmlRpcHttpClientConfig;
+-import org.apache.xmlrpc.client.XmlRpcHttpTransport;
+-import org.apache.xmlrpc.client.XmlRpcTransport;
+-import org.apache.xmlrpc.client.XmlRpcTransportFactory;
+-import org.apache.xmlrpc.common.XmlRpcStreamRequestConfig;
+-import org.apache.xmlrpc.util.HttpUtil;
+-import org.eclipse.core.runtime.IProgressMonitor;
+-import org.eclipse.jface.action.ControlContribution;
+-import org.eclipse.jface.action.ToolBarContributionItem;
+-import org.eclipse.jface.dialogs.InputDialog;
+-import org.eclipse.jface.dialogs.MessageDialog;
+-import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+-import org.eclipse.jface.operation.IRunnableWithProgress;
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+-import org.eclipse.swt.widgets.Button;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Control;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
+-import org.pathvisio.Engine;
+-import org.pathvisio.debug.Logger;
+-import org.pathvisio.gui.swt.GuiMain;
+-import org.pathvisio.gui.swt.MainWindow;
+-import org.pathvisio.gui.swt.SwtEngine;
+-import org.pathvisio.model.ConverterException;
+-import org.pathvisio.model.Pathway;
+-import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.util.swt.SwtUtils.SimpleRunnableWithProgress;
+-import org.xml.sax.SAXException;
+-
+-public class WikiPathways {
+-	public static String SITE_NAME = "WikiPathways.org";
+-	HashMap<String, String> cookie;
+-	String rpcURL;
+-	String pwName;
+-	String pwSpecies;
+-	String pwURL;
+-	String user;
+-	boolean isNew;
+-	
+-	File localFile;
+-	
+-	public WikiPathways() {
+-		cookie = new HashMap<String, String>();
+-	}
+-
+-	public static void main(String[] args)
+-	{			
+-		final Display d = new Display();
+-		ProgressMonitorDialog pdstart = new ProgressMonitorDialog(new Shell(d, SWT.ON_TOP));
+-		try {
+-			pdstart.run(true, false, new IRunnableWithProgress() {
+-				public void run(IProgressMonitor m) throws InvocationTargetException, InterruptedException {
+-					m.beginTask("Starting PathVisio", IProgressMonitor.UNKNOWN);
+-					GuiMain.initiate();				
+-					m.done();
+-				}
+-			});
+-		} catch (Exception e) {
+-			e.printStackTrace(); //Log not started yet
+-		}
+-		
+-		d.dispose();
+-				
+-		//Parse comman-line arguments
+-		final WikiPathways wiki = new WikiPathways();
+-		for(int i = 0; i < args.length - 1; i++) {
+-			//Check for parameters
+-			String a = args[i];
+-			if(a.startsWith("-")) {
+-				if		(a.equalsIgnoreCase("-c")) {
+-					String c = args[i+1];
+-					int sep = c.indexOf('=');
+-					if(sep <= 0 || sep >= c.length() - 1) {
+-						error("Error in input parameters", new Exception("Error in -c parameter"));
+-						System.exit(-1);
+-					} else {
+-						Logger.log.trace("Parsed -c argument" + c);
+-						wiki.setCookie(c.substring(0, sep), c.substring(sep + 1));
+-					}
+-				}
+-				else if	(a.equalsIgnoreCase("-pwName")) {
+-					Logger.log.trace("Parsed -pwName argument" + args[i+1]);
+-					wiki.setPathwayName(args[i+1]);
+-				}
+-				else if	(a.equalsIgnoreCase("-pwUrl")) {
+-					Logger.log.trace("Parsed -pwUrl argument" + args[i+1]);
+-					wiki.setPathwayURL(args[i+1]);
+-				}
+-				else if	(a.equalsIgnoreCase("-rpcUrl")) {
+-					Logger.log.trace("Parsed -rpcUrl argument" + args[i+1]);
+-					wiki.setRpcURL(args[i+1]);
+-				}
+-				else if (a.equalsIgnoreCase("-pwSpecies")) {
+-					Logger.log.trace("Parsed -pwSpecies argument" + args[i+1]);
+-					wiki.setPathwaySpecies(args[i+1]);
+-				}
+-				else if (a.equalsIgnoreCase("-user")) {
+-					Logger.log.trace("Parsed -user argument" + args[i+1]);
+-					wiki.setUser(args[i+1]);
+-				}
+-				else if (a.equalsIgnoreCase("-new")) {
+-					Logger.log.trace("Parsed -new flag");
+-					String value = args[i+1];
+-					if(value.equalsIgnoreCase("true") || value.equals("1")) {
+-						wiki.setNew(true);
+-					}
+-				}
+-			}
+-		}
+-		
+-		final MainWindow window = new MainWindowWikipathways(wiki);
+-		SwtEngine.getCurrent().setWindow(window);
+-		
+-		//Start PathVisio in a seperate thread
+-		Thread thr = new Thread() {
+-			public void run() {				
+-				window.setBlockOnOpen(true);
+-				wiki.addSaveButton(window);
+-				window.open();
+-
+-				Display.getCurrent().dispose();
+-				Logger.log.getStream().close();
+-			}
+-		};
+-		thr.start();
+-		
+-		//Wait for PathVisio to startup
+-		Logger.log.trace("\t> Waiting for window to open");
+-		while(window.getShell() == null) {
+-			try {
+-				Thread.sleep(50);
+-			} catch (InterruptedException e) {
+-				//Swallow it
+-			}
+-		}
+-
+-//		Open pathway, or create new one
+-		if(wiki.isNew()) {//New pathway
+-			Engine.getCurrent().newPathway();
+-			window.getShell().getDisplay().asyncExec(new Runnable() {
+-				public void run() {
+-					Pathway data = Engine.getCurrent().getActivePathway();
+-					PathwayElement info = data.getMappInfo();
+-					if(wiki.user != null) info.setAuthor(wiki.user);
+-					info.setMapInfoName(wiki.pwName);
+-				}
+-			});
+-		} else { //Open pathway
+-			Logger.log.trace("Opening pathway " + wiki.pwURL);
+-			final Shell wshell = SwtEngine.getCurrent().getWindow().getShell();
+-			final SimpleRunnableWithProgress sp = new SimpleRunnableWithProgress(
+-					WikiPathways.class, "openPathwayURL", new Class[] {}, new Object[] {}, wiki);
+-			SimpleRunnableWithProgress.setMonitorInfo(
+-					"Downloading patwhay from " + SITE_NAME, IProgressMonitor.UNKNOWN);
+-
+-			final ProgressMonitorDialog pd = new ProgressMonitorDialog(wshell);
+-			wshell.getDisplay().asyncExec(new Runnable() {
+-				public void run() {
+-					try {
+-						pd.run(true, false, sp);
+-					} catch (Exception e) {
+-						error(wshell, "Unable to open pathway", e);
+-						System.exit(-1);
+-					}
+-				}
+-			});
+-		}
+-	}
+-
+-
+-	static void error(final String error, final Throwable e) {
+-		Display d = Display.getDefault();
+-		d.syncExec(new Runnable() {
+-			public void run() {
+-				Shell shell = new Shell();
+-				error(shell, error, e);
+-			}
+-		});
+-	}
+-
+-	static void error(final Shell shell, final String error, final Throwable e) {
+-		Logger.log.error(error, e);
+-		shell.getDisplay().syncExec(new Runnable() {
+-			public void run() {
+-				Throwable ex = e;
+-				if(ex instanceof InvocationTargetException) ex = ex.getCause();
+-				MessageDialog.openError(shell, error, ex != null ? ex.getMessage() : "No message specified");
+-			}
+-		});
+-	}
+-	
+-	protected void setCookie(String key, String value) {
+-		cookie.put(key, value);
+-	}
+-
+-	public void openPathwayURL() throws Exception {
+-		RunnableWithException re = new RunnableWithException() {
+-			public void run() {
+-				try {
+-					localFile = SwtEngine.getCurrent().openPathway(new URL(pwURL));
+-					Engine.getCurrent().getActiveVPathway().setEditMode(true);
+-				} catch(Exception e) {
+-					this.e = e;
+-				}
+-			}
+-		};
+-		SwtEngine.getCurrent().getWindow().getShell().getDisplay().syncExec(re);
+-		if(re.e != null) throw re.e;
+-	}
+-	
+-	abstract class RunnableWithException implements Runnable {
+-		Exception e;
+-		public void runWithException() throws Exception {
+-			run();
+-			if(e != null) throw e;
+-		}
+-	}
+-	
+-	protected void setNew(boolean isNew) {
+-		this.isNew = isNew;
+-	}
+-	
+-	public boolean isNew() {
+-		return isNew;
+-	}
+-	
+-	protected File getLocalFile() { 
+-		if(localFile == null) {
+-			try {
+-				localFile = File.createTempFile("tmp", ".gpml");
+-			} catch(Exception e) {
+-				return null;
+-			}
+-		}
+-		return localFile;
+-	}
+-	
+-	protected void setPathwayName(String pathwayName) {
+-		pwName = pathwayName;
+-	}
+-	
+-	protected void setPathwaySpecies(String pathwaySpecies) {
+-		pwSpecies = pathwaySpecies;
+-	}
+-	
+-	protected void setPathwayURL(String pathwayURL) {
+-		pwURL = pathwayURL;
+-	}
+-	
+-	protected void setRpcURL(String rpcURL) {
+-		this.rpcURL = rpcURL;
+-	}
+-	
+-	public void setUser(String user) {
+-		this.user = user;
+-	}
+-	void addSaveButton(MainWindow w) {
+-		ToolBarContributionItem tc = (ToolBarContributionItem)w.getCoolBarManager().find("CommonActions");
+-		
+-		tc.getToolBarManager().add(new ControlContribution("SaveToWiki") {
+-			protected Control createControl(Composite parent) {
+-				final Button b = new Button(parent, SWT.PUSH);
+-				//b.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_GREEN));
+-				b.setText("Save to " + SITE_NAME);
+-				b.setToolTipText("Save current pathway as '" + pwName + "' on " + SITE_NAME);
+-				b.addSelectionListener(new SelectionAdapter() {
+-					public void widgetSelected(SelectionEvent e) {
+-						saveUI();
+-					}
+-				});
+-				return b;
+-			}
+-		});
+-	}
+-	
+-	boolean ovrChanged;
+-	
+-	protected void saveToWiki(String description) throws XmlRpcException, IOException, ConverterException {		
+-		//TODO: check if changed
+-		if(ovrChanged || Engine.getCurrent().getActivePathway().hasChanged()) {
+-			ovrChanged = true; //In case we get an error, save changes next time
+-			File gpmlFile = getLocalFile();
+-			//Save current pathway to local file
+-			Engine.getCurrent().savePathway(gpmlFile);
+-			saveToWiki(description, gpmlFile);
+-			ovrChanged = false; //Save successfull, don't save next time
+-		} else {
+-			Logger.log.trace("No changes made, ignoring save");
+-			//Do nothing, no changes made
+-		}
+-	}
+-	
+-	protected void saveToWiki(String description, File gpmlFile) throws XmlRpcException, IOException {	
+-		XmlRpcClientConfigImpl config = new XmlRpcClientConfigImpl();
+-		config.setServerURL(new URL(rpcURL));
+-	
+-		XmlRpcClient client = new XmlRpcClient();
+-		XmlRpcCookieTransportFactory ctf = new XmlRpcCookieTransportFactory(client);
+-	
+-		XmlRpcCookieHttpTransport ct = (XmlRpcCookieHttpTransport)ctf.getTransport();
+-		for(String key : cookie.keySet()) {
+-			Logger.log.trace("Setting cookie: " + key + "=" + cookie.get(key));
+-			ct.addCookie(key, cookie.get(key));
+-		}
+-		
+-		client.setTransportFactory(ctf);
+-		client.setConfig(config);
+-		
+-		RandomAccessFile raf = new RandomAccessFile(gpmlFile, "r");
+-		byte[] data = new byte[(int)raf.length()];
+-		raf.readFully(data);
+-		byte[] data64 = Base64.encodeBase64(data);
+-		Object[] params = new Object[]{ pwName, pwSpecies, description, data64 };
+-				
+-		client.execute("WikiPathways.updatePathway", params);
+-	}
+-
+-	protected void saveUI() {
+-		Shell shell = SwtEngine.getCurrent().getWindow().getShell();
+-
+-		String d = "New pathway";
+-		if(!isNew()) {
+-			//Dialog for modification description
+-			InputDialog dialog = new InputDialog(shell, "Save to " + SITE_NAME, "Please specify an edit summary (description of changes)", "", null);
+-			int status = dialog.open();
+-			if(status == InputDialog.CANCEL) {
+-				return;
+-			}
+-			d = dialog.getValue();
+-		}
+-		final String descr = d;
+-
+-		//Progressbar for saving pathway
+-		try {
+-			IRunnableWithProgress op = new IRunnableWithProgress() {
+-				public void run(IProgressMonitor m) throws InvocationTargetException, InterruptedException {
+-					try {
+-						m.beginTask("Saving pathway to " + SITE_NAME, IProgressMonitor.UNKNOWN);
+-						saveToWiki(descr);
+-						m.done();
+-					} catch(Exception e) {
+-						throw new InvocationTargetException(e);
+-					}
+-				}
+-			};
+-			ProgressMonitorDialog pd2 = new ProgressMonitorDialog(shell);
+-
+-			Logger.log.trace("Saving to wiki: " + System.currentTimeMillis());
+-			pd2.run(true, false, op);
+-			Logger.log.trace("Finished: " + System.currentTimeMillis());
+-
+-			if(isNew()) {
+-				SwtEngine.getCurrent().openWebPage(pwURL, "Opening pathway on " + SITE_NAME, "Unable to open pathway at " + pwURL);
+-			} else {
+-				MessageDialog.openInformation(shell, "Info", "Pathway saved to " + SITE_NAME + 
+-				", please press 'refresh' in your browser or hit F5 to refresh the pathway image");
+-			}
+-			setNew(false); //Saved, so not new anymore
+-		} catch (InvocationTargetException e) {
+-			// handle exception
+-			error(shell, "Unable to save pathway to wiki", e.getCause());
+-		} catch (InterruptedException ie) {
+-			error(shell, "Unable to save pathway to wiki", ie);
+-		}
+-	}
+-
+-	static class XmlRpcCookieTransportFactory implements XmlRpcTransportFactory {
+-		private final XmlRpcCookieHttpTransport TRANSPORT;
+-
+-		public XmlRpcCookieTransportFactory(XmlRpcClient pClient) {
+-			TRANSPORT = new XmlRpcCookieHttpTransport(pClient);
+-		 }
+-		
+-		public XmlRpcTransport getTransport() { return TRANSPORT; }
+-	}
+-
+-	/** Implementation of an HTTP transport that supports sending cookies with the
+-	 * HTTP header, based on the {@link java.net.HttpURLConnection} class.
+-	 */
+-	public static class XmlRpcCookieHttpTransport extends XmlRpcHttpTransport {
+-		private static final String userAgent = USER_AGENT + " (Sun HTTP Transport, mod Thomas)";
+-		private static final String cookieHeader = "Cookie";
+-		private URLConnection conn;
+-		private HashMap<String, String> cookie;
+-		
+-		public XmlRpcCookieHttpTransport(XmlRpcClient pClient) {
+-			super(pClient, userAgent);
+-			cookie = new HashMap<String, String>();
+-		}
+-
+-		public void addCookie(String key, String value) {
+-			cookie.put(key, value);
+-		}
+-		
+-		protected void setCookies() {
+-			String cookieString = null;
+-			for(String key : cookie.keySet()) {
+-				cookieString = (cookieString == null ? "" : cookieString + "; ") + key + "=" + cookie.get(key);
+-			}
+-			if(cookieString != null) {
+-				conn.setRequestProperty(cookieHeader, cookieString);
+-			}
+-		}
+-		
+-		public Object sendRequest(XmlRpcRequest pRequest) throws XmlRpcException {
+-			XmlRpcHttpClientConfig config = (XmlRpcHttpClientConfig) pRequest.getConfig();
+-			try {
+-				conn = config.getServerURL().openConnection();
+-				conn.setUseCaches(false);
+-				conn.setDoInput(true);
+-				conn.setDoOutput(true);
+-				setCookies();
+-			} catch (IOException e) {
+-				throw new XmlRpcException("Failed to create URLConnection: " + e.getMessage(), e);
+-			}
+-			return super.sendRequest(pRequest);
+-		}
+-
+-		protected void setRequestHeader(String pHeader, String pValue) {
+-			conn.setRequestProperty(pHeader, pValue);
+-			
+-		}
+-
+-		protected void close() throws XmlRpcClientException {
+-			if (conn instanceof HttpURLConnection) {
+-				((HttpURLConnection) conn).disconnect();
+-			}
+-		}
+-
+-		protected boolean isResponseGzipCompressed(XmlRpcStreamRequestConfig pConfig) {
+-			return HttpUtil.isUsingGzipEncoding(conn.getHeaderField("Content-Encoding"));
+-		}
+-
+-		protected InputStream getInputStream() throws XmlRpcException {
+-			try {
+-				return conn.getInputStream();
+-			} catch (IOException e) {
+-				throw new XmlRpcException("Failed to create input stream: " + e.getMessage(), e);
+-			}
+-		}
+-
+-		protected void writeRequest(ReqWriter pWriter) throws IOException, XmlRpcException, SAXException {
+-	        pWriter.write(conn.getOutputStream());
+-		}
+-	}
+-}
+Index: trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WebstartMain.java
+===================================================================
+--- trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WebstartMain.java	(revision 0)
++++ trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/WebstartMain.java	(revision 1117)
+@@ -0,0 +1,164 @@
++package org.pathvisio.wikipathways.swt;
++
++import java.net.MalformedURLException;
++import java.net.URL;
++
++import javax.jnlp.BasicService;
++import javax.jnlp.ServiceManager;
++import javax.jnlp.UnavailableServiceException;
++
++import org.eclipse.jface.action.ControlContribution;
++import org.eclipse.jface.action.ToolBarContributionItem;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.SelectionAdapter;
++import org.eclipse.swt.events.SelectionEvent;
++import org.eclipse.swt.widgets.Button;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Display;
++import org.pathvisio.Engine;
++import org.pathvisio.Globals;
++import org.pathvisio.debug.Logger;
++import org.pathvisio.gui.swt.GuiMain;
++import org.pathvisio.gui.swt.MainWindow;
++import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.util.ProgressKeeper;
++import org.pathvisio.util.RunnableWithProgress;
++import org.pathvisio.wikipathways.Parameter;
++import org.pathvisio.wikipathways.UserInterfaceHandler;
++import org.pathvisio.wikipathways.WikiPathways;
++
++public class WebstartMain {
++	String[] args;
++	MainWindowWikipathways window;
++	WikiPathways wiki;
++	UserInterfaceHandler uiHandler;
++	
++	public void createAndShowGui() {
++		SwtEngine.setCurrent(new SwtEngine());
++		Engine.setCurrent(new Engine());
++		
++		wiki = new WikiPathways(uiHandler);
++		window = new MainWindowWikipathways(wiki);
++		SwtEngine.getCurrent().setWindow(window);
++		
++		Thread t = new Thread() {
++			public void run() {
++				while(window.getShell() == null) {
++					try {
++						Thread.sleep(10);
++					} catch (InterruptedException e) {
++						e.printStackTrace();
++					}
++				}
++				
++				initWiki();
++			}
++		};
++		t.setPriority(Thread.MIN_PRIORITY);
++		t.start();
++		
++		window.setReadOnly(wiki.isReadOnly());
++		window.setBlockOnOpen(true);
++		addSaveButton(window);
++		window.open();
++		Display.getDefault().dispose();
++	}
++	
++	private void initWiki() {
++		uiHandler = new SwtUserInterfaceHandler(window.getShell());
++		wiki.setUiHandler(uiHandler);
++		final RunnableWithProgress r = new RunnableWithProgress() {
++			public Object excecuteCode() {				
++				parseCommandLine(args);
++								
++				try {
++					wiki.init(SwtEngine.getCurrent().createWrapper(), 
++							getProgressKeeper(), getDocumentBase());
++				} catch(Exception e) {
++					Logger.log.error("Error while starting editor", e);
++					uiHandler.showError("Error while initializing editor", e.getClass() + ": " + e.getMessage());
++				};
++				return null;
++			}
++		};
++		uiHandler.runWithProgress(r, "Starting editor", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
++	}
++		
++	void addSaveButton(MainWindow w) {
++		ToolBarContributionItem tc = (ToolBarContributionItem)w.getCoolBarManager().find("CommonActions");
++		
++		tc.getToolBarManager().add(new ControlContribution("SaveToWiki") {
++			protected Control createControl(Composite parent) {
++				final Button b = new Button(parent, SWT.PUSH);
++				//b.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_GREEN));
++				b.setText("Save to " + Globals.SERVER_NAME);
++				b.setToolTipText("Save current pathway as '" + wiki.getPwName() + "' on " + Globals.SERVER_NAME);
++				b.addSelectionListener(new SelectionAdapter() {
++					public void widgetSelected(SelectionEvent e) {
++						wiki.saveUI();
++					}
++				});
++				return b;
++			}
++		});
++	}
++	
++	void parseCommandLine(String[] args) {
++		for(int i = 0; i < args.length - 1; i++) {
++			//Check for parameters
++			String a = args[i];
++			if(a.startsWith("-")) {
++				if	(a.equalsIgnoreCase("-pwName")) {
++					Logger.log.trace("Parsed -pwName argument" + args[i+1]);
++					Parameter.PW_NAME.setValue(args[i+1]);
++				}
++				else if	(a.equalsIgnoreCase("-pwUrl")) {
++					Logger.log.trace("Parsed -pwUrl argument" + args[i+1]);
++					Parameter.PW_URL.setValue(args[i+1]);
++				}
++				else if	(a.equalsIgnoreCase("-rpcUrl")) {
++					Logger.log.trace("Parsed -rpcUrl argument" + args[i+1]);
++					Parameter.RPC_URL.setValue(args[i+1]);
++				}
++				else if (a.equalsIgnoreCase("-pwSpecies")) {
++					Logger.log.trace("Parsed -pwSpecies argument" + args[i+1]);
++					Parameter.PW_SPECIES.setValue(args[i+1]);
++				}
++				else if (a.equalsIgnoreCase("-user")) {
++					Logger.log.trace("Parsed -user argument" + args[i+1]);
++					Parameter.USER.setValue(args[i+1]);
++				}
++				else if (a.equalsIgnoreCase("-new")) {
++					Logger.log.trace("Parsed -new flag");
++					String value = args[i+1];
++					if(value.equalsIgnoreCase("true") || value.equals("1")) {
++						Parameter.PW_NEW.setValue(Boolean.toString(true));
++					}
++				}
++			}
++		}
++	}
++	
++	public static void main(String[] args) {
++		GuiMain.initiate();
++		WebstartMain main = new WebstartMain();
++		main.args = args;
++		main.createAndShowGui();
++	}
++	
++	private URL getDocumentBase() {
++		try {
++			BasicService bs = (BasicService)ServiceManager.lookup("javax.jnlp.BasicService");
++			return bs.getCodeBase();
++		} catch (UnavailableServiceException e) {
++			Logger.log.error("Unable to get javax.jnlp.BasicService, are you not using webstart?");
++		}
++		try {
++			return new URL("http://www.wikipathways.org");
++		} catch(MalformedURLException ue) {
++			Logger.log.error("Unable to create URL");
++		}
++		return null;
++	}
++}
+Index: trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/MainWindowWikipathways.java
+===================================================================
+--- trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/MainWindowWikipathways.java	(revision 1116)
++++ trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/MainWindowWikipathways.java	(revision 1117)
+@@ -1,11 +1,13 @@
+ package org.pathvisio.wikipathways.swt;
+ 
++import org.eclipse.jface.action.Action;
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
+ import org.pathvisio.Engine;
++import org.pathvisio.Globals;
+ import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.wikipathways.WikiPathways;
+ 
+ public class MainWindowWikipathways extends MainWindow {
+ 	WikiPathways wiki;
+@@ -14,12 +16,21 @@
+ 		super();
+ 		wiki = w;
+ 	}
++		
++	void setReadOnly(final boolean readOnly) { 
++		threadSave(new Runnable() {
++			public void run() {
++				((Action)switchEditModeAction).setEnabled(!readOnly);
++			}
++		});
++	}
++	
+ 	protected boolean canHandleShellCloseEvent() {
+ 		if(Engine.getCurrent().getActivePathway().hasChanged()) {
+ 			Display.getCurrent().syncExec(new Runnable() {
+ 				public void run() {
+ 					boolean doit = MessageDialog.openQuestion(SwtEngine.getCurrent().getWindow().getShell(), "Save pathway?", 
+-							"Do you want to save the changes to " + wiki.pwName + " on " + WikiPathways.SITE_NAME + "?");
++							"Do you want to save the changes to " + wiki.getPwName() + " on " + Globals.SERVER_NAME + "?");
+ 					if(doit) {
+ 						wiki.saveUI();
+ 					}
+Index: trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/SwtUserInterfaceHandler.java
+===================================================================
+--- trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/SwtUserInterfaceHandler.java	(revision 0)
++++ trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/SwtUserInterfaceHandler.java	(revision 1117)
+@@ -0,0 +1,117 @@
++package org.pathvisio.wikipathways.swt;
++
++import java.net.URL;
++
++import javax.jnlp.BasicService;
++import javax.jnlp.ServiceManager;
++import javax.jnlp.UnavailableServiceException;
++
++import org.eclipse.jface.dialogs.InputDialog;
++import org.eclipse.jface.dialogs.MessageDialog;
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.debug.Logger;
++import org.pathvisio.util.RunnableWithProgress;
++import org.pathvisio.util.swt.ProgressKeeperDialog;
++import org.pathvisio.util.swt.SwtProgressKeeper;
++import org.pathvisio.wikipathways.UserInterfaceHandler;
++
++public class SwtUserInterfaceHandler implements UserInterfaceHandler {
++	Shell shell;
++	public SwtUserInterfaceHandler(Shell s) {
++		shell = s;
++	}
++	
++	public int askCancellableQuestion(String title, String message) {
++		final MessageDialog dialog = new MessageDialog(shell, title, null, message, 
++				SWT.ICON_QUESTION, new String[] {"Cancel", "No", "Yes" }, 2);
++		threadSave(new Runnable() {
++			public void run() {
++				dialog.open();
++			}
++		});
++		
++		int status = dialog.getReturnCode();
++		switch(status) {
++		case 0: return Q_CANCEL;
++		case 1: return Q_FALSE;
++		case 2: return Q_TRUE;
++		}
++		return Q_CANCEL;
++	}
++
++	public String askInput(String title, String message) {
++		final InputDialog dialog = new InputDialog(shell, title, message, "", null);
++		threadSave(new Runnable() {
++			public void run() {
++				dialog.open();
++			}
++		});
++		return dialog.getValue();
++	}
++
++	public boolean askQuestion(String title, String message) {
++		return MessageDialog.openQuestion(shell, title, message);
++	}
++
++	public void runWithProgress(RunnableWithProgress runnable, String title, int totalWork, final boolean canCancel, boolean modal) {
++		final SwtProgressKeeper progress = new SwtProgressKeeper(totalWork, runnable);
++		runnable.setProgressKeeper(progress);
++		final ProgressKeeperDialog dialog = new ProgressKeeperDialog(shell);
++		threadSave( new Runnable() {
++			public void run() {
++				try {
++					dialog.run(true, canCancel, progress);
++				} catch(Exception e) {
++					showError("Error while running task", e.toString() + ": " + e.getMessage());
++				}
++			}
++		});
++		System.err.println("finished running");
++	}
++
++	public void showDocument(URL url, String target) {
++		try {
++			BasicService bs = (BasicService)ServiceManager.lookup("javax.jnlp.BasicService");
++			bs.showDocument(url);
++		} catch (UnavailableServiceException e) {
++			Logger.log.error("Unable to get javax.jnlp.BasicService, are you not using webstart?");
++			showError("Error", "Show Document not yet implemented");
++		} 
++	}
++
++	public void showError(final String title, final String message) {
++		threadSave(new Runnable() {
++			public void run() {
++				MessageDialog.openError(shell, title, message);	
++			}
++		});
++	}
++
++	public void showExitMessage(final String string) {
++		threadSave(new Runnable() {
++			public void run() {
++				MessageDialog.openInformation(shell, "Exit", string);	
++			}
++		});
++	}
++
++	public void showInfo(final String title, final String message) {
++		threadSave(new Runnable() {
++			public void run() {
++				MessageDialog.openInformation(shell, title, message);	
++			}
++		});
++	}
++	
++	private void threadSave(Runnable r) {
++		Display d = shell.getDisplay();
++		if(Thread.currentThread() == d.getThread()) {
++			r.run();
++		} else {
++			d.syncExec(r);
++		}
++	}
++
++}
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1116)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1117)
+@@ -28,23 +28,25 @@
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+ import org.pathvisio.debug.Logger;
++import org.pathvisio.wikipathways.UserInterfaceHandler;
+ import org.pathvisio.wikipathways.WikiPathways;
+ 
+ public class Actions {
+-	static abstract class WikiAction extends AbstractAction {
+-		AppletMain applet;
++	public static abstract class WikiAction extends AbstractAction {
++		UserInterfaceHandler uiHandler;
+ 		WikiPathways wiki;
+-		public WikiAction(AppletMain a, WikiPathways w, String name, ImageIcon icon) {
++		public WikiAction(UserInterfaceHandler uih, WikiPathways w, String name, ImageIcon icon) {
+ 			super(name, icon);
+-			applet = a;
++			uiHandler = uih;
+ 			wiki = w;
+ 		}
+ 	}
+ 	
+-	static class ExitAction extends WikiAction {
++	public static class ExitAction extends WikiAction {
+ 		boolean doSave;
+-		public ExitAction(AppletMain a, WikiPathways w, boolean save) {
+-			super(a, w, "Finish", new ImageIcon(save ? Engine.getCurrent().getResourceURL("icons/apply.gif") : Engine.getCurrent().getResourceURL("icons/cancel.gif")));
++	
++		public ExitAction(UserInterfaceHandler h, WikiPathways w, boolean save) {
++			super(h, w, "Finish", new ImageIcon(save ? Engine.getCurrent().getResourceURL("icons/apply.gif") : Engine.getCurrent().getResourceURL("icons/cancel.gif")));
+ 			doSave = save;
+ 			String descr = doSave ? "Save pathway and close editor" : "Discard pathway and close editor";
+ 			putValue(Action.SHORT_DESCRIPTION, descr);
+@@ -60,15 +62,15 @@
+ 				JOptionPane.showMessageDialog(null, "Unable to save pathway:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+ 			}
+ 			if(saved) {
+-				applet.endWithMessage("Please wait while you'll be redirected to the pathway page");
++				uiHandler.showExitMessage("Please wait while you'll be redirected to the pathway page");
+ 			}
+ 		}
+ 	}
+ 	
+ 	
+-	static class SaveToServerAction extends WikiAction {
+-		public SaveToServerAction(AppletMain a, WikiPathways w) {
+-			super(a, w, "Save to ", new ImageIcon(Engine.getCurrent().getResourceURL("icons/save.gif")));
++	public static class SaveToServerAction extends WikiAction {
++		public SaveToServerAction(UserInterfaceHandler h, WikiPathways w) {
++			super(h, w, "Save to ", new ImageIcon(Engine.getCurrent().getResourceURL("icons/save.gif")));
+ 			putValue(Action.SHORT_DESCRIPTION, "Save the pathway to " + Globals.SERVER_NAME);
+ 			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_W, ActionEvent.CTRL_MASK));
+ 		}
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/WebstartMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/WebstartMain.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/WebstartMain.java	(revision 1117)
+@@ -0,0 +1,124 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.wikipathways;
++
++import java.net.URL;
++
++import javax.swing.JOptionPane;
++import javax.swing.SwingUtilities;
++
++import org.pathvisio.Engine;
++import org.pathvisio.debug.Logger;
++import org.pathvisio.gui.swing.GuiMain;
++import org.pathvisio.gui.swing.SwingEngine;
++import org.pathvisio.util.ProgressKeeper;
++import org.pathvisio.util.RunnableWithProgress;
++import org.pathvisio.wikipathways.Parameter;
++import org.pathvisio.wikipathways.UserInterfaceHandler;
++import org.pathvisio.wikipathways.WikiPathways;
++
++public class WebstartMain extends GuiMain {
++	WikiPathways wiki;
++	UserInterfaceHandler uiHandler;
++	
++	protected void createAndShowGUI() {
++		SwingEngine.setCurrent(new SwingEngine());
++		Engine.setCurrent(new Engine());
++		
++		super.createAndShowGUI();
++		
++		initWiki();
++	}
++
++	private void initWiki() {
++		uiHandler = new SwingUserInterfaceHandler(getFrame());
++		wiki = new WikiPathways(uiHandler);
++		wiki.prepareMainPanel(getMainPanel());
++
++				
++		final RunnableWithProgress r = new RunnableWithProgress() {
++			public Object excecuteCode() {				
++				parseCommandLine(getArgs());
++								
++				try {
++					wiki.init(SwingEngine.getCurrent().createWrapper(), 
++							getProgressKeeper(), new URL("http://www.wikipathways.org"));
++				} catch(Exception e) {
++					Logger.log.error("Error while starting editor", e);
++					JOptionPane.showMessageDialog(
++							getMainPanel(), e.getClass() + ": " + e.getMessage(), "Error while initializing editor", JOptionPane.ERROR_MESSAGE);
++				};
++				return null;
++			}
++		};
++		try {
++			SwingUtilities.invokeLater(new Runnable() {
++				public void run() {					
++					uiHandler.runWithProgress(r, "Starting editor", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
++				}
++			});
++		} catch (Exception e) {
++			Logger.log.error("Unable to start editor", e);
++		}
++	}
++		
++	void parseCommandLine(String[] args) {
++		for(int i = 0; i < args.length - 1; i++) {
++			//Check for parameters
++			String a = args[i];
++			if(a.startsWith("-")) {
++				if	(a.equalsIgnoreCase("-pwName")) {
++					Logger.log.trace("Parsed -pwName argument" + args[i+1]);
++					Parameter.PW_NAME.setValue(args[i+1]);
++				}
++				else if	(a.equalsIgnoreCase("-pwUrl")) {
++					Logger.log.trace("Parsed -pwUrl argument" + args[i+1]);
++					Parameter.PW_URL.setValue(args[i+1]);
++				}
++				else if	(a.equalsIgnoreCase("-rpcUrl")) {
++					Logger.log.trace("Parsed -rpcUrl argument" + args[i+1]);
++					Parameter.RPC_URL.setValue(args[i+1]);
++				}
++				else if (a.equalsIgnoreCase("-pwSpecies")) {
++					Logger.log.trace("Parsed -pwSpecies argument" + args[i+1]);
++					Parameter.PW_SPECIES.setValue(args[i+1]);
++				}
++				else if (a.equalsIgnoreCase("-user")) {
++					Logger.log.trace("Parsed -user argument" + args[i+1]);
++					Parameter.USER.setValue(args[i+1]);
++				}
++				else if (a.equalsIgnoreCase("-new")) {
++					Logger.log.trace("Parsed -new flag");
++					String value = args[i+1];
++					if(value.equalsIgnoreCase("true") || value.equals("1")) {
++						Parameter.PW_NEW.setValue(Boolean.toString(true));
++					}
++				}
++			}
++		}
++	}
++	
++	public static void main(String[] args) {
++		final WebstartMain gui = new WebstartMain();
++		gui.setArgs(args);
++		javax.swing.SwingUtilities.invokeLater(new Runnable() {
++			public void run() {
++				gui.createAndShowGUI();
++			}
++		});
++	}
++}
+\ No newline at end of file
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletUserInterfaceHandler.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletUserInterfaceHandler.java	(revision 0)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletUserInterfaceHandler.java	(revision 1117)
+@@ -0,0 +1,36 @@
++package org.pathvisio.gui.wikipathways;
++
++import java.net.URL;
++
++import javax.swing.JApplet;
++import javax.swing.JLabel;
++import javax.swing.JOptionPane;
++
++import org.pathvisio.debug.Logger;
++
++public class AppletUserInterfaceHandler extends SwingUserInterfaceHandler {
++	JApplet applet;
++	
++	public AppletUserInterfaceHandler(JApplet applet) {
++		super(JOptionPane.getFrameForComponent(applet));
++		this.applet = applet;
++	}
++	
++	public void showExitMessage(String msg) {
++		JLabel label = new JLabel(msg, JLabel.CENTER);
++		applet.getContentPane().add(label);
++		applet.getContentPane().validate();
++		
++		URL url = applet.getDocumentBase();
++	        try {
++			url = new URL("javascript:window.location.reload();");
++		} catch(Exception ex) {
++			Logger.log.error("Unable to create javascript url", ex);
++		}
++		applet.getAppletContext().showDocument(url, "_top");
++	}
++
++	public void showDocument(URL url, String target) {
++		applet.getAppletContext().showDocument(url, target);
++	}
++}
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/SwingUserInterfaceHandler.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/SwingUserInterfaceHandler.java	(revision 1116)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/SwingUserInterfaceHandler.java	(revision 1117)
+@@ -17,7 +17,11 @@
+ package org.pathvisio.gui.wikipathways;
+ 
+ import java.awt.Component;
++import java.net.URL;
+ 
++import javax.jnlp.BasicService;
++import javax.jnlp.ServiceManager;
++import javax.jnlp.UnavailableServiceException;
+ import javax.swing.JOptionPane;
+ import javax.swing.SwingUtilities;
+ 
+@@ -112,4 +116,18 @@
+ 		
+ 		d.setVisible(true); //If dialog is modal, method will return when progresskeeper is finished
+ 	}
++	
++	public void showExitMessage(String string) {
++		showInfo("Exit", string);
++	}
++	
++	public void showDocument(URL url, String target) {
++		try {
++			BasicService bs = (BasicService)ServiceManager.lookup("javax.jnlp.BasicService");
++			bs.showDocument(url);
++		} catch (UnavailableServiceException e) {
++			Logger.log.error("Unable to get javax.jnlp.BasicService, are you not using webstart?");
++			showError("Error", "Show Document not yet implemented");
++		} 
++	}
+ }
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1116)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1117)
+@@ -16,20 +16,9 @@
+ //
+ package org.pathvisio.gui.wikipathways;
+ 
+-import java.awt.Component;
+-import java.net.CookieHandler;
+-import java.net.URL;
+-import java.util.HashMap;
+-import java.util.List;
+-import java.util.Map;
+-
+-import javax.swing.Action;
+ import javax.swing.JApplet;
+-import javax.swing.JLabel;
+ import javax.swing.JOptionPane;
+ import javax.swing.SwingUtilities;
+-import javax.swing.event.HyperlinkEvent;
+-import javax.swing.event.HyperlinkListener;
+ 
+ import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+@@ -59,28 +48,15 @@
+ 		System.out.println("INIT CALLED....");
+ 		Logger.log.trace("INIT CALLED....");
+ 				
+-		uiHandler = new SwingUserInterfaceHandler(JOptionPane.getFrameForComponent(this));
++		uiHandler = new AppletUserInterfaceHandler(this);
+ 		wiki = new WikiPathways(uiHandler);
+ 		
+ 		try {
+ 			SwingUtilities.invokeAndWait(new Runnable() {
+ 				public void run() {
+ 					mainPanel = SwingEngine.getCurrent().getApplicationPanel();
+-					Action saveAction = new Actions.ExitAction(AppletMain.this, wiki, true);
+-					Action discardAction = new Actions.ExitAction(AppletMain.this, wiki, false);
++					wiki.prepareMainPanel(mainPanel);
+ 					
+-					mainPanel.getToolBar().addSeparator();
+-					mainPanel.addToToolbar(saveAction, MainPanel.TB_GROUP_HIDE_ON_EDIT);
+-					mainPanel.addToToolbar(discardAction);
+-			
+-					mainPanel.getBackpagePane().addHyperlinkListener(new HyperlinkListener() {
+-						public void hyperlinkUpdate(HyperlinkEvent e) {
+-							if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+-								getAppletContext().showDocument(e.getURL(), "_blank");
+-							}
+-						}
+-					});
+-					
+ 					getContentPane().add(mainPanel);
+ 					mainPanel.setVisible(true);
+ 				}
+@@ -95,10 +71,10 @@
+ 				GuiInit.init();
+ 												
+ 				parseArguments();
+-				loadCookies();
+ 								
+ 				try {
+-					wiki.init(SwingEngine.getCurrent().createWrapper(), getProgressKeeper());
++					wiki.init(SwingEngine.getCurrent().createWrapper(), 
++							getProgressKeeper(), getDocumentBase());
+ 				} catch(Exception e) {
+ 					Logger.log.error("Error while starting editor", e);
+ 					JOptionPane.showMessageDialog(
+@@ -153,62 +129,6 @@
+ 		Logger.log.trace("DESTROY ENDED....");
+ 	}
+ 	
+-	public void endWithMessage(String msg) {
+-		JLabel label = new JLabel(msg, JLabel.CENTER);
+-		getContentPane().add(label);
+-		getContentPane().validate();
+-		
+-		URL url = getDocumentBase();
+-	        try {
+-			url = new URL("javascript:window.location.reload();");
+-		} catch(Exception ex) {
+-			Logger.log.error("Unable to create javascript url", ex);
+-		}
+-		getAppletContext().showDocument(url, "_top");
+-
+-	}
+-
+-	void loadCookies() {
+-		Logger.log.trace("Loading cookies");
+-
+-		//wikipathwaysUserName=Thomas; wikipathwaysUserID=2; wikipathwaysToken=d8fa40c604ac290a5e2f65830279f518; wikipathways_session=6e153458660cf2cc888d37ec0e6f164b
+-
+-		try {
+-			CookieHandler handler = CookieHandler.getDefault();
+-			if (handler != null)    {
+-				URL url = getDocumentBase();
+-				Map<String, List<String>> headers = handler.get(url.toURI(), new HashMap<String, List<String>>());
+-				if(headers == null) {
+-					Logger.log.error("Unable to load cookies: headers null");
+-					return;
+-				}
+-				List<String> values = headers.get("Cookie");
+-				for (String c : values) {
+-					String[] cvalues = c.split(";");
+-					for(String cv : cvalues) {
+-						String[] keyvalue = cv.split("=");
+-						if(keyvalue.length == 2) {
+-							Logger.log.trace("COOKIE: " + keyvalue[0] + " | " + keyvalue[1]);
+-							wiki.addCookie(keyvalue[0].trim(), keyvalue[1].trim());
+-						}
+-					}
+-				}
+-			}
+-		} catch(Exception e) {
+-			Logger.log.error("Unable to load cookies", e);
+-		}
+-		//			JSObject myBrowser = (JSObject) JSObject.getWindow(this);
+-		//	        JSObject myDocument =  (JSObject) myBrowser.getMember("document");
+-		//	        String cookie = (String)myDocument.getMember("cookie");
+-		//	        String[] cstr = cookie.split(";");
+-		//	        for(String c : cstr) {
+-		//	        	String[] vstr = c.split("=");
+-		//	        	if(vstr.length == 2) {
+-		//	        		wiki.addCookie(vstr[0].trim(), vstr[1].trim());
+-		//	        	}
+-		//	        }
+-	}
+-
+ 	void parseArguments() {
+ 		for(Parameter p : Parameter.values()) {
+ 			p.setValue(getParameter(p.getName()));
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1116)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1117)
+@@ -20,11 +20,18 @@
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.RandomAccessFile;
++import java.net.CookieHandler;
+ import java.net.HttpURLConnection;
+ import java.net.URL;
+ import java.net.URLConnection;
+ import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
+ 
++import javax.swing.Action;
++import javax.swing.event.HyperlinkEvent;
++import javax.swing.event.HyperlinkListener;
++
+ import org.apache.commons.codec.binary.Base64;
+ import org.apache.xmlrpc.XmlRpcException;
+ import org.apache.xmlrpc.XmlRpcRequest;
+@@ -45,6 +52,9 @@
+ import org.pathvisio.data.DBConnectorDerbyServer;
+ import org.pathvisio.data.Gdb;
+ import org.pathvisio.debug.Logger;
++import org.pathvisio.gui.swing.MainPanel;
++import org.pathvisio.gui.wikipathways.Actions;
++import org.pathvisio.gui.wikipathways.AppletMain;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Organism;
+ import org.pathvisio.model.Pathway;
+@@ -68,9 +78,15 @@
+ 		Engine.getCurrent().addApplicationEventListener(this);
+ 	}
+ 
+-	public void init(VPathwayWrapper wrapper, ProgressKeeper progress) throws Exception {
++	public void setUiHandler(UserInterfaceHandler uih) {
++		uiHandler = uih;
++	}
++	
++	public void init(VPathwayWrapper wrapper, ProgressKeeper progress, URL base) throws Exception {
+ 		WikiPathwaysEngine.init();
+ 		
++		loadCookies(base);
++		
+ 		for(Parameter p : Parameter.values()) {
+ 			//Check for required
+ 			assert !p.isRequired() || p.getValue() != null : 
+@@ -104,6 +120,23 @@
+ 		Gdb.connect(getPwSpecies());
+ 	}
+ 
++	public void prepareMainPanel(MainPanel mainPanel) {
++		Action saveAction = new Actions.ExitAction(uiHandler, this, true);
++		Action discardAction = new Actions.ExitAction(uiHandler, this, false);
++		
++		mainPanel.getToolBar().addSeparator();
++		mainPanel.addToToolbar(saveAction, MainPanel.TB_GROUP_HIDE_ON_EDIT);
++		mainPanel.addToToolbar(discardAction);
++
++		mainPanel.getBackpagePane().addHyperlinkListener(new HyperlinkListener() {
++			public void hyperlinkUpdate(HyperlinkEvent e) {
++				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
++					uiHandler.showDocument(e.getURL(), "_blank");
++				}
++			}
++		});	
++	}
++	
+ 	public String getPwName() {
+ 		return Parameter.PW_NAME.getValue();
+ 	}
+@@ -128,6 +161,34 @@
+ 		cookie.put(key, value);
+ 	}
+ 			
++	public void loadCookies(URL url) {
++		Logger.log.trace("Loading cookies");
++
++		try {
++			CookieHandler handler = CookieHandler.getDefault();
++			if (handler != null)    {
++				Map<String, List<String>> headers = handler.get(url.toURI(), new HashMap<String, List<String>>());
++				if(headers == null) {
++					Logger.log.error("Unable to load cookies: headers null");
++					return;
++				}
++				List<String> values = headers.get("Cookie");
++				for (String c : values) {
++					String[] cvalues = c.split(";");
++					for(String cv : cvalues) {
++						String[] keyvalue = cv.split("=");
++						if(keyvalue.length == 2) {
++							Logger.log.trace("COOKIE: " + keyvalue[0] + " | " + keyvalue[1]);
++							addCookie(keyvalue[0].trim(), keyvalue[1].trim());
++						}
++					}
++				}
++			}
++		} catch(Exception e) {
++			Logger.log.error("Unable to load cookies", e);
++		}
++	}
++	
+ 	public boolean isNew() {
+ 		return Parameter.PW_NEW.getValue() != null;
+ 	}
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/UserInterfaceHandler.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/UserInterfaceHandler.java	(revision 1116)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/UserInterfaceHandler.java	(revision 1117)
+@@ -16,6 +16,8 @@
+ //
+ package org.pathvisio.wikipathways;
+ 
++import java.net.URL;
++
+ import org.pathvisio.util.RunnableWithProgress;
+ 
+ public interface UserInterfaceHandler {		
+@@ -30,4 +32,6 @@
+ 	public int askCancellableQuestion(String title, String message);
+ 	
+ 	public void runWithProgress(RunnableWithProgress runnable, String title, int totalWork, boolean canCancel, boolean modal);
++	public void showExitMessage(String string);
++	public void showDocument(URL url, String target);
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 1116)
++++ trunk/src/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 1117)
+@@ -17,29 +17,33 @@
+ package org.pathvisio.gui.swing;
+ 
+ import javax.swing.JFrame;
++import javax.swing.UIManager;
+ 
+-import org.pathvisio.Engine;
++import org.pathvisio.debug.Logger;
+ import org.pathvisio.preferences.GlobalPreference;
+ 
+ public class GuiMain {
+-
+-	private static void createAndShowGUI() {
++	private String[] args;
++	private JFrame frame;
++	private MainPanel mainPanel;
++	
++	protected void createAndShowGUI() {
+ 		GuiInit.init();
+ 		
+ 		//Create and set up the window.
+-		JFrame frame = new JFrame("PathVisio...swing it baby!");
++		frame = new JFrame("PathVisio...swing it baby!");
+ 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+ 		
+-		MainPanel mainPanel = SwingEngine.getCurrent().getApplicationPanel();
++		mainPanel = SwingEngine.getCurrent().getApplicationPanel();
+ 		frame.add(mainPanel);
+ 		frame.setJMenuBar(mainPanel.getMenuBar());
+ 		frame.setSize(800, 600);
+-//		try {
+-//		    UIManager.setLookAndFeel(
+-//		        UIManager.getSystemLookAndFeelClassName());
+-//		} catch (Exception ex) {
+-//			Logger.log.error("Unable to load native look and feel", ex);
+-//		}
++		try {
++		    UIManager.setLookAndFeel(
++		        UIManager.getSystemLookAndFeelClassName());
++		} catch (Exception ex) {
++			Logger.log.error("Unable to load native look and feel", ex);
++		}
+ 		
+ 		//Display the window.
+ 		frame.setVisible(true);
+@@ -47,15 +51,24 @@
+ 		int spPercent = GlobalPreference.getValueInt(GlobalPreference.GUI_SIDEPANEL_SIZE);
+ 		double spSize = (100 - spPercent) / 100.0;
+ 		mainPanel.getSplitPane().setDividerLocation(spSize);
+-		
+-		SwingEngine.getCurrent().newPathway();
+-		Engine.getCurrent().getActiveVPathway().setEditMode(true);
+ 	}
+ 
++	public JFrame getFrame() { return frame; }
++	
++	public MainPanel getMainPanel() { return mainPanel; }
++	
++	public String[] getArgs() { return args; }
++	
++	public void setArgs(String[] args) {
++		this.args = args;
++	}
++	
+ 	public static void main(String[] args) {
++		final GuiMain gui = new GuiMain();
++		gui.args = args;
+ 		javax.swing.SwingUtilities.invokeLater(new Runnable() {
+ 			public void run() {
+-				createAndShowGUI();
++				gui.createAndShowGUI();
+ 			}
+ 		});
+ 	}
+Index: trunk/src/core/org/pathvisio/model/GraphLink.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/GraphLink.java	(revision 1116)
++++ trunk/src/core/org/pathvisio/model/GraphLink.java	(revision 1117)
+@@ -115,7 +115,7 @@
+ 		
+ 		List<GraphRefContainer> reflist = gd.getReferringObjects(gid.getGraphId());
+ 		
+-		if (!gid.getGraphId().equals("")) 
++		if (gid.getGraphId() != null && gid.getGraphId().equals("")) 
+ 		{
+ 			// get all referring points as a hashset, so
+ 			// that a line that refers to the same object twice
+Index: trunk/src/swt/org/pathvisio/gui/swt/SwtEngine.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/SwtEngine.java	(revision 1116)
++++ trunk/src/swt/org/pathvisio/gui/swt/SwtEngine.java	(revision 1117)
+@@ -73,6 +73,11 @@
+ 		return current;
+ 	}
+ 	
++
++	public static void setCurrent(SwtEngine engine) {
++		current = engine;
++	}
++	
+ 	/**
+ 	 * Get the {@link ApplicationWindow}, the UI of the program
+ 	 */
+@@ -130,7 +135,7 @@
+ 		//</DEBUG>
+ 	}
+ 	
+-	private VPathwayWrapper createWrapper() {
++	public VPathwayWrapper createWrapper() {
+ 		if(window != null) {
+ //			return new VPathwaySwtAwt(window.sc, SWT.NO_BACKGROUND);
+ 			return new VPathwaySwtAwt(window.swingPathwayComposite.getScrollPane(), window.getShell().getDisplay());
+@@ -458,4 +463,5 @@
+ 
+ 			return result;
+ 		}
++
+ }
+\ No newline at end of file
+Index: trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 1116)
++++ trunk/src/swt/org/pathvisio/gui/swt/MainWindowBase.java	(revision 1117)
+@@ -34,6 +34,7 @@
+ import org.eclipse.swt.widgets.Combo;
+ import org.eclipse.swt.widgets.Composite;
+ import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Display;
+ import org.eclipse.swt.widgets.Shell;
+ import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.Engine;
+@@ -45,19 +46,19 @@
+ import org.pathvisio.data.GexSwt;
+ import org.pathvisio.data.Gex.ExpressionDataEvent;
+ import org.pathvisio.data.Gex.ExpressionDataListener;
+-import org.pathvisio.data.GexSwt.ProgressKeeperDialog;
+ import org.pathvisio.debug.Logger;
+ import org.pathvisio.gui.swt.awt.VPathwaySwingComposite;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
++import org.pathvisio.util.swt.ProgressKeeperDialog;
+ import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.StackType;
++import org.pathvisio.view.UndoManagerEvent;
++import org.pathvisio.view.UndoManagerListener;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+-import org.pathvisio.view.UndoManagerListener;
+-import org.pathvisio.view.UndoManagerEvent;
+ import org.pathvisio.visualization.LegendPanel;
+ 
+ /**
+@@ -479,19 +480,40 @@
+ 	public void vPathwayEvent(VPathwayEvent e) {
+ 		switch(e.getType()) {
+ 		case VPathwayEvent.EDIT_MODE_OFF:
+-			showLegend(true);
+-			showEditActionsCI(false);
++			threadSave(new Runnable() {
++				public void run() {
++					showLegend(true);
++					showEditActionsCI(false);
++				}
++			});
+ 			break;
+ 		case VPathwayEvent.EDIT_MODE_ON:
+-			showLegend(false);
+-			showEditActionsCI(true);
++			threadSave(new Runnable() {
++				public void run() {
++					showLegend(false);
++					showEditActionsCI(true);
++				}
++			});
+ 			break;
+ 		case VPathwayEvent.ELEMENT_ADDED:
+-			deselectNewItemActions();
++			threadSave(new Runnable() {
++				public void run() {
++					deselectNewItemActions();
++				}
++			});
+ 			break;
+ 		}
+ 	}
+-
++	
++	protected void threadSave(Runnable r) {
++		Display d = getShell() == null ? Display.getDefault() : getShell().getDisplay();
++		if(Thread.currentThread() == d.getThread()) {
++			r.run();
++		} else {
++			d.syncExec(r);
++		}
++	}
++	
+ 	public void undoManagerEvent (UndoManagerEvent e)
+ 	{
+ 		System.out.println ("Undo Manager event received! " + e.getMessage());
+Index: trunk/src/swt/org/pathvisio/search/SearchResultTable.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/search/SearchResultTable.java	(revision 1116)
++++ trunk/src/swt/org/pathvisio/search/SearchResultTable.java	(revision 1117)
+@@ -103,7 +103,12 @@
+ 	}
+ 
+ 	public void applicationEvent(ApplicationEvent e) {
+-		if(e.type == ApplicationEvent.PATHWAY_OPENED)
+-				highlightResults(highlightButton.getSelection());
++		if(e.type == ApplicationEvent.PATHWAY_OPENED) {
++			highlightButton.getDisplay().asyncExec(new Runnable() {
++				public void run() {
++					highlightResults(highlightButton.getSelection());	
++				}
++			});
++		}				
+ 	}
+ }	
+Index: trunk/src/swt/org/pathvisio/data/GexSwt.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/data/GexSwt.java	(revision 1116)
++++ trunk/src/swt/org/pathvisio/data/GexSwt.java	(revision 1117)
+@@ -20,7 +20,6 @@
+ import java.util.ArrayList;
+ 
+ import org.eclipse.core.runtime.IProgressMonitor;
+-import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+ import org.eclipse.jface.operation.IRunnableWithProgress;
+ import org.eclipse.jface.wizard.IWizard;
+ import org.eclipse.jface.wizard.WizardDialog;
+@@ -30,6 +29,7 @@
+ import org.pathvisio.data.GexImportWizard.ImportPage;
+ import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.ProgressKeeper;
++import org.pathvisio.util.swt.SwtProgressKeeper;
+ 
+ public class GexSwt {
+ 	
+@@ -58,51 +58,6 @@
+ 		}
+ 	}
+ 	
+-	public static class ProgressKeeperDialog extends ProgressMonitorDialog {
+-		ProgressKeeper progress;
+-		
+-		public ProgressKeeperDialog(Shell shell) {
+-			super(shell);
+-		}
+-
+-		public void run(boolean fork, boolean cancellable, IRunnableWithProgress runnable) throws InvocationTargetException, InterruptedException {
+-			if(runnable instanceof ProgressKeeper) progress = (ProgressKeeper)runnable;
+-			super.run(fork, cancellable, runnable);
+-		}
+-		
+-		protected void cancelPressed() {
+-			if(progress != null) progress.cancel();
+-			super.cancelPressed();
+-		}
+-	}
+-	
+-	private static abstract class SwtProgressKeeper extends ProgressKeeper implements IRunnableWithProgress {
+-		IProgressMonitor monitor;
+-		
+-		public SwtProgressKeeper(int totalWork) {
+-			super(totalWork);
+-		}
+-		
+-		public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
+-			this.monitor = monitor;
+-		}
+-		
+-		public void worked(int w) {
+-			super.worked(w);
+-			monitor.worked(w);
+-		}
+-		
+-		public void setTaskName(String name) {
+-			super.setTaskName(name);
+-			monitor.setTaskName(name);
+-		}
+-		
+-		public void finished() {
+-			super.finished();
+-			monitor.done();
+-		}
+-	}
+-	
+ 	public static class CacheProgressKeeper extends SwtProgressKeeper implements IRunnableWithProgress {
+ 		ArrayList<String> ids;
+ 		ArrayList<String> codes;
+Index: trunk/src/swt/org/pathvisio/util/swt/ProgressKeeperDialog.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/util/swt/ProgressKeeperDialog.java	(revision 0)
++++ trunk/src/swt/org/pathvisio/util/swt/ProgressKeeperDialog.java	(revision 1117)
+@@ -0,0 +1,26 @@
++package org.pathvisio.util.swt;
++
++import java.lang.reflect.InvocationTargetException;
++
++import org.eclipse.jface.dialogs.ProgressMonitorDialog;
++import org.eclipse.jface.operation.IRunnableWithProgress;
++import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.util.ProgressKeeper;
++
++public class ProgressKeeperDialog extends ProgressMonitorDialog {
++	ProgressKeeper progress;
++	
++	public ProgressKeeperDialog(Shell shell) {
++		super(shell);
++	}
++
++	public void run(boolean fork, boolean cancellable, IRunnableWithProgress runnable) throws InvocationTargetException, InterruptedException {
++		if(runnable instanceof ProgressKeeper) progress = (ProgressKeeper)runnable;
++		super.run(fork, cancellable, runnable);
++	}
++	
++	protected void cancelPressed() {
++		if(progress != null) progress.cancel();
++		super.cancelPressed();
++	}
++}
+\ No newline at end of file
+Index: trunk/src/swt/org/pathvisio/util/swt/SwtProgressKeeper.java
+===================================================================
+--- trunk/src/swt/org/pathvisio/util/swt/SwtProgressKeeper.java	(revision 0)
++++ trunk/src/swt/org/pathvisio/util/swt/SwtProgressKeeper.java	(revision 1117)
+@@ -0,0 +1,49 @@
++package org.pathvisio.util.swt;
++
++import java.lang.reflect.InvocationTargetException;
++
++import org.eclipse.core.runtime.IProgressMonitor;
++import org.eclipse.jface.operation.IRunnableWithProgress;
++import org.pathvisio.util.ProgressKeeper;
++
++public class SwtProgressKeeper extends ProgressKeeper implements IRunnableWithProgress {
++	IProgressMonitor monitor;
++	Runnable runnable;
++	
++	public SwtProgressKeeper(int totalWork) {
++		this(totalWork, null);
++	}
++	
++	public SwtProgressKeeper(int totalWork, Runnable r) {
++		super(totalWork);
++		runnable = r;
++	}
++	
++	public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
++		this.monitor = monitor;
++		if(runnable != null) {
++			monitor.beginTask(getTaskName(), getTotalWork());
++			runnable.run();
++		}
++	}
++	
++	public void worked(int w) {
++		super.worked(w);
++		monitor.worked(w);
++	}
++	
++	public void setTaskName(String name) {
++		super.setTaskName(name);
++		monitor.setTaskName(name);
++	}
++	
++	public void finished() {
++		super.finished();
++		monitor.done();
++	}
++	
++	public void report(String message) {
++		super.report(message);
++		setTaskName(message);
++	}
++}
+\ No newline at end of file
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1116)
++++ trunk/build.xml	(revision 1117)
+@@ -7,6 +7,7 @@
+ 	<property name="build.v2.dir" value="build/v2"/>
+ 	<property name="build.plugins.dir" value="build/plugins"/>
+ 	<property name="build.wikipathways.dir" value="build/wikipathways"/>
++	<property name="build.wikipathways.swt.dir" value="build/wikipathways-swt"/>
+ 	
+     <property name="apidoc.dir" value="apidoc"/>
+ 	<!-- <property name="dist.dir" value="dist"/> -->
+@@ -59,12 +60,12 @@
+ 		<mkdir dir="${build.v2.dir}"/>
+ 		<mkdir dir="${build.plugins.dir}"/>
+ 		<mkdir dir="${build.wikipathways.dir}"/>
++		<mkdir dir="${build.wikipathways.swt.dir}"/>
+ 		<mkdir dir="${apidoc.dir}"/>
+ 		<mkdir dir="${wikipathways.www.dir}"/>
+ 		<mkdir dir="${wikipathways.bin.dir}"/>
+ 		<mkdir dir="${wikipathways.webstart.dir}"/>
+ 		<mkdir dir="${wikipathways.applet.dir}"/>
+-		
+ 		<echo file="${src.dir}/core/org/pathvisio/Revision.java">
+ package org.pathvisio;
+ 
+@@ -90,15 +91,15 @@
+ 	</target>
+ 	
+ 	<target name="compile-v1" depends="prepare,resources-jar" description="Compile all sources">
+-		<javac debug="true" srcdir="."
+-			includes="src/v1/**,src/core/**,src/swt/**,src/swing/**,src/wikipathways-swt/**"
++		<javac srcdir="."
++			includes="src/v1/**,src/core/**,src/swt/**,src/swing/**"
+ 			destdir="${build.v1.dir}">
+ 			<classpath refid="project.v1.class.path"/>
+ 		</javac>
+ 	</target>
+ 
+ 	<target name="compile-v2" depends="prepare,resources-jar" description="Compile all sources">
+-		<javac debug="true" srcdir="." 
++		<javac srcdir="." 
+                includes="src/v2/**,src/core/**,src/swt/**,src/swing/**"
+ 			   
+                destdir="${build.v2.dir}">
+@@ -131,11 +132,19 @@
+ 				org.pathvisio.gui.wikipathways
+ 				org.pathvisio.wikipathways
+ 		-->
++		<!-- compile applet -->
+ 		<javac srcdir="src" debug="true"
+ 			includes="core/**,wikipathways/**,swing/**"
+ 			destdir="${build.wikipathways.dir}">
+ 			<classpath refid="project.wikipathways.class.path"/>
+ 		</javac>
++		<!-- compile swt webstart version -->
++		<javac srcdir="."
++			includes="src/wikipathways/**,src/wikipathways-swt/**,src/v1/**,src/core/**,src/swt/**,src/swing/**"
++			excludes="src/v1/org/pathvisio/Globals.java"
++			destdir="${build.wikipathways.swt.dir}">
++			<classpath refid="project.v1.class.path"/>
++		</javac>
+ 	</target>
+ 	
+ 	<target name="resources-jar" depends="prepare" description="Generates jar with resources">
+@@ -205,6 +214,10 @@
+ 			<!--<fileset dir="." includes="MAPPTmpl.gtp"/>-->
+ 			<!--<fileset dir="." includes="biopax-level2.owl"/>-->
+ 		</jar>
++		
++		<jar jarfile="wikipathways-swt.jar">
++			<fileset dir="${build.wikipathways.swt.dir}" includes="**/*.class"/>
++		</jar>
+ 	</target>
+ 	
+ 	<target name="run-v1" depends="compile-v1">
+@@ -248,6 +261,9 @@
+ 	</target>
+ 
+ 	<target name="wikipathways-swt" depends="prepare-webstart" description="Create resources for the wikipathways swt editor">
++		<signjar jar="wikipathways-swt.jar" lazy="true" 
++			alias="PV" storepass="PathVisio" keystore="${lib.dir}/visioKeyStore"/>
++		<copy toDir="${wikipathways.webstart.dir}" file="wikipathways-swt.jar"/>
+ 		<!-- Copy webstart files -->
+ 		<copy toDir="${wikipathways.webstart.dir}" >
+ 			<fileset dir="${webstart.dir}/www" includes="**/*.jar"/>
+Index: trunk/lib/jnlp.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/jnlp.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+

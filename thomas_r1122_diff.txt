@@ -1,0 +1,57 @@
+Index: trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/MainWindowWikipathways.java
+===================================================================
+--- trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/MainWindowWikipathways.java	(revision 1121)
++++ trunk/src/wikipathways-swt/org/pathvisio/wikipathways/swt/MainWindowWikipathways.java	(revision 1122)
+@@ -1,10 +1,14 @@
+ package org.pathvisio.wikipathways.swt;
+ 
++import java.net.MalformedURLException;
++import java.net.URL;
++
+ import org.eclipse.jface.action.Action;
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.swt.widgets.Display;
+ import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.debug.Logger;
+ import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.model.Pathway;
+@@ -35,7 +39,11 @@
+ 							"Do you want to save the changes to " + wiki.getPwName() + " on " + Globals.SERVER_NAME + "?");
+ 					if(doit) {
+ 						boolean saved = wiki.saveUI();
+-						wiki.getUserInterfaceHandler().showDocument(WebstartMain.getDocumentBase(), "_this");
++						try {
++							wiki.getUserInterfaceHandler().showDocument(new URL("javascript:window.location.reload();"), "_top");
++						} catch (MalformedURLException ex) {
++							Logger.log.error("Unable to refresh pathway page", ex);
++						}
+ 					}
+ 					
+ 				}
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1121)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1122)
+@@ -18,6 +18,8 @@
+ 
+ import java.awt.event.ActionEvent;
+ import java.awt.event.KeyEvent;
++import java.net.MalformedURLException;
++import java.net.URL;
+ 
+ import javax.swing.AbstractAction;
+ import javax.swing.Action;
+@@ -63,6 +65,11 @@
+ 			}
+ 			if(saved) {
+ 				uiHandler.showExitMessage("Please wait while you'll be redirected to the pathway page");
++				try {
++					uiHandler.showDocument(new URL("javascript:window.location.reload();"), "_top");
++				} catch (MalformedURLException ex) {
++					Logger.log.error("Unable to refresh pathway page", ex);
++				}
+ 			}
+ 		}
+ 	}

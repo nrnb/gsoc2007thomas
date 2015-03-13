@@ -1,0 +1,547 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 941)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 942)
+@@ -1,16 +1,24 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.BorderLayout;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
+ 
++import javax.swing.JComboBox;
+ import javax.swing.JMenu;
+ import javax.swing.JMenuBar;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
+ import javax.swing.JToolBar;
+ 
++import org.pathvisio.gui.swing.CommonActions.CopyAction;
+ import org.pathvisio.gui.swing.CommonActions.ExportAction;
+ import org.pathvisio.gui.swing.CommonActions.ImportAction;
++import org.pathvisio.gui.swing.CommonActions.NewElementAction;
++import org.pathvisio.gui.swing.CommonActions.PasteAction;
+ import org.pathvisio.gui.swing.CommonActions.SaveAction;
++import org.pathvisio.gui.swing.CommonActions.ZoomAction;
++import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class MainPanel extends JPanel {
+@@ -36,18 +44,81 @@
+ 	protected void addMenuActions(JMenuBar mb) {
+ 		JMenu pathwayMenu = new JMenu("Pathway");
+ 		pathwayMenu.add(new SaveAction());
+-		pathwayMenu.add(new ImportAction());
++		pathwayMenu.add(new ImportAction(this));
+ 		pathwayMenu.add(new ExportAction());
+ 		
++		JMenu editMenu = new JMenu("Edit");
++		editMenu.add(new CopyAction());
++		editMenu.add(new PasteAction());
++		
++		JMenu viewMenu = new JMenu("View");
++		JMenu zoomMenu = new JMenu("Zoom");
++		viewMenu.add(zoomMenu);
++		zoomMenu.add(new ZoomAction(VPathway.ZOOM_TO_FIT));
++		zoomMenu.add(new ZoomAction(10));
++		zoomMenu.add(new ZoomAction(25));
++		zoomMenu.add(new ZoomAction(50));
++		zoomMenu.add(new ZoomAction(75));
++		zoomMenu.add(new ZoomAction(100));
++		zoomMenu.add(new ZoomAction(150));
++		zoomMenu.add(new ZoomAction(200));
++		
+ 		mb.add(pathwayMenu);
++		mb.add(editMenu);
++		mb.add(viewMenu);
+ 	}
+ 	
+ 	protected void addToolBarActions(JToolBar tb) {
+ 		tb.add(new SaveAction());
+-		tb.add(new ImportAction());
++		tb.add(new ImportAction(this));
+ 		tb.add(new ExportAction());
+ 		tb.addSeparator();
++		tb.add(new CopyAction());
++		tb.add(new PasteAction());
++		tb.addSeparator();
+ 		
++		tb.addSeparator();
++		JComboBox combo = new JComboBox(new Object[] { 
++				new ZoomAction(VPathway.ZOOM_TO_FIT),
++				new ZoomAction(10),
++				new ZoomAction(25),
++				new ZoomAction(50),
++				new ZoomAction(75),
++				new ZoomAction(100),
++				new ZoomAction(150),
++				new ZoomAction(200)
++		} );
++		combo.setEditable(true);
++		combo.addActionListener(new ActionListener() {
++			public void actionPerformed(ActionEvent e) {
++				JComboBox combo = (JComboBox)e.getSource();
++				Object s = combo.getSelectedItem();
++				if(s instanceof ZoomAction) {
++					((ZoomAction)s).actionPerformed(e);
++				} else if(s instanceof String) {
++					String zs = (String)s;
++					try {
++						double zf = Double.parseDouble(zs);
++						new ZoomAction(zf).actionPerformed(e);
++					} catch(Exception ex) {
++						//Ignore bad input
++					}
++				}
++			}
++		});
++		tb.add(combo);
++		tb.addSeparator();
++		
++		tb.add(new NewElementAction(VPathway.NEWGENEPRODUCT));
++		tb.add(new NewElementAction(VPathway.NEWLABEL));
++		tb.add(new NewElementAction(VPathway.NEWLINEMENU));
++		tb.add(new NewElementAction(VPathway.NEWRECTANGLE));
++		tb.add(new NewElementAction(VPathway.NEWOVAL));
++		tb.add(new NewElementAction(VPathway.NEWARC));
++		tb.add(new NewElementAction(VPathway.NEWBRACE));
++		tb.add(new NewElementAction(VPathway.NEWTBAR));
++		tb.add(new NewElementAction(VPathway.NEWLINESHAPEMENU));
++				
+ 	}
+ 	
+ 	public JMenuBar getMenuBar() {
+@@ -61,5 +132,9 @@
+ 	public void setPathway(VPathwaySwing vPathway) {
+ 		scrollPane.setViewportView(vPathway);
+ 	}
++	
++	public JScrollPane getScrollPane() {
++		return scrollPane;
++	}
+ }
+ 
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 941)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 942)
+@@ -1,6 +1,7 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.Component;
++import java.awt.Dimension;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.KeyEvent;
+ import java.io.File;
+@@ -11,33 +12,68 @@
+ import javax.swing.ImageIcon;
+ import javax.swing.JFileChooser;
+ import javax.swing.KeyStroke;
++import javax.swing.ProgressMonitor;
+ import javax.swing.filechooser.FileFilter;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
+-import org.pathvisio.view.VPathwayWrapper;
++import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public abstract class CommonActions {
+ 	private static URL IMG_IMPORT = Engine.getResourceURL("icons/open.gif");
+ 	private static URL IMG_EXPORT = Engine.getResourceURL("icons/save.gif");
++	private static URL IMG_COPY= Engine.getResourceURL("icons/save.gif");
++	private static URL IMG_PASTE = Engine.getResourceURL("icons/save.gif");
+ 	
++	static class ZoomAction extends AbstractAction {
++		Component parent;
++		double zoomFactor;
++		
++		public ZoomAction(double zf) {
++			zoomFactor = zf;
++			String descr = "Set zoom to " + (int)zf + "%";
++			putValue(Action.NAME, toString());
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			VPathway vPathway = Engine.getActiveVPathway();
++			if(vPathway != null) {
++				vPathway.setPctZoom(zoomFactor);
++			}
++		}
++		
++		public String toString() {
++			if(zoomFactor == VPathway.ZOOM_TO_FIT) {
++				return "Fit to window";
++			}
++			return (int)zoomFactor + "%";
++		}
++	}
++	
+ 	static class SaveAction extends AbstractAction {
+ 		public void actionPerformed(ActionEvent e) {
+ 			//TODO
+ 		}
+ 	}
+ 	
+-	static class ImportAction extends AbstractAction {		
+-		public ImportAction() {
++	static class ImportAction extends AbstractAction {
++		MainPanel mainPanel;
++		
++		public ImportAction(MainPanel parent) {
+ 			super("Import", new ImageIcon(IMG_IMPORT));
++			mainPanel = parent;
+ 			putValue(Action.SHORT_DESCRIPTION, "Import pathway");
+ 			putValue(Action.LONG_DESCRIPTION, "Import a pathway from various file formats");
+ 			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_M, ActionEvent.CTRL_MASK));
+ 		}
+ 		
+ 		public void actionPerformed(ActionEvent e) {
++				final Component component = (Component)e.getSource();
+ 				//Open file dialog
+ 				JFileChooser jfc = new JFileChooser();
+ 				jfc.setAcceptAllFileFilterUsed(false);
+@@ -76,13 +112,18 @@
+ 					jfc.addChoosableFileFilter(ff);
+ 				}
+ 				
+-				int status = jfc.showDialog((Component)e.getSource(), "Import");
++				int status = jfc.showDialog(component, "Import");
+ 				if(status == JFileChooser.APPROVE_OPTION) {
+ 					try {
+-						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing());
++						int totalWork = 1000;
++						ProgressMonitor m = new ProgressMonitor(component, "Loading pathway", "Please wait while the pathway is being loaded", 0, 1000);
++						m.setProgress(10);
++						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing(mainPanel));
++						m.setProgress((int)(totalWork*2/3));
+ 						Engine.getActiveVPathway().setEditMode(true);
++						m.setProgress(totalWork);
+ 					} catch(ConverterException ex) {
+-						SwingEngine.handleConverterException(SwingEngine.MSG_UNABLE_IMPORT, (Component)e.getSource(), ex);
++						SwingEngine.handleConverterException(SwingEngine.MSG_UNABLE_IMPORT, component, ex);
+ 					}
+ 				}
+ 		}
+@@ -94,11 +135,128 @@
+ 			putValue(Action.SHORT_DESCRIPTION, "Export pathway");
+ 			putValue(Action.LONG_DESCRIPTION, "Export the pathway to various file formats");
+ 			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_E, ActionEvent.CTRL_MASK));
+-			
+ 		}
+ 		
+ 		public void actionPerformed(ActionEvent e) {
+ 			//TODO
+ 		}
+ 	}
++	
++	static class CopyAction extends AbstractAction {
++		public CopyAction() {
++			super("Copy", new ImageIcon(IMG_COPY));
++			String descr = "Copy selected pathway objects to clipboard";
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_C, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			Engine.getActiveVPathway().copyToClipboard();
++		}		
++	}
++	
++	static class PasteAction extends AbstractAction {
++		public PasteAction() {
++			super("Paste", new ImageIcon(IMG_PASTE));
++			String descr = "Paste pathway elements from clipboard";
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_V, ActionEvent.CTRL_MASK));
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			Engine.getActiveVPathway().pasteFromClipboad();
++		}
++	}
++	
++	static class NewElementAction extends AbstractAction {
++		int element;
++		public NewElementAction(int type) {
++			super();
++			element = type;
++			
++			String descr = "";
++			URL imageURL = null;
++			switch(element) {
++			case VPathway.NEWLINE: 
++				descr = "Draw new line";
++				imageURL = Engine.getResourceURL("icons/newline.gif");
++				break;
++			case VPathway.NEWLINEARROW:
++				descr = "Draw new arrow";
++				imageURL = Engine.getResourceURL("icons/newarrow.gif");
++				break;
++			case VPathway.NEWLINEDASHED:
++				descr = "Draw new dashed line";
++				imageURL = Engine.getResourceURL("icons/newdashedline.gif");
++				break;
++			case VPathway.NEWLINEDASHEDARROW:
++				descr = "Draw new dashed arrow";
++				imageURL = Engine.getResourceURL("icons/newdashedarrow.gif");
++				break;
++			case VPathway.NEWLABEL:
++				descr = "Draw new label";
++				imageURL = Engine.getResourceURL("icons/newlabel.gif");
++				break;
++			case VPathway.NEWARC:
++				descr = "Draw new arc";
++				imageURL = Engine.getResourceURL("icons/newarc.gif");
++				break;
++			case VPathway.NEWBRACE:
++				descr = "Draw new brace";
++				imageURL = Engine.getResourceURL("icons/newbrace.gif");
++				break;
++			case VPathway.NEWGENEPRODUCT:
++				descr = "Draw new data node";
++				imageURL = Engine.getResourceURL("icons/newgeneproduct.gif");
++				break;
++			case VPathway.NEWRECTANGLE:
++				descr = "Draw new rectangle";
++				imageURL = Engine.getResourceURL("icons/newrectangle.gif");
++				break;
++			case VPathway.NEWOVAL:
++				descr = "Draw new oval";
++				imageURL = Engine.getResourceURL("icons/newoval.gif");
++				break;
++			case VPathway.NEWTBAR:
++				descr = "Draw new TBar";
++				imageURL = Engine.getResourceURL("icons/newtbar.gif");
++				break;
++			case VPathway.NEWRECEPTORROUND:
++				descr = "Draw new round receptor";
++				imageURL = Engine.getResourceURL("icons/newreceptorround.gif");
++				break;
++			case VPathway.NEWRECEPTORSQUARE:
++				descr = "Draw new square receptor";
++				imageURL = Engine.getResourceURL("icons/newreceptorsquare.gif");
++				break;
++			case VPathway.NEWLIGANDROUND:
++				descr = "Draw new round ligand";
++				imageURL = Engine.getResourceURL("icons/newligandround.gif");
++				break;
++			case VPathway.NEWLIGANDSQUARE:
++				descr = "Draw new square ligand";
++				imageURL = Engine.getResourceURL("icons/newligandsquare.gif");
++				break;
++			case VPathway.NEWLINEMENU:
++				imageURL = Engine.getResourceURL("icons/newlinemenu.gif");
++				descr = "Draw new line or arrow";
++				break;
++			case VPathway.NEWLINESHAPEMENU:
++				imageURL = Engine.getResourceURL("icons/newlineshapemenu.gif");
++				descr = "Draw new ligand or receptor";
++				break;
++			}
++			putValue(Action.SHORT_DESCRIPTION, descr);
++			putValue(Action.LONG_DESCRIPTION, descr);
++			if(imageURL != null) {
++				putValue(Action.SMALL_ICON, new ImageIcon(imageURL));
++			}
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			Engine.getActiveVPathway().setNewGraphics(element);
++		}
++	}
+ }
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 941)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 942)
+@@ -17,7 +17,7 @@
+ 		MainPanel mainPanel = SwingEngine.getApplicationPanel();
+ 		frame.add(mainPanel);
+ 		frame.setJMenuBar(mainPanel.getMenuBar());
+-		frame.setSize(400, 400);
++		frame.setSize(800, 600);
+ 		
+ 		try {
+ 		    UIManager.setLookAndFeel(
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/SwingMouseEvent.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 941)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/SwingMouseEvent.java	(revision 942)
+@@ -21,6 +21,7 @@
+ 		case MouseEvent.MOUSE_EXITED:
+ 			return org.pathvisio.view.MouseEvent.MOUSE_EXIT;
+ 		case MouseEvent.MOUSE_MOVED:
++		case MouseEvent.MOUSE_DRAGGED:
+ 			return org.pathvisio.view.MouseEvent.MOUSE_MOVE;
+ 		case MouseEvent.MOUSE_PRESSED:
+ 			return org.pathvisio.view.MouseEvent.MOUSE_DOWN;
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 941)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 942)
+@@ -12,14 +12,17 @@
+ 
+ import javax.swing.JComponent;
+ 
++import org.pathvisio.gui.swing.MainPanel;
+ import org.pathvisio.gui.swing.SwingEngine;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ 
+ public class VPathwaySwing extends JComponent implements VPathwayWrapper, MouseMotionListener, MouseListener, KeyListener {
+ 	VPathway child;
++	MainPanel parent;
+ 	
+-	public VPathwaySwing() {
++	public VPathwaySwing(MainPanel parent) {
++		this.parent = parent;
+ 		addMouseListener(this);
+ 		addMouseMotionListener(this);
+ 		addKeyListener(this);
+@@ -37,6 +40,10 @@
+ 		return getSize();
+ 	}
+ 
++	public Dimension getViewportSize() {
++		return parent.getScrollPane().getViewport().getExtentSize();
++	}
++	
+ 	public void redraw() {
+ 		repaint();
+ 	}
+@@ -80,14 +87,17 @@
+ 
+ 	public void keyPressed(KeyEvent e) {
+ 		child.keyPressed(new SwingKeyEvent(e));
++		System.out.println("Key pressed........!");
+ 	}
+ 
+ 	public void keyReleased(KeyEvent e) {
+-		child.keyReleased(new SwingKeyEvent(e));		
++		child.keyReleased(new SwingKeyEvent(e));
++		System.out.println("Key released......!");
+ 	}
+ 
+ 	public void keyTyped(KeyEvent e) {
+-		// TODO: find out how to handle this one	
++		// TODO: find out how to handle this one
++		System.out.println("Key types.....!");
+ 	}
+ 
+ 	public void mouseDragged(MouseEvent e) {
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 941)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 942)
+@@ -513,17 +513,7 @@
+ 			VPathway drawing = Engine.getActiveVPathway();
+ 			if (drawing != null)
+ 			{
+-				double newPctZoomFactor = pctZoomFactor;
+-				if(pctZoomFactor == MainWindow.ZOOM_TO_FIT) 
+-				{
+-					org.eclipse.swt.graphics.Point shellSize = window.sc.getSize();
+-					Dimension drawingSize = drawing.getWrapper().getVSize();
+-					newPctZoomFactor = (int)Math.min(
+-							drawing.getPctZoom() * (double)shellSize.x / drawingSize.width,
+-							drawing.getPctZoom() * (double)shellSize.y / drawingSize.height
+-					);
+-				} 
+-				drawing.setPctZoom(newPctZoomFactor);
++				drawing.setPctZoom(pctZoomFactor);
+ 			}
+ 			else
+ 			{
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 941)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 942)
+@@ -17,6 +17,7 @@
+ package org.pathvisio.view;
+ 
+ import java.awt.Color;
++import java.awt.Dimension;
+ import java.awt.Graphics2D;
+ import java.awt.Point;
+ import java.awt.Rectangle;
+@@ -31,6 +32,7 @@
+ import java.util.Set;
+ 
+ import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -57,6 +59,7 @@
+ {	
+ 	private static final long serialVersionUID = 1L;
+ 	static final double M_PASTE_OFFSET = 10 * 15;
++	public static final double ZOOM_TO_FIT = -1;
+ 	
+ 	private VPathwayWrapper parent; // may be null
+ 	
+@@ -345,10 +348,20 @@
+ 
+ 	/**
+ 	 * Sets the drawings zoom in percent
+-	 * @param pctZoomFactor zoomfactor in percent
++	 * @param pctZoomFactor zoomfactor in percent, or ZOOM_TO_FIT to fit the
++	 * zoomfactor to the drawing's viewport
+ 	 */
+ 	public void setPctZoom(double pctZoomFactor)
+ 	{
++		if(pctZoomFactor == ZOOM_TO_FIT) 
++		{
++			Dimension drawingSize = getWrapper().getVSize();
++			Dimension viewportSize = getWrapper().getViewportSize();
++			pctZoomFactor = (int)Math.min(
++					getPctZoom() * (double)viewportSize.width / drawingSize.width,
++					getPctZoom() * (double)viewportSize.height / drawingSize.height
++			);
++		}
+ 		zoomFactor = pctZoomFactor / 100.0 / 15.0;
+ 		int width = (int)vFromM(infoBox.getGmmlData().getMBoardWidth());
+ 		int height = (int)vFromM(infoBox.getGmmlData().getMBoardHeight());
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayWrapper.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayWrapper.java	(revision 941)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayWrapper.java	(revision 942)
+@@ -10,6 +10,7 @@
+ 	public void setVSize(int w, int h);
+ 	public Dimension getVSize();
+ 	public Rectangle getVBounds();
++	public Dimension getViewportSize();
+ 	
+ 	public VPathway createVPathway();
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 941)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 942)
+@@ -16,6 +16,7 @@
+ import org.eclipse.swt.graphics.GC;
+ import org.eclipse.swt.widgets.Canvas;
+ import org.eclipse.swt.widgets.Composite;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.view.InputEvent;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+@@ -66,6 +67,11 @@
+ 		return new Rectangle(b.x, b.y, b.width, b.height);
+ 	}
+ 	
++	public Dimension getViewportSize() {
++		org.eclipse.swt.graphics.Point scs = SwtEngine.getWindow().sc.getSize();
++		return new Dimension(scs.x, scs.y);
++	}
++	
+ 	//Method 1: transfer from BufferedImage
+ 	public void paintControl(PaintEvent e) {
+ 		GC gc = e.gc; // gets the SWT graphics context from the event

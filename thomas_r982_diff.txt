@@ -1,0 +1,547 @@
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 981)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 982)
+@@ -22,6 +22,7 @@
+ import java.awt.Point;
+ import java.awt.Rectangle;
+ import java.awt.RenderingHints;
++import java.awt.event.ActionEvent;
+ import java.awt.geom.Point2D;
+ import java.awt.geom.Rectangle2D;
+ import java.util.ArrayList;
+@@ -32,6 +33,9 @@
+ import java.util.Map;
+ import java.util.Set;
+ 
++import javax.swing.AbstractAction;
++import javax.swing.KeyStroke;
++
+ import org.pathvisio.Engine;
+ import org.pathvisio.gui.swt.AlignActions;
+ import org.pathvisio.model.GroupStyle;
+@@ -118,6 +122,7 @@
+ 		
+ 		s = new SelectionBox(this);
+ 		
++		registerKeyboardActions();
+ 		VisualizationManager.addListener(this);
+ 	}
+ 	
+@@ -1028,6 +1033,13 @@
+ 		}
+ 	}
+ 	
++	private void selectAll() {
++		clearSelection();
++		for(VPathwayElement o : getDrawingObjects()) {
++			s.addToSelection(o);
++		}
++	}
++	
+ 	private void insertPressed() {
+ 		Set<VPathwayElement> objects = new HashSet<VPathwayElement>();
+ 		objects.addAll(s.getSelection());
+@@ -1080,33 +1092,53 @@
+ 	}
+ 
+ 	public void keyPressed(KeyEvent e) { 
+-		if(e.isKey(KeyEvent.INSERT)) insertPressed();
+-		if(e.isKey('d') && e.isKeyDown(KeyEvent.M_CTRL)) //CTRL-D to select all gene-products 
+-		{
+-			selectGeneProducts();
+-			redraw();
++		//Use registerKeyboardActions
++	}
++	
++	private void registerKeyboardActions() {
++		
++		if(parent != null) {
++			parent.registerKeyboardAction(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_D,
++					java.awt.Event.CTRL_MASK),
++					new AbstractAction() {
++				public void actionPerformed(ActionEvent e) {
++					selectGeneProducts();
++					redraw();
++				}
++			}, VPathwayWrapper.WHEN_WINDOW_FOCUSED);
++			parent.registerKeyboardAction(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G,
++					java.awt.Event.CTRL_MASK),
++					new AbstractAction() {
++				public void actionPerformed(ActionEvent e) {
++					createGroup();
++				}
++			}, VPathwayWrapper.WHEN_WINDOW_FOCUSED);
++			parent.registerKeyboardAction(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_A,
++					java.awt.Event.CTRL_MASK),
++					new AbstractAction() {
++				public void actionPerformed(ActionEvent e) {
++					selectAll();
++					redraw();
++				}
++			}, VPathwayWrapper.WHEN_WINDOW_FOCUSED);
++			parent.registerKeyboardAction(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_DELETE, 0),
++					new AbstractAction() {
++				public void actionPerformed(ActionEvent e) {
++					ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
++					for(VPathwayElement o : drawingObjects)
++					{
++						if(!o.isSelected() || o == s || o == infoBox) continue; //Object not selected, skip
++						toRemove.add(o);
++					}
++					removeDrawingObjects(toRemove);	
++				}
++			}, VPathwayWrapper.WHEN_WINDOW_FOCUSED);
+ 		}
+-//		System.out.println(e.getKeyCode());
+-//		System.out.println("is g? " + e.isKey('g'));
+-//		System.out.println("is CTRL down? " + e.isKeyDown(KeyEvent.CTRL));
+-		if(e.isKey('g') && e.isKeyDown(KeyEvent.M_CTRL)) //CTRL-G to select all gene-products
+-		{
+-			createGroup();
+-		}
++                
+ 	}
+ 
+-	
+-	
+ 	public void keyReleased(KeyEvent e) {		
+-		if(e.isKey(KeyEvent.DEL)) {
+-			ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
+-			for(VPathwayElement o : drawingObjects)
+-			{
+-				if(!o.isSelected() || o == s || o == infoBox) continue; //Object not selected, skip
+-				toRemove.add(o);
+-			}
+-			removeDrawingObjects(toRemove);
+-		}
++		//use registerKeyboardActions
+ 	}
+ 	
+ 	/**
+Index: trunk/src/core/org/pathvisio/view/VPathwayWrapper.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathwayWrapper.java	(revision 981)
++++ trunk/src/core/org/pathvisio/view/VPathwayWrapper.java	(revision 982)
+@@ -19,6 +19,9 @@
+ import java.awt.Dimension;
+ import java.awt.Rectangle;
+ 
++import javax.swing.Action;
++import javax.swing.KeyStroke;
++
+ public abstract interface VPathwayWrapper {		
+ 	public void redraw();
+ 	public void redraw(Rectangle r);
+@@ -29,4 +32,8 @@
+ 	public Dimension getViewportSize();
+ 	
+ 	public VPathway createVPathway();
++	
++	public static final int WHEN_FOCUSED = 0;
++	public static final int WHEN_WINDOW_FOCUSED = 1;
++	public void registerKeyboardAction(KeyStroke k, Action a, int when);
+ }
+Index: trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java	(revision 981)
++++ trunk/src/core/org/pathvisio/view/swing/VPathwaySwing.java	(revision 982)
+@@ -27,10 +27,12 @@
+ import java.awt.event.MouseListener;
+ import java.awt.event.MouseMotionListener;
+ 
++import javax.swing.Action;
++import javax.swing.JComponent;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
++import javax.swing.KeyStroke;
+ 
+-import org.pathvisio.ApplicationEvent;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+@@ -50,6 +52,9 @@
+ 		addMouseListener(this);
+ 		addMouseMotionListener(this);
+ 		addKeyListener(this);
++		
++		setFocusable(true);
++		setRequestFocusEnabled(true);
+ 	}
+ 
+ 	public void setChild(VPathway c) {
+@@ -117,13 +122,13 @@
+ 	}
+ 
+ 	public void keyPressed(KeyEvent e) {
++		System.out.println("Key pressed........!");
+ 		child.keyPressed(new SwingKeyEvent(e));
+-		System.out.println("Key pressed........!");
+ 	}
+ 
+ 	public void keyReleased(KeyEvent e) {
++		System.out.println("Key released......!");
+ 		child.keyReleased(new SwingKeyEvent(e));
+-		System.out.println("Key released......!");
+ 	}
+ 
+ 	public void keyTyped(KeyEvent e) {
+@@ -139,6 +144,16 @@
+ 		child.mouseMove(new SwingMouseEvent(e));
+ 	}
+ 
++	public void registerKeyboardAction(KeyStroke k, Action a, int when) {
++		switch(when) {
++		case VPathwayWrapper.WHEN_FOCUSED:
++			when = JComponent.WHEN_FOCUSED; break;
++		case WHEN_WINDOW_FOCUSED:
++			when = WHEN_IN_FOCUSED_WINDOW; break;
++		}
++		super.registerKeyboardAction(a, k, when);	
++	}
++	
+ 	public VPathway createVPathway() {
+ 		setChild(new VPathway(this));
+ 		return child;
+Index: trunk/src/core/org/pathvisio/view/Label.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Label.java	(revision 981)
++++ trunk/src/core/org/pathvisio/view/Label.java	(revision 982)
+@@ -124,6 +124,7 @@
+ 		Rectangle2D tb = null;
+ 		if(g != null) {
+ 			 tb = g.getFontMetrics().getStringBounds(getVAttributedString().getIterator(), 0, gdata.getTextLabel().length(), g);
++			 tb.setRect(getVLeftDouble(), getVTopDouble(), tb.getWidth(), tb.getHeight() + g.getFontMetrics().getDescent());
+ 		} else { //No graphics context, we can only guess...
+ 			tb = new Rectangle2D.Double(getVLeftDouble(), getVTopDouble(), getVWidthDouble(), getVHeightDouble()); 
+ 		}
+@@ -208,11 +209,8 @@
+ 	 */
+ 	protected Shape getVOutline()
+ 	{
+-		Rectangle bounds = super.getVOutline().getBounds();
+ 		Rectangle2D tb = getTextBounds(g2d);
+-		bounds.add(tb);
+-
+-		return bounds;
++		return tb;
+ 	}
+ 	
+ }
+Index: trunk/src/core/org/pathvisio/view/Line.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Line.java	(revision 981)
++++ trunk/src/core/org/pathvisio/view/Line.java	(revision 982)
+@@ -20,10 +20,13 @@
+ import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Polygon;
++import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.geom.AffineTransform;
+ import java.awt.geom.Arc2D;
++import java.awt.geom.Area;
+ import java.awt.geom.Ellipse2D;
++import java.awt.geom.GeneralPath;
+ import java.awt.geom.Line2D;
+ import java.awt.geom.Point2D;
+ import java.awt.geom.Rectangle2D;
+@@ -33,6 +36,7 @@
+ import java.util.Set;
+ 
+ import org.pathvisio.model.LineStyle;
++import org.pathvisio.model.LineType;
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.model.PathwayEvent;
+ import org.pathvisio.model.GraphLink.GraphRefContainer;
+@@ -92,9 +96,6 @@
+ 	public void doDraw(Graphics2D g)
+ 	{
+ 		Color c;
+-		Line2D l = getVLine();
+-		Point2D start = l.getP1();
+-		Point2D end = l.getP2();
+ 		
+ 		if(isSelected()) {
+ 			c = selectColor;
+@@ -115,45 +116,76 @@
+ 				  10, new float[] {4, 4}, 0));
+ 		}			
+ 
++		Line2D l = getVLine();
++		Shape h = getVHead(l, gdata.getLineType());
+ 		g.draw(l);
++		drawHead(g, h, gdata.getLineType());
++		if (isHighlighted())
++		{
++			Color hc = getHighlightColor();
++			g.setColor(new Color (hc.getRed(), hc.getGreen(), hc.getBlue(), 128));
++			g.setStroke (new BasicStroke (HIGHLIGHT_STROKE_WIDTH));
++			g.draw(l);
++			if(h != null) g.draw(h);
++		}
+ 
++	}
++	
++	private void drawHead(Graphics2D g, Shape head, LineType type) {
++		if(head != null) {
++			g.setStroke(new BasicStroke());
++			switch(type) {
++			case ARROW:
++			case LIGAND_ROUND:
++			case LIGAND_SQUARE:
++				g.fill(head);
++			case RECEPTOR:
++			case RECEPTOR_ROUND:
++			case RECEPTOR_SQUARE:
++			case TBAR:
++				g.draw(head);
++			}
++		}
++	}
++	
++	protected Shape getVHead(Line2D l, LineType type) {
++		Point2D start = l.getP1();
++		Point2D end = l.getP2();
++		
+ 		double xs = start.getX();
+ 		double ys = start.getY();
+ 		double xe = end.getX();
+ 		double ye = end.getY();
+ 		
+-		switch (gdata.getLineType()) {
++		Shape h = null;
++		switch (type) {
+ 			case ARROW:				
+-				paintArrowHead(g, xs, ys, xe, ye, vFromM(ARROWWIDTH), vFromM(ARROWHEIGHT));
++				h = getArrowHead(xs, ys, xe, ye, vFromM(ARROWWIDTH), vFromM(ARROWHEIGHT));
+ 				break;
+ 			case TBAR:	
+-				paintTBar(g, xs, ys, xe, ye, vFromM(TBARWIDTH), vFromM(TBARHEIGHT));
++				h = getTBar(xs, ys, xe, ye, vFromM(TBARWIDTH), vFromM(TBARHEIGHT));
+ 				break;
+ 			case LIGAND_ROUND:	
+-				paintLRound(g, xe, ye, vFromM(LRDIAM));
++				h = getLRound(xe, ye, vFromM(LRDIAM));
+ 				break;
+ 			case RECEPTOR_ROUND:
+-				paintRRound(g, xs, ys, xe, ye, vFromM(RRDIAM));
++				h = getRRound(xs, ys, xe, ye, vFromM(RRDIAM));
+ 				break;
+ 			case RECEPTOR: //TODO: implement receptor
+ 			case RECEPTOR_SQUARE:
+-				paintReceptor(g, xs, ys, xe, ye, vFromM(RECEPWIDTH), vFromM(RECEPHEIGHT));
++				h = getReceptor(xs, ys, xe, ye, vFromM(RECEPWIDTH), vFromM(RECEPHEIGHT));
+ 				break;
+ 			case LIGAND_SQUARE:
+-			{
+-				paintLigand(g, xs, ys, xe, ye, vFromM(LIGANDWIDTH), vFromM(LIGANDHEIGHT));
+-			}
+-			break;
++				h = getLigand(xs, ys, xe, ye, vFromM(LIGANDWIDTH), vFromM(LIGANDHEIGHT));
++				break;
+ 		}
+-		
+-		if (isHighlighted())
+-		{
+-			Color hc = getHighlightColor();
+-			g.setColor(new Color (hc.getRed(), hc.getGreen(), hc.getBlue(), 128));
+-			g.setStroke (new BasicStroke (HIGHLIGHT_STROKE_WIDTH));
+-			g.draw(l);
++				
++		if(h != null) {
++			AffineTransform f = new AffineTransform();
++			f.rotate(-getAngle(xs, ys, xe, ye), xe, ye);
++			h = f.createTransformedShape(h);
+ 		}
+-
++		return h;
+ 	}
+ 	
+ 	private double getAngle(double xs, double ys, double xe, double ye) {
+@@ -164,118 +196,54 @@
+ 		return LinAlg.angle(new LinAlg.Point(ps.getX(), ps.getY()), new LinAlg.Point(pe.getX(), pe.getY()));
+ 	}
+ 	
+-	private void paintArrowHead(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {			
+-		g2d.fill(getArrowHead(g2d, xs, ys, xe, ye, w, h));
+-	}
+-	
+-	private Shape getArrowHead(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {
+-		double angle = getAngle(xs, ys, xe, ye);
++	private Shape getArrowHead(double xs, double ys, double xe, double ye, double w, double h) {
+ 		int[] xpoints = new int[] { (int)xe, (int)(xe - w), (int)(xe - w) };
+ 		int[] ypoints = new int[] { (int)ye, (int)(ye - h), (int)(ye + h) };
+ 		
+-		Polygon arrow = new Polygon(xpoints, ypoints, 3);
+-		AffineTransform f = new AffineTransform();
+-		f.rotate(-angle, xe, ye);
+-		return f.createTransformedShape(arrow);
++		return new Polygon(xpoints, ypoints, 3);
+ 	}
+ 	
+-	private void paintTBar(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {
+-		g2d.fill(getTBar(g2d, xs, ys, xe, ye, w, h));
++	private Shape getTBar(double xs, double ys, double xe, double ye, double w, double h) {
++		return new Rectangle2D.Double(xe - w, ye - h/2, w, h);
+ 	}
+-	
+-	private Shape getTBar(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {
+-		double angle = getAngle(xs, ys, xe, ye);
+-	
+-		Rectangle2D bar = new Rectangle2D.Double(xe - w, ye - h/2, w, h);
+-		AffineTransform f = new AffineTransform();
+-		f.rotate(-angle, xe, ye);
+-		return f.createTransformedShape(bar);
+-	}
+-	
+-	private void paintLRound(Graphics2D g2d, double xe, double ye, double d) {	
+-		g2d.fill(getLRound(g2d, xe, ye, d));
+-	}
+-	
+-	private Shape getLRound(Graphics2D g2d, double xe, double ye, double d) {	
++		
++	private Shape getLRound(double xe, double ye, double d) {	
+ 		return new Ellipse2D.Double(xe - d/2, ye - d/2, d, d);
+ 	}
+-	
+-	private void paintRRound(Graphics2D g2d, double xs, double ys, double xe, double ye, double d) {
+-		double angle = getAngle(xs, ys, xe, ye);
+-		AffineTransform f = new AffineTransform();
+-		f.rotate(-angle, xe, ye);
+ 		
+-		Rectangle2D hideRect = new Rectangle2D.Double(xe - d/2, ye - 2, d/2 + 1, 4);
+-		Shape hide = f.createTransformedShape(hideRect);
+-		
+-		Arc2D arc = new Arc2D.Double((int)(xe - d/2), (int)(ye - d/2), d, d, 90, 180, Arc2D.OPEN);
+-		Shape rotArc = f.createTransformedShape(arc);
+-		
+-		//Hide top of line
+-		Color cOld = g2d.getColor();
+-		g2d.setColor(Color.WHITE);
+-		g2d.fill(hide);
+-		g2d.setColor(cOld);
+-		g2d.draw(rotArc);		
++	private Shape getRRound(double xs, double ys, double xe, double ye, double d) {
++		return new Arc2D.Double((int)xe, (int)(ye - d/2), d, d, 90, 180, Arc2D.OPEN);
+ 	}
+-	
+-	private void paintReceptor(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {					
+-		/* Path2D Only in Java 1.6....
+-		Path2D rec = new Path2D.Double();
+-		rec.moveTo(xe + w, ye + h/2);
+-		rec.lineTo(xe, ye + h/2);
+-		rec.lineTo(xe, ye - h/2);
+-		rec.lineTo(xe + w, ye - h/2);
+-		AffineTransform f = new AffineTransform();
+-		f.rotate(-angle, xe, ye);
+-		Shape rotRec = f.createTransformedShape(rec);
+-		g2d.draw(rotRec);
+-		*/
+ 		
+-		double angle = getAngle(xs, ys, xe, ye);
+-		AffineTransform f = new AffineTransform();
+-		f.rotate(-angle, xe, ye);
+-		
+-		Rectangle2D hideRect = new Rectangle2D.Double(xe - w, ye - 2, w + 1, 4);
+-		Shape hide = f.createTransformedShape(hideRect);
+-		
+-		//Hide top of line
+-		Color cOld = g2d.getColor();
+-		g2d.setColor(Color.WHITE);
+-		g2d.fill(hide);
+-		g2d.setColor(cOld);
+-		
+-		Shape l = new Line2D.Double(xe, ye + h/2, xe - w, ye + h/2);
+-		Shape r = f.createTransformedShape(l);
+-		g2d.draw(r);
+-		l = new Line2D.Double(xe - w, ye + h/2, xe - w, ye - h/2);
+-		r = f.createTransformedShape(l);
+-		g2d.draw(r);
+-		l = new Line2D.Double(xe - w, ye - h/2, xe, ye - h/2);
+-		r = f.createTransformedShape(l);
+-		g2d.draw(r);
++	private Shape getReceptor(double xs, double ys, double xe, double ye, double w, double h) {					
++		GeneralPath rec = new GeneralPath();
++		rec.moveTo((int)(xe + w), (int)(ye + h/2));
++		rec.lineTo((int)xe, (int)(ye + h/2));
++		rec.lineTo((int)xe, (int)(ye - h/2));
++		rec.lineTo((int)(xe + w), (int)(ye - h/2));
++		return rec;
+ 	}
+ 	
+-	private void paintLigand(Graphics2D g2d, double xs, double ys, double xe, double ye, double w, double h) {
+-		double angle = getAngle(xs, ys, xe, ye);
+-	
+-		Rectangle2D bar = new Rectangle2D.Double(xe - w, ye - h/2, w, h);
+-		AffineTransform f = new AffineTransform();
+-		f.rotate(-angle, xe, ye);
+-		Shape rotBar = f.createTransformedShape(bar);
+-		g2d.fill(rotBar);
+-		g2d.draw(rotBar);
++	private Shape getLigand(double xs, double ys, double xe, double ye, double w, double h) {
++		return new Rectangle2D.Double(xe - w, ye - h/2, w, h);
+ 	}
+ 	
+ //	TODO: create the real outline, by creating a shape that
+ //  represents the whole line...use getArrow() etc.
+ 	protected Shape getVOutline()
+ 	{
+-		//TODO: bigger than necessary, just to include the arrowhead / shape at the end
+-		BasicStroke stroke = new BasicStroke(20);
+-		Shape outline = stroke.createStrokedShape(getVLine());
+-		return outline;
+-	}	
++		Line2D l = getVLine();
++		Shape h = getVHead(l, gdata.getLineType());
++		//Wider stroke for line, for 'fuzzy' matching
++		Shape ls = new BasicStroke(5).createStrokedShape(l);
++		if(h == null) {
++			return ls;
++		} else {
++			Area line = new Area(ls);
++			line.add(new Area(h));
++			return line;
++		}
++	}
+ 	
+ //	/**
+ //	 * If the line type is arrow, this method draws the arrowhead
+Index: trunk/src/core/org/pathvisio/view/Handle.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/Handle.java	(revision 981)
++++ trunk/src/core/org/pathvisio/view/Handle.java	(revision 982)
+@@ -210,17 +210,11 @@
+ 	}
+ 			
+ 	public Shape getVOutline() {
+-		//Override VPathwayElement, because getVOutline is too slow
+-		Rectangle b = getFillShape().getBounds();
+-		float sw = defaultStroke.getLineWidth();
+-		//b.x -= sw; b.y -= sw;
+-		b.width += sw; b.height += sw;
+-		return b;
++		return getFillShape((int)Math.ceil(defaultStroke.getLineWidth())).getBounds();
+ 	}
+ 	
+ 	public Rectangle getVBounds() {
+-		//Override VPathwayElement, because getVOutline is too slow
+-		return getFillShape((int)defaultStroke.getLineWidth()).getBounds();
++		return getVOutline().getBounds();
+ 	}
+ 	
+ 	private Shape getFillShape() {
+@@ -231,11 +225,11 @@
+ 		Shape s = null;
+ 		switch(direction) {
+ 		case DIRECTION_ROT:
+-			s = new Ellipse2D.Double(getVCenterX() - WIDTH/2 - sw, getVCenterY() - HEIGHT/2 - sw, 
++			s = new Ellipse2D.Double(getVCenterX() - WIDTH/2, getVCenterY() - HEIGHT/2, 
+ 					WIDTH + sw, HEIGHT + sw);
+ 			break;
+ 		default:
+-			s = new Rectangle2D.Double(getVCenterX() - WIDTH/2 - sw, getVCenterY() - HEIGHT/2 - sw, 
++			s = new Rectangle2D.Double(getVCenterX() - WIDTH/2, getVCenterY() - HEIGHT/2, 
+ 					WIDTH + sw, HEIGHT + sw);
+ 			break;
+ 		}

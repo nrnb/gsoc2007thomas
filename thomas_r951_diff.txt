@@ -1,0 +1,2256 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 950)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 951)
+@@ -176,11 +176,7 @@
+ 	public JToolBar getToolBar() {
+ 		return toolBar;
+ 	}
+-	
+-	public void setPathway(VPathwaySwing vPathway) {
+-		pathwayScrollPane.setViewportView(vPathway);
+-	}
+-	
++
+ 	public JScrollPane getScrollPane() {
+ 		return pathwayScrollPane;
+ 	}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 950)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 951)
+@@ -129,7 +129,7 @@
+ 						int totalWork = 1000;
+ 						ProgressMonitor m = new ProgressMonitor(component, "Loading pathway", "Please wait while the pathway is being loaded", 0, 1000);
+ 						m.setProgress(10);
+-						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing(mainPanel));
++						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing(mainPanel.getScrollPane()));
+ 						m.setProgress((int)(totalWork*2/3));
+ 						Engine.getActiveVPathway().setEditMode(true);
+ 						m.setProgress(totalWork);
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 950)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 951)
+@@ -28,7 +28,7 @@
+ 		
+ 		//Display the window.
+ 		frame.setVisible(true);
+-		Engine.newPathway(new VPathwaySwing(mainPanel));
++		Engine.newPathway(new VPathwaySwing(mainPanel.getScrollPane()));
+ 		Engine.getActiveVPathway().setEditMode(true);
+ 	}
+ 
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 950)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 951)
+@@ -1,5 +1,6 @@
+ package org.pathvisio.view.swing;
+ 
++import java.awt.Component;
+ import java.awt.Dimension;
+ import java.awt.Graphics;
+ import java.awt.Graphics2D;
+@@ -11,18 +12,20 @@
+ import java.awt.event.MouseMotionListener;
+ 
+ import javax.swing.JComponent;
++import javax.swing.JScrollPane;
+ 
+-import org.pathvisio.gui.swing.MainPanel;
+ import org.pathvisio.gui.swing.SwingEngine;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ 
+ public class VPathwaySwing extends JComponent implements VPathwayWrapper, MouseMotionListener, MouseListener, KeyListener {
+ 	VPathway child;
+-	MainPanel parent;
++	JScrollPane container;
+ 	
+-	public VPathwaySwing(MainPanel parent) {
+-		this.parent = parent;
++	public VPathwaySwing(JScrollPane parent) {
++		super();
++		if(parent == null) throw new IllegalArgumentException("parent is null");
++		this.container = parent;
+ 		addMouseListener(this);
+ 		addMouseMotionListener(this);
+ 		addKeyListener(this);
+@@ -42,7 +45,10 @@
+ 	}
+ 
+ 	public Dimension getViewportSize() {
+-		return parent.getScrollPane().getViewport().getExtentSize();
++		if(container instanceof JScrollPane) {
++			return ((JScrollPane)container).getViewport().getExtentSize();
++		}
++		return getSize();
+ 	}
+ 	
+ 	public void redraw() {
+@@ -114,7 +120,7 @@
+ 
+ 	public VPathway createVPathway() {
+ 		setChild(new VPathway(this));
+-		SwingEngine.getApplicationPanel().setPathway(this);
++		container.setViewportView(this);
+ 		return child;
+ 	}
+ }
+Index: branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 950)
++++ branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 951)
+@@ -64,6 +64,8 @@
+ import org.pathvisio.data.GexImportWizard;
+ import org.pathvisio.data.Gex.ExpressionDataEvent;
+ import org.pathvisio.data.Gex.ExpressionDataListener;
++import org.pathvisio.gui.swt.awt.EmbeddedSwingComposite;
++import org.pathvisio.gui.swt.awt.VPathwaySwingComposite;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
+@@ -987,6 +989,7 @@
+ 	TabbedSidePanel rightPanel; //side panel containing backbage browser and property editor
+ 	PathwaySearchComposite pwSearchComposite; //Composite that handles pathway searches and displays results
+ 	LegendPanel legend; //Legend to display colorset information
++	VPathwaySwingComposite swingPathwayComposite;
+ 	protected Control createContents(Composite parent)
+ 	{		
+ 		Shell shell = parent.getShell();
+@@ -1004,9 +1007,11 @@
+ 		
+ 		sashForm = new SashForm(viewComposite, SWT.HORIZONTAL);
+ 		
+-		sc = new ScrolledComposite (sashForm, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
+-		sc.setFocus();
++		//sc = new ScrolledComposite (sashForm, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
++		//sc.setFocus();
+ 		
++		swingPathwayComposite = new VPathwaySwingComposite(sashForm, SWT.NONE);
++		
+ 		rightPanel = new TabbedSidePanel(sashForm, SWT.NULL);
+ 		
+ 		//rightPanel controls
+@@ -1055,11 +1060,11 @@
+ 		switch(e.type) {
+ 		case ApplicationEvent.PATHWAY_NEW:
+ 			drawing = Engine.getActiveVPathway();
+-			sc.setContent((Canvas)drawing.getWrapper());
++			//sc.setContent((Canvas)drawing.getWrapper());
+ 			break;
+ 		case ApplicationEvent.PATHWAY_OPENED:
+ 			drawing = Engine.getActiveVPathway();
+-			sc.setContent((Canvas)drawing.getWrapper());
++			//sc.setContent((Composite)drawing.getWrapper());
+ 			if(Gex.isConnected()) cacheExpressionData();
+ 			break;	
+ 		}
+@@ -1090,8 +1095,13 @@
+ 		switch(e.getType()) {
+ 		case VPathwayEvent.EDIT_MODE_OFF:
+ 			showLegend(true);
++			break;
+ 		case VPathwayEvent.EDIT_MODE_ON:
+ 			showLegend(false);
++			break;
++		case VPathwayEvent.NEW_ELEMENT_ADDED:
++			deselectNewItemActions();
++			break;
+ 		}
+ 	}
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 950)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 951)
+@@ -21,7 +21,6 @@
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.jface.resource.ImageRegistry;
+ import org.eclipse.jface.window.ApplicationWindow;
+-import org.eclipse.swt.SWT;
+ import org.eclipse.swt.graphics.DeviceData;
+ import org.eclipse.swt.widgets.Display;
+ import org.eclipse.swt.widgets.Shell;
+@@ -33,7 +32,7 @@
+ import org.pathvisio.preferences.PreferenceCollection;
+ import org.pathvisio.preferences.swt.SwtPreferences;
+ import org.pathvisio.view.VPathwayWrapper;
+-import org.pathvisio.view.swt.VPathwaySWT;
++import org.pathvisio.view.swt.VPathwaySwtAwt;
+ 
+ /**
+  * This class contains the essential parts of the program: the window, drawing and gpml data
+@@ -81,13 +80,23 @@
+ 		//</DEBUG>
+ 	}
+ 	
++	private static VPathwayWrapper createWrapper() {
++		if(window != null) {
++//			return new VPathwaySwtAwt(window.sc, SWT.NO_BACKGROUND);
++			return new VPathwaySwtAwt(window.swingPathwayComposite.getScrollPane(), window.getShell().getDisplay());
++		}
++		return null;
++	}
++	
++	public static void newPathway() {
++		VPathwayWrapper w = createWrapper();
++		Engine.newPathway(w);
++	}
++	
+ 	public static void openPathway(String fileName) {
+ 		try {
+-			VPathwayWrapper pswt = null;
+-			if(window != null) {
+-				pswt = new VPathwaySWT(window.sc, SWT.NO_BACKGROUND);
+-			}
+-			Engine.openPathway(fileName);
++			VPathwayWrapper w = createWrapper();
++			Engine.openPathway(fileName, w);
+ 		} catch(ConverterException e) {		
+ 			if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
+ 			{
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 950)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 951)
+@@ -88,8 +88,7 @@
+ 						"Warning: This will discard any changes to " +
+ 						"the current pathway. Are you sure?"))
+ 			{
+-				VPathwaySWT pswt = new VPathwaySWT(window.sc, SWT.NO_BACKGROUND);
+-				Engine.newPathway(pswt);
++				SwtEngine.newPathway();
+ 			}
+ 		}
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/SwtInputBlocker.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/SwtInputBlocker.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/SwtInputBlocker.java	(revision 951)
+@@ -0,0 +1,111 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.FocusAdapter;
++import org.eclipse.swt.events.FocusEvent;
++import org.eclipse.swt.widgets.Dialog;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
++
++
++
++class SwtInputBlocker extends Dialog {
++    static private SwtInputBlocker instance = null;
++    static private int blockCount = 0;
++    private Shell shell;
++
++    private SwtInputBlocker(Shell parent) {
++        super(parent, SWT.NONE); 
++    }
++    
++    private Object open() {
++        assert Display.getCurrent() != null;     // On SWT event thread
++        
++        final Shell parent = getParent();
++        shell = new Shell(parent, SWT.APPLICATION_MODAL);
++        shell.setSize(0, 0);
++        shell.addFocusListener(new FocusAdapter() {
++            public void focusGained(FocusEvent e) {
++                // On some platforms (e.g. Linux/GTK), the 0x0 shell still appears as a dot 
++                // on the screen, so make it invisible by moving it below other windows. This
++                // is unnecessary under Windows and causes a flash, so only make the call when necessary. 
++                if (Platform.isGtk()) {
++                    shell.moveBelow(null);
++                }
++                AwtEnvironment.getInstance(shell.getDisplay()).requestAwtDialogFocus();
++            }
++        });
++        shell.open();
++        
++        Display display = parent.getDisplay();
++        while (!shell.isDisposed()) {
++            if (!display.readAndDispatch()) {
++                display.sleep();
++            }
++        }
++        return null;
++    }
++
++    private void close() {
++        assert shell != null;
++        
++        shell.dispose();
++    }
++
++    static void unblock() {
++        assert blockCount >= 0;
++        assert Display.getCurrent() != null;  // On SWT event thread
++
++        
++        // System.out.println("Deleting SWT blocker");
++        if (blockCount == 0) {
++            return;
++        }
++        if ((blockCount == 1) && (instance != null)) {
++            instance.close();
++            instance = null;
++        }
++        blockCount--;
++    }
++    
++    static void block() {
++        assert blockCount >= 0;
++        
++        // System.out.println("Creating SWT blocker");
++        final Display display = Display.getCurrent();
++        assert display != null;  // On SWT event thread
++        
++        blockCount++;
++        if (blockCount == 1) {
++            assert instance == null;  // should be no existing blocker
++            
++            // get a shell to parent the blocking dialog
++            Shell shell = AwtEnvironment.getInstance(display).getShell();
++
++            // If there is a shell to block, block input now. If there are no shells, 
++            // then there is no input to block. In the case of no shells, we are not
++            // protecting against a shell that might get created later. This is a rare
++            // enough case to skip, at least for now. In the future, a listener could be 
++            // added to cover it. 
++            // TODO: if (shell==null) add listener to block shells created later?
++            //
++            // Block is implemented with a hidden modal dialog. Using setEnabled(false) is another option, but 
++            // on some platforms that will grey the disabled controls.
++            if (shell != null) {
++                instance = new SwtInputBlocker(shell);
++                instance.open();
++            }
++        }
++    }
++
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtEnvironment.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtEnvironment.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtEnvironment.java	(revision 951)
+@@ -0,0 +1,337 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import java.awt.EventQueue;
++import java.awt.Frame;
++import java.lang.reflect.InvocationTargetException;
++
++import javax.swing.UIManager;
++import javax.swing.UnsupportedLookAndFeelException;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.SWTException;
++import org.eclipse.swt.awt.SWT_AWT;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
++
++
++
++/**
++ * An environment to enable the proper display of AWT/Swing windows within a SWT or RCP 
++ * application. This class extends the base {@link org.eclipse.swt.awt.SWT_AWT Eclipse SWT/AWT integration}
++ * support by
++ * <ul>
++ * <li>Using the platform-specific system Look and Feel. 
++ * <li>Ensuring AWT modal dialogs are modal across the SWT application.
++ * <li>Working around various AWT/Swing bugs  
++ * </ul>
++ * <p>
++ * This class is most helpful to applications which create new AWT/Swing windows (e.g. dialogs) rather
++ * than those which embed AWT/Swing components in SWT windows. For support specific to embedding
++ * AWT/Swing components see {@link EmbeddedSwingComposite}.
++ * <p>
++ * There is at most one instance of this class per SWT
++ * {@link org.eclipse.swt.widgets.Display Display}. In almost all applications
++ * this means that there is exactly one instance for the entire application. In fact, the
++ * current implementation always limits the number of instances to exactly one.
++ * <p>
++ * An instance of this class can be obtained with the static
++ * {@link #getInstance(Display)} method.
++*/
++public final class AwtEnvironment {
++    // TODO: add pop-up dismissal and font synchronization support to this level?
++    
++    private static final String GTK_LOOK_AND_FEEL_NAME = "com.sun.java.swing.plaf.gtk.GTKLookAndFeel"; //$NON-NLS-1$
++
++    private static AwtEnvironment instance = null;
++    private static boolean isLookAndFeelInitialized = false;
++
++    private final Display display;
++    private final AwtDialogListener dialogListener;
++
++    /**
++     * Returns the single instance of AwtEnvironment for the given display. On
++     * the first call to this method, the necessary initialization to allow
++     * AWT/Swing code to run properly within an Eclipse application is done.
++     * This initialization includes setting the approprite look and feel and
++     * registering the necessary listeners to ensure proper behavior of modal
++     * dialogs.
++     * <p>
++     * The first call to this method must occur before any AWT/Swing APIs are
++     * called. 
++     * <p>
++     * The current implementation limits the number of instances of
++     * AwtEnvironment to one. If this method is called with a display different
++     * to one used on a previous call, {@link UnsupportedOperationException} is
++     * thrown.
++     * 
++     * @param display
++     *            the non-null SWT display
++     * @return the AWT environment
++     * @exception IllegalArgumentException
++     *                <ul>
++     *                <li>ERROR_NULL_ARGUMENT - if the display is null</li>
++     *                </ul>
++     * @exception UnsupportedOperationException -
++     *                on attempt to use multiple displays.
++     */
++    public static AwtEnvironment getInstance(Display display) {
++        // For now assume a single display. If necessary, this implementation
++        // can be changed to create multiple environments for multiple display
++        // applications.
++        // TODO: add multiple display support
++        if (display == null) {
++            SWT.error(SWT.ERROR_NULL_ARGUMENT);
++        }
++        if ((instance != null) && !display.equals(instance.display)) {
++            throw new UnsupportedOperationException("Multiple displays not supported");
++        }
++        synchronized (AwtEnvironment.class) {
++            if (instance == null) {
++                instance = new AwtEnvironment(display);
++            }
++        }
++        return instance;
++    }
++
++    // Private constructor - clients use getInstance() to obtain instances
++    private AwtEnvironment(Display display) {
++        assert display != null;
++
++        /*
++         * This property removes a large amount of flicker from embedded swing
++         * components. Ideally it would not be set until EmbeddedSwingComposite
++         * is used, but since its value is read once and cached by AWT, it needs
++         * to be set before any AWT/Swing APIs are called.
++         */       
++        // TODO: this is effective only on Windows.
++        System.setProperty("sun.awt.noerasebackground", "true"); //$NON-NLS-1$//$NON-NLS-2$
++
++        /*
++         * RCP apps always want the standard platform look and feel It's
++         * important to wait for the L&F to be set so that any subsequent calls
++         * to createFrame() will be return a frame with the proper L&F (note
++         * that createFrame() happens on the SWT thread).
++         * 
++         * The call to invokeAndWait is safe because
++         * the first call AwtEnvironment.getInstance should happen
++         * before any (potential deadlocking) activity occurs on the 
++         * AWT thread.
++         */
++        try {
++            EventQueue.invokeAndWait(new Runnable() {
++                public void run() {
++                    setSystemLookAndFeel();
++                }
++            });
++        } catch (InterruptedException e) {
++            SWT.error(SWT.ERROR_FAILED_EXEC, e);
++        } catch (InvocationTargetException e) {
++            SWT.error(SWT.ERROR_FAILED_EXEC, e);
++        }
++
++        this.display = display;
++
++        // Listen for AWT modal dialogs to make them modal application-wide
++        dialogListener = new AwtDialogListener(display);
++    }
++
++    /**
++     * Invokes the given runnable in the AWT event thread while blocking user
++     * input on the SWT event thread. The SWT event thread will remain blocked
++     * until the runnable task completes, at which point this method will
++     * return.
++     * <p>
++     * This method is useful for displayng modal AWT/Swing dialogs from the SWT
++     * event thread. The modal AWT/Swing dialog will always block input across
++     * the whole application, but not until it appears. By calling this method,
++     * it is guaranteed that SWT input is blocked immediately, even before the
++     * AWT/Swing dialog appears.
++     * <p>
++     * To avoid unnecessary flicker, AWT/Swing dialogs should have their parent
++     * set to a frame returned by {@link #createDialogParentFrame()}.
++     * <p>
++     * This method must be called from the SWT event thread.
++     * 
++     * @param runnable
++     *            the code to schedule on the AWT event thread
++     * @exception IllegalArgumentException
++     *                <ul>
++     *                <li>ERROR_NULL_ARGUMENT - if the runnable is null</li>
++     *                </ul>
++     * @exception SWTException
++     *                <ul>
++     *                <li>ERROR_THREAD_INVALID_ACCESS - if not called from the
++     *                SWT event thread
++     *                </ul>
++     */
++    public void invokeAndBlockSwt(final Runnable runnable) {
++        assert display != null;
++
++        /*
++         * This code snippet is based on the following thread on
++         * news.eclipse.platform.swt:
++         * http://dev.eclipse.org/newslists/news.eclipse.platform.swt/msg24234.html
++         */
++        if (runnable == null) {
++            SWT.error(SWT.ERROR_NULL_ARGUMENT);
++        }
++        if (display != Display.getCurrent()) {
++            SWT.error(SWT.ERROR_THREAD_INVALID_ACCESS);
++        }
++
++        // Switch to the AWT thread...
++        EventQueue.invokeLater(new Runnable() {
++            public void run() {
++                try {
++                    // do swing work...
++                    runnable.run();
++                } finally {
++                    display.asyncExec(new Runnable() {
++                        public void run() {
++                            // Unblock SWT
++                            SwtInputBlocker.unblock();
++                        }
++                    });
++                }
++            }
++        });
++
++        // Prevent user input on SWT components
++        SwtInputBlocker.block();
++    }
++
++    /**
++     * Creates an AWT frame suitable as a parent for AWT/Swing dialogs. 
++     * <p>
++     * This method must be called from the SWT event thread. There must be an active
++     * shell associated with the environment's display.  
++     * <p>
++     * The created frame is a non-visible child of the active shell and will be disposed when that shell
++     * is disposed.
++     * <p>
++     * See {@link #createDialogParentFrame(Shell)} for more details. 
++     * 
++     * @return a {@link java.awt.Frame} to be used for parenting dialogs
++     * @exception SWTException
++     *                <ul>
++     *                <li>ERROR_THREAD_INVALID_ACCESS - if not called from the
++     *                SWT event thread
++     *                </ul>
++     * @exception IllegalStateException
++     *                if the current display has no shells
++     */
++    public Frame createDialogParentFrame() {
++        if (display != Display.getCurrent()) {
++            SWT.error(SWT.ERROR_THREAD_INVALID_ACCESS);
++        }
++        Shell parent = display.getActiveShell();
++        if (parent == null) {
++            throw new IllegalStateException("No Active Shell");
++        }
++        return createDialogParentFrame(parent);
++    }
++    
++    /**
++     * Creates an AWT frame suitable as a parent for AWT/Swing dialogs. 
++     * <p>
++     * This method must be called from the SWT event thread. There must be an active
++     * shell associated with the environment's display.
++     * <p>
++     * The created frame is a non-visible child of the given shell and will be disposed when that shell
++     * is disposed.
++     * <p>
++     * This method is useful for creating a frame to parent any AWT/Swing
++     * dialogs created for use inside a SWT application. A modal AWT/Swing
++     * dialogs will flicker less if its parent is set to the returned frame
++     * rather than to null or to an independently created {@link java.awt.Frame}.  
++     * 
++     * @return a {@link java.awt.Frame} to be used for parenting dialogs
++     * @exception SWTException
++     *                <ul>
++     *                <li>ERROR_THREAD_INVALID_ACCESS - if not called from the
++     *                SWT event thread
++     *                </ul>
++     * @exception IllegalStateException
++     *                if the current display has no shells
++     */
++    public Frame createDialogParentFrame(Shell parent) {
++        if (parent == null) {
++            SWT.error(SWT.ERROR_NULL_ARGUMENT);
++        }
++        if (display != Display.getCurrent()) {
++            SWT.error(SWT.ERROR_THREAD_INVALID_ACCESS);
++        }
++        Shell shell = new Shell(parent);
++        shell.setVisible(false);
++        Composite composite = new Composite(shell, SWT.EMBEDDED);
++        return SWT_AWT.new_Frame(composite);
++    }
++
++    // Find a shell to use, giving preference to the active shell.
++    Shell getShell() {
++        Shell shell = display.getActiveShell();
++        if (shell == null) {
++            Shell[] allShells = display.getShells();
++            if (allShells.length > 0) {
++                shell = allShells[0];
++            }
++        }
++        return shell;
++    }
++
++    void requestAwtDialogFocus() {
++        assert dialogListener != null;
++
++        dialogListener.requestFocus();
++    }
++
++    private void setSystemLookAndFeel() {
++        assert EventQueue.isDispatchThread(); // On AWT event thread
++
++        if (!isLookAndFeelInitialized) {
++            isLookAndFeelInitialized = true;
++            try {
++                String systemLaf = UIManager.getSystemLookAndFeelClassName();
++                String xplatLaf = UIManager.getCrossPlatformLookAndFeelClassName();
++
++                // Java makes metal the system look and feel if running under a
++                // non-gnome Linux desktop. Fix that here, if the RCP itself is
++                // running
++                // with the GTK windowing system set.
++                if (xplatLaf.equals(systemLaf) && Platform.isGtk()) {
++                    systemLaf = GTK_LOOK_AND_FEEL_NAME;
++                }
++                UIManager.setLookAndFeel(systemLaf);
++            } catch (ClassNotFoundException e) {
++                // TODO Auto-generated catch block
++                e.printStackTrace();
++            } catch (InstantiationException e) {
++                // TODO Auto-generated catch block
++                e.printStackTrace();
++            } catch (IllegalAccessException e) {
++                // TODO Auto-generated catch block
++                e.printStackTrace();
++            } catch (UnsupportedLookAndFeelException e) {
++                // TODO Auto-generated catch block
++                e.printStackTrace();
++            }
++        }
++    }
++    
++    // This method is called by unit tests
++    static void reset() {
++        instance = null;
++    }
++
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/RecursiveContainerListener.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/RecursiveContainerListener.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/RecursiveContainerListener.java	(revision 951)
+@@ -0,0 +1,101 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.EventQueue;
++import java.awt.event.ContainerEvent;
++import java.awt.event.ContainerListener;
++
++class RecursiveContainerListener implements ContainerListener {
++    private final ContainerListener listener;
++    
++    RecursiveContainerListener(ContainerListener listener) {
++        assert listener != null;
++        
++        this.listener = listener;
++    }
++
++    private void handleAdd(Container source, Component c) {
++        assert source != null;
++        assert c != null;
++        assert listener != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("Listening to: " + c);
++        listener.componentAdded(new ContainerEvent(source, ContainerEvent.COMPONENT_ADDED, c));
++        if (c instanceof Container) {
++            ((Container)c).addContainerListener(this);
++        }
++    }
++    
++    private void handleRemove(Container source, Component c) {
++        assert source != null;
++        assert c != null;
++        assert listener != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++
++        // System.out.println("Stopped Listening to: " + c);
++        listener.componentRemoved(new ContainerEvent(source, ContainerEvent.COMPONENT_REMOVED, c));
++        if (c instanceof Container) {
++            ((Container)c).removeContainerListener(this);
++        }
++    }
++    
++    private void handleAllAdds(Container source, Component child) {
++        assert source != null;
++        assert child != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++
++        if (child instanceof Container) {
++            Container container = (Container)child;
++            Component[] children = container.getComponents();
++            for (int i = 0; i < children.length; i++) {
++                handleAllAdds(container, children[i]);
++            }
++        }
++        handleAdd(source, child);
++    }
++    
++    private void handleAllRemoves(Container source, Component child) {
++        assert source != null;
++        assert child != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++
++        if (child instanceof Container) {
++            Container container = (Container)child;
++            Component[] children = container.getComponents();
++            for (int i = 0; i < children.length; i++) {
++                handleAllRemoves(container, children[i]);
++            }
++        }
++        handleRemove(source, child);
++
++    }
++
++    public void componentAdded(ContainerEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        Container source = (Container)e.getSource();
++        handleAllAdds(source, e.getChild());
++    }
++    
++    public void componentRemoved(ContainerEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        Container source = (Container)e.getSource();
++        handleAllRemoves(source, e.getChild());
++    }
++}
++
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtDialogListener.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtDialogListener.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtDialogListener.java	(revision 951)
+@@ -0,0 +1,224 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import java.awt.AWTEvent;
++import java.awt.Dialog;
++import java.awt.EventQueue;
++import java.awt.Toolkit;
++import java.awt.Window;
++import java.awt.event.AWTEventListener;
++import java.awt.event.ComponentEvent;
++import java.awt.event.ComponentListener;
++import java.awt.event.WindowEvent;
++import java.util.ArrayList;
++import java.util.List;
++
++import org.eclipse.swt.widgets.Display;
++
++/**
++ * A listener that insures the proper modal behavior of Swing dialogs when running
++ * within a SWT environment. When initialized, it blocks and unblocks SWT input
++ * as modal Swing dialogs are shown and hidden. 
++ */
++class AwtDialogListener implements AWTEventListener, ComponentListener {
++    
++    // modalDialogs should be accessed only from the AWT thread, so no
++    // synchronization is needed. 
++    private final List modalDialogs = new ArrayList();
++    private final Display display;
++    
++    /**
++     * Registers this object as an AWT event listener so that Swing dialogs have the 
++     * proper modal behavior in the containing SWT environment. This is called automatically
++     * when you construct a {@link EmbeddedSwingComposite}, and it
++     * need not be called separately in that case.  
++     * @param shell 
++     */
++    AwtDialogListener(Display display) {
++        assert display != null;
++        
++        this.display = display;
++        Toolkit.getDefaultToolkit().addAWTEventListener(this, AWTEvent.WINDOW_EVENT_MASK);
++    }
++    
++    private void handleRemovedDialog(Dialog awtDialog, boolean removeListener) {
++        assert awtDialog != null;
++        assert modalDialogs != null;
++        assert display != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("Remove dialog: " + awtDialog);
++        if (removeListener) {
++            awtDialog.removeComponentListener(this);
++        }
++        // Note: there is no isModal() check here because the dialog might 
++        // have been changed from modal to non-modal after it was opened. In this case
++        // the currently visible dialog would still act modal and we'd need to unblock
++        // SWT here when it goes away.
++        if (modalDialogs.remove(awtDialog)) {
++            display.asyncExec(new Runnable() {
++                public void run() {
++                    SwtInputBlocker.unblock();
++                }
++            });            
++        }
++    }
++
++    private void handleAddedDialog(final Dialog awtDialog) {
++        assert awtDialog != null;
++        assert modalDialogs != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("Add dialog: " + awtDialog);
++        if (modalDialogs.contains(awtDialog) || !awtDialog.isModal() || !awtDialog.isVisible()) {
++            return;
++        }
++        modalDialogs.add(awtDialog);
++        awtDialog.addComponentListener(this);
++        display.asyncExec(new Runnable() {
++            public void run() {
++                SwtInputBlocker.block();
++            }
++        });        
++    }
++    
++    void requestFocus() {
++        // TODO: this does not always bring the dialog to the top 
++        // under some Linux desktops/window managers (e.g. metacity under GNOME).
++        EventQueue.invokeLater(new Runnable() {
++            public void run() {
++                assert modalDialogs != null;
++                
++                int size = modalDialogs.size();
++                if (size > 0) {
++                    final Dialog awtDialog = (Dialog)modalDialogs.get(size - 1);
++
++                    // In one case, a call to requestFocus() alone does not 
++                    // bring the AWT dialog to the top. This happens if the 
++                    // dialog is given a null parent frame. When opened, the dialog
++                    // can be hidden by the SWT window even when it obtains focus.
++                    // Calling toFront() solves the problem, but...
++                    //
++                    // There are still problems if the Metal look and feel is in use.
++                    // The SWT window will hide the dialog the first time it is 
++                    // selected. Once the dialog is brought back to the front by 
++                    // the user, there is no further problem. 
++                    //
++                    // Why? It looks like SWT is not being notified of lost focus when 
++                    // the Metal dialog first opens; subsequently, when focus is regained, the 
++                    // focus gain event is not posted to the SwtInputBlocker.  
++                    //
++                    // The workaround is to use Windows look and feel, rather than Metal.
++                    // System.out.println("Bringing to front");
++
++                    awtDialog.requestFocus();
++                    awtDialog.toFront();
++                }
++            }
++        });
++    }
++
++    private void handleOpenedWindow(WindowEvent event) {
++        assert event != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        Window window = event.getWindow();
++        if (window instanceof Dialog) {
++            handleAddedDialog((Dialog)window);
++        }
++    }
++    
++    private void handleClosedWindow(WindowEvent event) {
++        assert event != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // Dispose-based close
++        Window window = event.getWindow();
++        if (window instanceof Dialog) {
++            // Remove dialog and component listener
++            handleRemovedDialog((Dialog)window, true);
++        }
++    }
++
++    private void handleClosingWindow(WindowEvent event) {
++        assert event != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System-based close 
++        Window window = event.getWindow();
++        if (window instanceof Dialog) {
++            final Dialog dialog = (Dialog) window;
++            // Defer until later. Bad things happen if 
++            // handleRemovedDialog() is called directly from 
++            // this event handler. The Swing dialog does not close
++            // properly and its modality remains in effect.
++            EventQueue.invokeLater(new Runnable() {
++                public void run() {
++                    // Remove dialog and component listener
++                    handleRemovedDialog(dialog, true);
++                }
++            });
++        }
++    }
++    
++    public void eventDispatched(AWTEvent event) {
++        assert event != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        switch (event.getID()) {
++        case WindowEvent.WINDOW_OPENED:
++            handleOpenedWindow((WindowEvent)event);
++            break;
++            
++        case WindowEvent.WINDOW_CLOSED:
++            handleClosedWindow((WindowEvent)event);
++            break;
++
++        case WindowEvent.WINDOW_CLOSING:
++            handleClosingWindow((WindowEvent)event);
++            break;
++
++        default:
++            break;
++        }
++    }
++
++    public void componentHidden(ComponentEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("Component hidden");
++        Object obj = e.getSource();
++        if (obj instanceof Dialog) {
++            // Remove dialog but keep listener in place so that we know if/when it is set visible
++            handleRemovedDialog((Dialog)obj, false);
++        }
++    }
++
++    public void componentShown(ComponentEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("Component shown");
++        Object obj = e.getSource();
++        if (obj instanceof Dialog) {
++            handleAddedDialog((Dialog)obj);
++        }
++    }
++
++    public void componentResized(ComponentEvent e) {
++    }
++
++    public void componentMoved(ComponentEvent e) {
++    }
++        
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/EmbeddedChildFocusTraversalPolicy.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/EmbeddedChildFocusTraversalPolicy.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/EmbeddedChildFocusTraversalPolicy.java	(revision 951)
+@@ -0,0 +1,93 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.EventQueue;
++
++import javax.swing.LayoutFocusTraversalPolicy;
++
++class EmbeddedChildFocusTraversalPolicy extends LayoutFocusTraversalPolicy {
++
++    private static final long serialVersionUID = -7708166698501335927L;
++    private final AwtFocusHandler awtHandler;
++
++     EmbeddedChildFocusTraversalPolicy(AwtFocusHandler handler) {
++         assert handler != null;
++         awtHandler = handler;
++    }
++
++    public Component getComponentAfter(Container container, Component component) {
++        assert container != null;
++        assert component != null;
++        assert awtHandler != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        if (component.equals(getLastComponent(container))) {
++            // Instead of cycling around to the first component, transfer to the next SWT component
++            awtHandler.transferFocusNext();
++            return null;
++        } else {
++            return super.getComponentAfter(container, component);
++        }
++    }
++
++    public Component getComponentBefore(Container container, Component component) {
++        assert container != null;
++        assert component != null;
++        assert awtHandler != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        if (component.equals(getFirstComponent(container))) {
++            // Instead of cycling around to the last component, transfer to the previous SWT component
++            awtHandler.transferFocusPrevious();
++            return null;
++        } else {
++            return super.getComponentBefore(container, component);
++        }
++    }
++    
++    public Component getDefaultComponent(Container container) {
++        assert container != null;
++        assert awtHandler != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // This is a hack which depends on knowledge of current JDK implementation to 
++        // work. The implementation above of getComponentBefore/After
++        // properly returns null when transferring to SWT. However, the calling AWT container
++        // will then immediately try this method to find the next recipient of
++        // focus. But we don't want *any* AWT component to receive focus... it's just
++        // been transferred to SWT. So, this method must return null when AWT does 
++        // not own the focus. When AWT *does* own the focus, behave normally.  
++        if (awtHandler.awtHasFocus()) {
++            // System.out.println("getDefault: super");
++            return super.getDefaultComponent(container);
++        } else {
++            // System.out.println("getDefault: null");
++            return null;
++        }
++    }
++
++    public Component getCurrentComponent(Container container) {
++        assert container != null;
++        assert awtHandler != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        Component currentAwtComponent = awtHandler.getCurrentComponent();
++        if ((currentAwtComponent != null) && container.isAncestorOf(currentAwtComponent)){
++            return currentAwtComponent;
++        } else {
++            return getDefaultComponent(container);
++        }
++    }
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/EmbeddedSwingComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/EmbeddedSwingComposite.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/EmbeddedSwingComposite.java	(revision 951)
+@@ -0,0 +1,480 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import java.awt.Container;
++import java.awt.EventQueue;
++import java.awt.Frame;
++import java.awt.Toolkit;
++
++import javax.swing.JApplet;
++import javax.swing.JComponent;
++import javax.swing.RootPaneContainer;
++import javax.swing.SwingUtilities;
++import javax.swing.UIManager;
++import javax.swing.plaf.FontUIResource;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.SWTException;
++import org.eclipse.swt.awt.SWT_AWT;
++import org.eclipse.swt.graphics.Font;
++import org.eclipse.swt.graphics.FontData;
++import org.eclipse.swt.layout.FillLayout;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Event;
++import org.eclipse.swt.widgets.Listener;
++import org.eclipse.swt.widgets.Widget;
++
++/**
++ * A SWT composite widget for embedding Swing components in a SWT composite within an RCP or standalone-SWT application. The Eclipse platform 
++ * provides limited support for embedding Swing components through {@link org.eclipse.swt.awt.SWT_AWT}. 
++ * This class extends that support by 
++ * <ul>
++ * <li>Using the platform-specific system Look and Feel. 
++ * <li>Ensuring AWT modal dialogs are modal across the SWT application.
++ * <li>Reducing flicker, especially on window resizes
++ * <li>Allowing Tab Traversal to and from the Embedded Frame
++ * <li>Dismissing most Pop-Up Menus when focus leaves the AWT frame.  
++ * <li>Synchronizing Font Changes from system settings
++ * <li>Working around various AWT/Swing bugs  
++ * </ul>
++ * <P>
++ * If, rather than embedding Swing components, you are integrating with Swing by opening 
++ * Swing dialogs, see the {@link AwtEnvironment} class. 
++ * <p>
++ * This is an abstract that is normally used by extending it and implementing the {@link #createSwingComponent()} method. For example,  
++ * <pre>
++ *        embeddedComposite = new EmbeddedSwingComposite(parent, SWT.NONE) {
++ *            protected JComponent createSwingComponent() {
++ *                scrollPane = new JScrollPane();
++ *                table = new JTable();
++ *                scrollPane.setViewportView(table);
++ *                return scrollPane;
++ *            }
++ *        }; 
++ *        embeddedComposite.populate();
++ * </pre>
++ * <p>
++ * The Swing component is created inside a standard Swing containment hierarchy, rooted in 
++ * a {@link javax.swing.RootPaneContainer}. The root pane container is placed inside an AWT frame, as
++ * returned by {@link org.eclipse.swt.awt.SWT_AWT#new_Frame(Composite)} 
++ * <p>
++ * <b>Note:</b> When you mix components from Swing/AWT and SWT toolkits, there will be two UI event threads,
++ * one for AWT, one for SWT. Most SWT APIs require that you call them from the SWT thread. Swing 
++ * has similar restrictions though it does not enforce them as much as SWT.
++ * <p>
++ * Applications need to be aware of the current thread, and, where necessary, schedule tasks to run 
++ * on another thread. This has always been required in the pure Swing or SWT environments, but when 
++ * mixing Swing and SWT, more of this scheduling will be necessary.
++ * <p>
++ * To schedule work on the AWT event 
++ * thread, you can use:
++ * <ul>
++ * <li>{@link javax.swing.SwingUtilities#invokeLater(Runnable)}
++ * <li>{@link javax.swing.SwingUtilities#invokeAndWait(Runnable)} 
++ * </ul>
++ * <p>
++ * (or similar methods in {@link java.awt.EventQueue})
++ * <p>
++ * To schedule work on the SWT event thread, use:
++ * <ul>
++ * <li>{@link org.eclipse.swt.widgets.Display#asyncExec(Runnable)}
++ * <li>{@link org.eclipse.swt.widgets.Display#syncExec(Runnable)}
++ * </ul>
++ * 
++ * Of course, as in single-toolkit environments, long-running tasks should be offloaded from either UI 
++ * thread to a background thread. The Eclipse jobs API can be used for this purpose.
++ */
++public abstract class EmbeddedSwingComposite extends Composite {
++    private static class AwtContext {
++        private Frame frame;
++        private JComponent swingComponent;
++        
++        AwtContext(Frame frame) {
++            assert frame != null;
++            this.frame = frame;
++        }
++
++        Frame getFrame() {
++            return frame;
++        }
++
++        void setSwingComponent(JComponent swingComponent) {
++            this.swingComponent = swingComponent;
++        }
++
++        JComponent getSwingComponent() {
++            return swingComponent;
++        }
++        
++    }
++    private Font currentSystemFont;
++    private AwtContext awtContext;
++    private AwtFocusHandler awtHandler;
++
++    private Listener settingsListener = new Listener() {
++        public void handleEvent(Event event) {
++            handleSettingsChange();
++        }
++    };
++    
++    // This listener helps ensure that Swing popup menus are properly dismissed when
++    // a menu item off the SWT main menu bar is shown.
++    private final Listener menuListener = new Listener() {
++        public void handleEvent(Event event) {
++            assert awtHandler != null;
++            
++            awtHandler.postHidePopups();
++        }
++    };
++    
++    /**
++     * Constructs a new instance of this class given its parent
++     * and a style value describing its behavior and appearance.
++     * <p>
++     * This method must be called from the SWT event thread. 
++     * <p>
++     * The style value is either one of the style constants defined in
++     * class <code>SWT</code> which is applicable to instances of this
++     * class, or must be built by <em>bitwise OR</em>'ing together 
++     * (that is, using the <code>int</code> "|" operator) two or more
++     * of those <code>SWT</code> style constants. The class description
++     * lists the style constants that are applicable to the class.
++     * Style bits are also inherited from superclasses.
++     * </p>
++     * <p>
++     * The styles SWT.EMBEDDED and SWT.NO_BACKGROUND will be added
++     * to the specified style. Usually, no other style bits are needed.
++     *
++     * @param parent a widget which will be the parent of the new instance (cannot be null)
++     * @param style the style of widget to construct
++     *
++     * @exception IllegalArgumentException <ul>
++     *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
++     * </ul>
++     * @exception SWTException <ul>
++     *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the SWT event thread
++     * </ul>
++     *
++     * @see Widget#getStyle
++     */
++    public EmbeddedSwingComposite(Composite parent, int style) {
++        super(parent, style | SWT.EMBEDDED | SWT.NO_BACKGROUND);
++        getDisplay().addListener(SWT.Settings, settingsListener);
++        setLayout(new FillLayout());
++        currentSystemFont = getFont();
++    }
++
++    /**
++     * Populates the embedded composite with the Swing component.
++     * <p> 
++     * This method must be called from the
++     * SWT event thread.  
++     * <p>
++     * The Swing component will be created by calling {@link #createSwingComponent()}. The creation is
++     * scheduled asynchronously on the AWT event thread. This method does not wait for completion of this
++     * asynchronous task, so it may return before createSwingComponent() is complete.   
++     * <p>
++     * The Swing component is created inside a standard Swing containment hierarchy, rooted in 
++     * a {@link javax.swing.RootPaneContainer}. Clients can override {@link #addRootPaneContainer(Frame)}
++     * to provide their own root pane container implementation.
++     * <p>
++     * This method can be called multiple times for a single instance. If an embedded frame exists from 
++     * a previous call, it is disposed.
++     *  
++     * @exception SWTException <ul>
++     *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
++     *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the SWT event thread
++     * </ul>
++     */
++    public void populate() {
++        checkWidget();
++        createFrame();
++        scheduleComponentCreation();
++    }
++
++    /**
++     * Creates the embedded Swing component. This method is called from the AWT event thread. 
++     * <p> 
++     * Implement this method to provide the Swing component that will be shown inside this composite.
++     * The returned component will be added to the Swing content pane. At least one component must
++     * be created by this method; null is not a valid return value.   
++     *   
++     * @return a non-null Swing component
++     */
++    protected abstract JComponent createSwingComponent();
++    
++    /**
++     * Adds a root pane container to the embedded AWT frame. Override this to provide your own 
++     * {@link javax.swing.RootPaneContainer} implementation. In most cases, it is not necessary
++     * to override this method.    
++     * <p>
++     * This method is called from the AWT event thread. 
++     * <p> 
++     * If you are defining your own root pane container, make sure that there is at least one
++     * heavyweight (AWT) component in the frame's containment hierarchy; otherwise, event 
++     * processing will not work correctly. See http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4982522
++     * for more information.  
++     *   
++     * @param frame the frame to which the root pane container is added 
++     * @return a non-null Swing component
++     */
++    protected RootPaneContainer addRootPaneContainer(Frame frame) {
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        assert frame != null;
++        
++        // It is important to set up the proper top level components in the frame:
++        // 1) For Swing to work properly, Sun documents that there must be an implementor of 
++        // javax.swing.RootPaneContainer at the top of the component hierarchy. 
++        // 2) For proper event handling there must be a heavyweight 
++        // an AWT frame must contain a heavyweight component (see 
++        // http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4982522)
++        // 3) The Swing implementation further narrows the options by expecting that the 
++        // top of the hierarchy be a JFrame, JDialog, JWindow, or JApplet. See javax.swing.PopupFactory.
++        // All this drives the choice of JApplet for the top level Swing component. It is the 
++        // only single component that satisfies all the above. This does not imply that 
++        // we have a true applet; in particular, there is no notion of an applet lifecycle in this
++        // context. 
++        JApplet applet = new JApplet();
++        
++        // In JRE 1.4, the JApplet makes itself a focus cycle root. This
++        // interferes with the focus handling installed on the parent frame, so
++        // change it back to a non-root here. 
++        // TODO: consider moving the focus policy from the Frame down to the JApplet
++        applet.setFocusCycleRoot(false);
++
++        frame.add(applet);
++        
++        return applet;
++    }
++
++    /**
++     * Performs custom updates to newly set fonts. This method is called whenever a change
++     * to the system font through the system settings (i.e. control panel) is detected.
++     * <p>
++     * This method is called from the AWT event thread.  
++     * <p>
++     * In most cases it is not necessary to override this method.  Normally, the implementation
++     * of this class will automatically propogate font changes to the embedded Swing components 
++     * through Swing's Look and Feel support. However, if additional 
++     * special processing is necessary, it can be done inside this method. 
++     *    
++     * @param newFont New AWT font
++     */
++    protected void updateAwtFont(java.awt.Font newFont) {
++    }
++
++    /**
++     * Returns the embedded AWT frame. The returned frame is the root of the AWT containment
++     * hierarchy for the embedded Swing component. This method can be called from 
++     * any thread. 
++     *    
++     * @return the embedded frame
++     */
++    public Frame getFrame() {
++        // Intentionally leaving out checkWidget() call. This may need to be called from within user's 
++        // createSwingComponent() method. Accessing from a non-SWT thread is OK, but we still check
++        // for disposal
++        if (getDisplay() == null || isDisposed()) {
++            SWT.error(SWT.ERROR_WIDGET_DISPOSED);            
++        }
++        
++        return (awtContext != null) ? awtContext.getFrame() : null;
++    }
++
++    private void createFrame() {
++        assert Display.getCurrent() != null;     // On SWT event thread
++        
++        // Make sure Awt environment is initialized. 
++        AwtEnvironment.getInstance(getDisplay());
++        
++        if (awtContext != null) {
++            final Frame oldFrame = awtContext.getFrame();
++            // Schedule disposal of old frame on AWT thread so that there are no problems with
++            // already-scheduled operations that have not completed.
++            // Note: the implementation of Frame.dispose() would schedule the use of the AWT 
++            // thread even if it was not done here, but it uses invokeAndWait() which is 
++            // prone to deadlock (and not necessary for this case). 
++            EventQueue.invokeLater(new Runnable() {
++                public void run() {
++                    oldFrame.dispose();
++                }
++            });
++        }
++        Frame frame = SWT_AWT.new_Frame(this);
++        awtContext = new AwtContext(frame);
++
++        // Glue the two frameworks together. Do this before anything is added to the frame
++        // so that all necessary listeners are in place.
++        createFocusHandlers();
++        
++        // This listener clears garbage during resizing, making it looker much cleaner 
++        addControlListener(new CleanResizeListener());
++    }
++
++    private void createFocusHandlers() {
++        assert awtContext != null;
++        assert Display.getCurrent() != null;     // On SWT event thread
++        
++        Frame frame = awtContext.getFrame();
++        awtHandler = new AwtFocusHandler(frame);   
++        SwtFocusHandler swtHandler = new SwtFocusHandler(this);
++        awtHandler.setSwtHandler(swtHandler);
++        swtHandler.setAwtHandler(awtHandler);
++        
++        // Ensure that AWT popups are dimissed whenever a SWT menu is shown
++        getDisplay().addFilter(SWT.Show, menuListener);
++        
++        EmbeddedChildFocusTraversalPolicy policy = new EmbeddedChildFocusTraversalPolicy(awtHandler);
++        frame.setFocusTraversalPolicy(policy);
++    }
++    
++    private void scheduleComponentCreation() {
++        assert awtContext != null;
++        
++        // Create AWT/Swing components on the AWT thread. This is 
++        // especially necessary to avoid an AWT leak bug (6411042).
++        final AwtContext currentContext = awtContext;
++        EventQueue.invokeLater(new Runnable() {
++            public void run() {
++                
++                RootPaneContainer container = addRootPaneContainer(currentContext.getFrame());
++                JComponent swingComponent = createSwingComponent();
++                currentContext.setSwingComponent(swingComponent);
++                container.getRootPane().getContentPane().add(swingComponent);
++                setComponentFont();
++            }
++        });
++    }
++
++    private void setComponentFont() {
++        assert currentSystemFont != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        JComponent swingComponent = (awtContext != null) ? awtContext.getSwingComponent() : null;
++        if ((swingComponent != null) && !currentSystemFont.getDevice().isDisposed()) {
++            FontData fontData = currentSystemFont.getFontData()[0];
++            
++            // AWT font sizes assume a 72 dpi resolution, always. The true screen resolution must be 
++            // used to convert the platform font size into an AWT point size that matches when displayed. 
++            int resolution = Toolkit.getDefaultToolkit().getScreenResolution();
++            int awtFontSize = (int)Math.round((double)fontData.getHeight() * resolution / 72.0);
++            
++            // The style constants for SWT and AWT map exactly, and since they are int constants, they should
++            // never change. So, the SWT style is passed through as the AWT style. 
++            java.awt.Font awtFont = new java.awt.Font(fontData.getName(), fontData.getStyle(), awtFontSize);
++
++            // Update the look and feel defaults to use new font.
++            updateLookAndFeel(awtFont);
++
++            // Allow subclasses to react to font change if necessary. 
++            updateAwtFont(awtFont);
++
++            // Allow components to update their UI based on new font 
++            // TODO: should the update method be called on the root pane instead?
++            Container contentPane = swingComponent.getRootPane().getContentPane();
++            SwingUtilities.updateComponentTreeUI(contentPane);
++        }
++    }
++    
++    private void updateLookAndFeel(java.awt.Font awtFont) {
++        assert awtFont != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // The FontUIResource class marks the font as replaceable by the look and feel 
++        // implementation if font settings are later changed. 
++        FontUIResource fontResource = new FontUIResource(awtFont);
++
++        // Assign the new font to the relevant L&F font properties. These are 
++        // the properties that are initially assigned to the system font
++        // under the Windows look and feel. 
++        // TODO: It's possible that other platforms will need other assignments.
++        // TODO: This does not handle fonts other than the "system" font. 
++        // Other fonts may change, and the Swing L&F may not be adjusting.
++        
++        UIManager.put("Button.font", fontResource); //$NON-NLS-1$
++        UIManager.put("CheckBox.font", fontResource); //$NON-NLS-1$
++        UIManager.put("ComboBox.font", fontResource); //$NON-NLS-1$
++        UIManager.put("EditorPane.font", fontResource); //$NON-NLS-1$
++        UIManager.put("Label.font", fontResource); //$NON-NLS-1$
++        UIManager.put("List.font", fontResource); //$NON-NLS-1$
++        UIManager.put("Panel.font", fontResource); //$NON-NLS-1$
++        UIManager.put("ProgressBar.font", fontResource); //$NON-NLS-1$
++        UIManager.put("RadioButton.font", fontResource); //$NON-NLS-1$
++        UIManager.put("ScrollPane.font", fontResource); //$NON-NLS-1$
++        UIManager.put("TabbedPane.font", fontResource); //$NON-NLS-1$
++        UIManager.put("Table.font", fontResource); //$NON-NLS-1$
++        UIManager.put("TableHeader.font", fontResource); //$NON-NLS-1$
++        UIManager.put("TextField.font", fontResource); //$NON-NLS-1$
++        UIManager.put("TextPane.font", fontResource); //$NON-NLS-1$
++        UIManager.put("TitledBorder.font", fontResource); //$NON-NLS-1$
++        UIManager.put("ToggleButton.font", fontResource); //$NON-NLS-1$
++        UIManager.put("TreeFont.font", fontResource); //$NON-NLS-1$
++        UIManager.put("ViewportFont.font", fontResource); //$NON-NLS-1$
++    }
++
++    private void handleSettingsChange() {
++        Font newFont = getDisplay().getSystemFont();
++        if (!newFont.equals(currentSystemFont)) { 
++            currentSystemFont = newFont;
++            EventQueue.invokeLater(new Runnable() {
++                public void run() {
++                    setComponentFont();
++                }
++            });            
++        }
++    }
++
++    private boolean isFocusable() {
++        if (awtContext == null) {
++            return false;
++        }
++        JComponent swingComponent = awtContext.getSwingComponent();
++        return (swingComponent != null) && swingComponent.isFocusable(); 
++    }
++
++    /* (non-Javadoc)
++     * @see org.eclipse.swt.widgets.Control#setFocus()
++     */
++    public boolean setFocus() {
++        checkWidget();
++        
++        if (!isFocusable()) {
++            return false;
++        }
++        return super.setFocus();
++    }
++
++    /* (non-Javadoc)
++     * @see org.eclipse.swt.widgets.Control#forceFocus()
++     */
++    public boolean forceFocus() {
++        checkWidget();
++        
++        if (!isFocusable()) {
++            return false;
++        }
++        return super.forceFocus();
++    }
++
++    /* (non-Javadoc)
++     * @see org.eclipse.swt.widgets.Widget#dispose()
++     */
++    public void dispose() {
++        if (!isDisposed()) {
++            getDisplay().removeListener(SWT.Settings, settingsListener);
++            getDisplay().removeFilter(SWT.Show, menuListener);
++            super.dispose();
++        }
++    }
++    
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/Platform.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/Platform.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/Platform.java	(revision 951)
+@@ -0,0 +1,30 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import org.eclipse.swt.SWT;
++
++class Platform {
++    private static String platformString = SWT.getPlatform();
++
++    // prevent instantiation
++    private Platform() {
++    }
++    
++    public static boolean isWin32() {
++        return "win32".equals(platformString); //$NON-NLS-1$
++    }
++    
++    public static boolean isGtk() {
++        return "gtk".equals(platformString); //$NON-NLS-1$
++    }
++    
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtFocusHandler.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtFocusHandler.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/AwtFocusHandler.java	(revision 951)
+@@ -0,0 +1,254 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.EventQueue;
++import java.awt.FocusTraversalPolicy;
++import java.awt.Frame;
++import java.awt.Window;
++import java.awt.event.ContainerEvent;
++import java.awt.event.ContainerListener;
++import java.awt.event.FocusEvent;
++import java.awt.event.FocusListener;
++import java.awt.event.WindowEvent;
++import java.awt.event.WindowFocusListener;
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++
++import javax.swing.JPopupMenu;
++import javax.swing.text.Caret;
++import javax.swing.text.JTextComponent;
++
++class AwtFocusHandler implements FocusListener, ContainerListener, 
++                                      WindowFocusListener {
++
++    private final Frame frame;
++    private SwtFocusHandler swtHandler;
++    private boolean awtHasFocus = false;
++    private Component currentComponent = null;
++    
++    AwtFocusHandler(Frame frame) {
++        assert frame != null;
++        
++        this.frame = frame;
++        frame.addContainerListener(new RecursiveContainerListener(this));
++        frame.addWindowFocusListener(this);
++    }
++
++    void setSwtHandler(SwtFocusHandler handler) {
++        assert handler != null;
++        assert swtHandler == null;  // this method is meant to be called once
++        
++        swtHandler = handler;
++    }
++
++    void gainFocus() {
++        assert frame != null;
++        // assert !awtHasFocus;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        FocusTraversalPolicy policy = frame.getFocusTraversalPolicy();
++        Component component;
++        if (policy instanceof EmbeddedChildFocusTraversalPolicy) {
++            EmbeddedChildFocusTraversalPolicy embeddedPolicy = (EmbeddedChildFocusTraversalPolicy) policy; 
++            component = embeddedPolicy.getCurrentComponent(frame);
++        } else {
++            // TODO: direction based?
++            component = policy.getDefaultComponent(frame);
++        }
++        if (component != null) {
++            // System.out.println("Requesting focus for component: " + component);
++            component.requestFocus();
++            // TODO: else case error? If not, consider moving flag setting below into this if
++        }
++        awtHasFocus = true;
++    }
++    
++    /**
++     * Moves focus back to the next SWT component
++     */
++    void transferFocusNext() {
++        assert swtHandler != null;
++        assert awtHasFocus;
++        
++        awtHasFocus = false;
++        swtHandler.gainFocusNext();
++    }
++    
++    /**
++     * Moves focus back to the previous SWT component
++     */
++    void transferFocusPrevious() {
++        assert swtHandler != null;
++        assert awtHasFocus;
++        
++        awtHasFocus = false;
++        swtHandler.gainFocusPrevious();
++    }
++    
++    boolean awtHasFocus() {
++        return awtHasFocus;
++    }
++
++    Component getCurrentComponent() {
++        return currentComponent;
++    }
++    
++    // ..................... Listener implementations
++
++    public void focusGained(FocusEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("gained (awt). component = " + e.getComponent() + ", opposite = " + e.getOppositeComponent());
++        currentComponent  = e.getComponent();
++    }
++
++    public void focusLost(FocusEvent e) {
++        // System.out.println("component focus lost (awt). opposite = " + e.getOppositeComponent());
++        
++        // Intentionally leaving currentComponent set. When window focus is lost, 
++        // it will be needed. 
++    }
++
++    public void componentAdded(ContainerEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        e.getChild().addFocusListener(this);
++    }
++
++    public void componentRemoved(ContainerEvent e) {
++        assert e != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        e.getChild().removeFocusListener(this);
++    }
++    
++    public void windowGainedFocus(WindowEvent e) {
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        // System.out.println("WindowFocusListener.windowGainedFocus");
++        awtHasFocus = true;
++    }
++
++    public void windowLostFocus(WindowEvent e) {
++        assert e != null;
++        assert swtHandler != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // System.out.println("WindowFocusListener.windowLostFocus");
++        
++        // Dismiss any popup menus that are
++        // open when losing focus. This prevents situations where
++        // multiple popup menus are visible at the same time. In JDK 1.4 and earlier, 
++        // the dismissal is not done automatically. In JDK 1.5, this code is 
++        // unnecessary, but it doesn't seem to hurt anything. 
++        // TODO: verify this is OK on other windowing systems
++        // TODO: disable in post-1.4 environments
++        /* boolean popupShown = */hidePopups();
++        
++        // If focus is being lost to the parent SWT composite, then
++        // grab it back for AWT and return. Normally the parent SWT composite will
++        // do this for us, but it will not see a focus gained event when focus 
++        // is transferred to it from its AWT frame child. 
++        // This happens, for example, if an AWT control has focus and the 
++        // tab of a containing (already active) view is clicked.
++        //
++        // However, don't grab back focus if a popup was hidden above. The popup
++        // area will not be properly redrawn (the popup, or part of it, will 
++        // appear to be still there. 
++        //if (!popupShown && swtHandler.hasFocus()) {
++            // System.out.println("**** Taking back focus: " + e);
++            // This seems to have side effects, so it's commented out for now. 
++            // (Sometimes, it forces the workbench window to the foreground when another
++            // program's window is selected.)
++            // TODO: find an alternate approach to reassert focus
++            // gainFocus();
++            // return;
++        //}
++        
++        // On a normal change of focus, Swing will turn off any selection
++        // in a text field to help indicate focus is lost. This won't happen
++        // automatically when transferring to SWT, so turn off the selection
++        // manually.
++        if (currentComponent instanceof JTextComponent) {
++            Caret caret = ((JTextComponent)currentComponent).getCaret();
++            if (caret != null) {
++                caret.setSelectionVisible(false);
++            }
++        }
++        awtHasFocus = false;
++    }
++
++    // Returns true if any popup has been hidden
++    private boolean hidePopups() {
++        boolean result = false;
++        List popups = new ArrayList();
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        // Look for popups inside the frame's component hierarchy. 
++        // Lightweight popups will be found here. 
++        findContainedPopups(frame, popups);
++        
++        // Also look for popups in the frame's window hierachy. 
++        // Heavyweight popups will be found here.
++        findOwnedPopups(frame, popups);
++        
++        // System.out.println("Hiding popups, count=" + popups.size());
++        for (Iterator iter = popups.iterator(); iter.hasNext();) {
++            Component popup = (Component)iter.next();
++            if (popup.isVisible()) {
++                result = true;
++                popup.setVisible(false);
++            }
++        }
++        return result;
++    }
++
++    private void findOwnedPopups(Window window, List popups) {
++        assert window != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        Window[] ownedWindows = window.getOwnedWindows();
++        for (int i = 0; i < ownedWindows.length; i++) {
++            findContainedPopups(ownedWindows[i], popups);
++            findOwnedPopups(ownedWindows[i], popups);
++        }
++    }
++
++    private void findContainedPopups(Container container, List popups) {
++        assert container != null;
++        assert popups != null;
++        assert EventQueue.isDispatchThread();    // On AWT event thread
++        
++        Component[] components = container.getComponents();
++        for (int i = 0; i < components.length; i++) {
++            Component c = components[i];
++            // JPopupMenu is a container, so check for it first
++            if (c instanceof JPopupMenu) {
++                popups.add(c);
++            } else if (c instanceof Container) {
++                findContainedPopups((Container)c, popups);
++            }
++        }
++    }
++
++    void postHidePopups() {
++        EventQueue.invokeLater(new Runnable() {
++            public void run() {
++                hidePopups();
++            }
++        });
++    }
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/CleanResizeListener.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/CleanResizeListener.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/CleanResizeListener.java	(revision 951)
+@@ -0,0 +1,47 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import org.eclipse.swt.events.ControlAdapter;
++import org.eclipse.swt.events.ControlEvent;
++import org.eclipse.swt.graphics.GC;
++import org.eclipse.swt.graphics.Rectangle;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++
++class CleanResizeListener extends ControlAdapter {
++    private Rectangle oldRect = null;
++    public void controlResized(ControlEvent e) {
++        assert e != null;
++        assert Display.getCurrent() != null;     // On SWT event thread
++        
++        // Prevent garbage from Swing lags during resize. Fill exposed areas 
++        // with background color. 
++        Composite composite = (Composite)e.widget;
++        //Rectangle newRect = composite.getBounds();
++        //newRect = composite.getDisplay().map(composite.getParent(), composite, newRect);
++        Rectangle newRect = composite.getClientArea();
++        if (oldRect != null) {
++            int heightDelta = newRect.height - oldRect.height;
++            int widthDelta = newRect.width - oldRect.width;
++            if ((heightDelta > 0) || (widthDelta > 0)) {
++                GC gc = new GC(composite);
++                try {
++                    gc.fillRectangle(newRect.x, oldRect.height, newRect.width, heightDelta);
++                    gc.fillRectangle(oldRect.width, newRect.y, widthDelta, newRect.height);
++                } finally {
++                    gc.dispose();
++                }
++            }
++        }
++        oldRect = newRect;
++    }
++}
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/SwtFocusHandler.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/SwtFocusHandler.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/SwtFocusHandler.java	(revision 951)
+@@ -0,0 +1,153 @@
++/*******************************************************************************
++ * Copyright (c) 2007 SAS Institute.
++ * All rights reserved. This program and the accompanying materials
++ * are made available under the terms of the Eclipse Public License v1.0
++ * which accompanies this distribution, and is available at
++ * http://www.eclipse.org/legal/epl-v10.html
++ *
++ * Contributors:
++ *     SAS Institute - initial API and implementation
++ *******************************************************************************/
++package org.pathvisio.gui.swt.awt;
++
++import java.awt.EventQueue;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.ControlAdapter;
++import org.eclipse.swt.events.ControlEvent;
++import org.eclipse.swt.events.DisposeEvent;
++import org.eclipse.swt.events.DisposeListener;
++import org.eclipse.swt.events.FocusEvent;
++import org.eclipse.swt.events.FocusListener;
++import org.eclipse.swt.events.KeyEvent;
++import org.eclipse.swt.events.KeyListener;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
++
++class SwtFocusHandler implements FocusListener, KeyListener {
++
++    private final Composite composite;
++    private final Display display;
++    private AwtFocusHandler awtHandler;
++    
++    SwtFocusHandler(Composite composite) {
++        assert composite != null;
++        assert Display.getCurrent() != null;     // On SWT event thread
++        
++        this.composite = composite;
++        display = composite.getDisplay();
++        composite.addFocusListener(this);
++        composite.addKeyListener(this);
++    }
++
++    void setAwtHandler(AwtFocusHandler handler) {
++        assert handler != null;
++        assert awtHandler == null;  // this method is meant to be called once
++        assert composite != null;
++        assert Display.getCurrent() != null;     // On SWT event thread        
++        
++        awtHandler = handler;
++        
++        // Dismiss Swing popups when the main window is moved. (It would be 
++        // better to dismiss popups whenever the titlebar is clicked, but 
++        // there does not seem to be a way.)
++        final ControlAdapter controlAdapter = new ControlAdapter() {
++            public void controlMoved(ControlEvent e) {
++                assert awtHandler != null;
++                awtHandler.postHidePopups();
++            }
++        };
++        final Shell shell = composite.getShell();
++        shell.addControlListener(controlAdapter);
++        
++        // Cleanup listeners on dispose
++        composite.addDisposeListener(new DisposeListener() {
++            public void widgetDisposed(DisposeEvent e) {
++                shell.removeControlListener(controlAdapter);
++            }
++        });
++    }
++    
++    void gainFocusNext() {
++        traverse(SWT.TRAVERSE_TAB_NEXT);
++    }
++    
++    void gainFocusPrevious() {
++        traverse(SWT.TRAVERSE_TAB_PREVIOUS);
++    }
++    
++    private void traverse(final int traversal) {
++        assert composite != null;
++        
++        // Tab from the containing SWT component while 
++        // running on the SWT thread
++        Runnable r = new Runnable() {
++            public void run() {
++                composite.traverse(traversal);
++            }
++        };
++        display.asyncExec(r);
++    }
++
++//    boolean hasFocus() {
++//        assert composite != null;
++//        
++//        // This will return true if the composite has focus, or if any
++//        // foreign (e.g. AWT) child of the composite has focus.
++//        if (display.isDisposed()) {
++//            return false;
++//        }
++//        final boolean[] result = new boolean[1];
++//        display.syncExec(new Runnable() {
++//            public void run() {
++//                result[0] = (!composite.isDisposed() &&
++//                             (display.getFocusControl() == composite));
++//            }
++//        });
++//        return result[0];
++//    }
++
++    // ..................... Listener implementations
++    
++    public void focusGained(FocusEvent e) {
++        assert awtHandler != null;
++        assert Display.getCurrent() != null;     // On SWT event thread
++        
++        // System.out.println("Gained: " + e.toString() + " (" + e.widget.getClass().getName() + ")");
++        EventQueue.invokeLater(new Runnable() {
++            public void run() {
++                awtHandler.gainFocus();
++            }
++        });        
++    }
++    
++    public void focusLost(FocusEvent e) {
++        // System.out.println("Lost: " + e.toString() + " (" + e.widget.getClass().getName() + ")");
++    }
++
++    public void keyPressed(KeyEvent e) {
++        assert Display.getCurrent() != null;     // On SWT event thread
++
++        // If the embedded swing root pane has no components to receive focus, 
++        // then there will be cases where the parent SWT composite will keep 
++        // focus. (For example, when tabbing into the root pane container). 
++        // By default, in these cases, the focus is swallowed by the Composite
++        // and never escapes. This code allows tab and back-tab to do the 
++        // proper traversal to other SWT components from the composite.
++        // TODO: other keys?
++        if (e.keyCode == SWT.TAB) {
++            // TODO: In some cases, this gobbles up all the tabs, even from AWT children. Find a more selective way. 
++            /*if (e.stateMask == SWT.NONE) {
++                traverse(SWT.TRAVERSE_TAB_NEXT);
++            } else if (e.stateMask == SWT.SHIFT) {
++                traverse(SWT.TRAVERSE_TAB_PREVIOUS);
++            }*/
++        }
++    }
++
++    public void keyReleased(KeyEvent e) {
++    }
++
++
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/VPathwaySwingComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/VPathwaySwingComposite.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/awt/VPathwaySwingComposite.java	(revision 951)
+@@ -0,0 +1,24 @@
++package org.pathvisio.gui.swt.awt;
++
++import javax.swing.JComponent;
++import javax.swing.JScrollPane;
++
++import org.eclipse.swt.widgets.Composite;
++
++public class VPathwaySwingComposite extends EmbeddedSwingComposite {
++	JScrollPane scrollPane;
++	
++	public VPathwaySwingComposite(Composite parent, int style) {
++		super(parent, style);
++		populate();
++	}
++	
++	protected JComponent createSwingComponent() {
++		scrollPane = new JScrollPane();
++		return scrollPane;
++	}
++	
++	public JScrollPane getScrollPane() {
++		return scrollPane;
++	}
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/Engine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 950)
++++ branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 951)
+@@ -126,10 +126,10 @@
+ 		if(_pathway != null) //Only continue if the data is correctly loaded
+ 		{
+ 			pathway = _pathway;
+-			fireApplicationEvent(new ApplicationEvent(pathway, ApplicationEvent.PATHWAY_OPENED));
+ 			if(wrapper != null) {
+ 				createVPathway(_pathway, wrapper);
+ 			}
++			fireApplicationEvent(new ApplicationEvent(pathway, ApplicationEvent.PATHWAY_OPENED));
+ 		}
+ 		
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySwtAwt.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySwtAwt.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySwtAwt.java	(revision 951)
+@@ -0,0 +1,97 @@
++package org.pathvisio.view.swt;
++
++import java.awt.event.KeyEvent;
++import java.awt.event.MouseEvent;
++
++import javax.swing.JScrollPane;
++
++import org.eclipse.swt.widgets.Display;
++import org.pathvisio.view.swing.VPathwaySwing;
++
++public class VPathwaySwtAwt extends VPathwaySwing {
++	Display display;
++	public VPathwaySwtAwt(JScrollPane parent, Display display) {
++		super(parent);
++		this.display = display;
++	}
++
++	public void mouseClicked(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mouseClicked(e);
++			}
++		});
++	}
++
++	public void mouseEntered(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mouseEntered(e);
++			}
++		});
++	}
++
++	public void mouseExited(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mouseExited(e);
++			}
++		});
++	}
++
++	public void mousePressed(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mousePressed(e);
++			}
++		});
++	}
++
++	public void mouseReleased(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mouseReleased(e);
++			}
++		});
++	}
++
++	public void keyPressed(final KeyEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.keyPressed(e);
++			}
++		});
++	}
++
++	public void keyReleased(final KeyEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.keyReleased(e);
++			}
++		});
++	}
++
++	public void keyTyped(final KeyEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.keyTyped(e);
++			}
++		});
++	}
++
++	public void mouseDragged(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mouseDragged(e);
++			}
++		});
++	}
++
++	public void mouseMoved(final MouseEvent e) {
++		display.syncExec(new Runnable() {
++			public void run() {
++				VPathwaySwtAwt.super.mouseMoved(e);
++			}
++		});
++	}
++}
+\ No newline at end of file

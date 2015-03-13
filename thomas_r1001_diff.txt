@@ -1,0 +1,78 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/PopularPathwaysPage/BrowsePathwaysPage_body.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/PopularPathwaysPage/BrowsePathwaysPage_body.php	(revision 1000)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/PopularPathwaysPage/BrowsePathwaysPage_body.php	(revision 1001)
+@@ -19,10 +19,10 @@
+ 
+ 	# GET values
+ 
+-	$pick = $_POST["from"];
+-	if (isset($_POST['browse'])){
+-	echo "Pick: ".$pick."<br/>";
+-	}
++//	$pick = $_POST["from"];
++//	if (isset($_POST['browse'])){
++//	echo "Pick: ".$pick."<br/>";
++//	}
+ 
+ /** AP20070419	
+  * Parse species header from 'from' so that prev/next links can work
+@@ -79,20 +79,32 @@
+ 
+ 	function execute( $par) {
+         	
+-		global $wgOut, $from;
++		global $wgOut, $from, $pick, $all;
+  		//$pick = $wgRequest->getVal( 'browse'); 
+ 		$pick = $_GET["browse"];
++		$picked = $pick;
++		$all = 'All Species';
++		if ($pick == $all){
++			$picked = '';
++	                $arr = Pathway::getAvailableSpecies();
++        	        asort($arr);
++                	foreach ($arr as $index) {
++				$picked .=  $index."|";	
++			}
++			$picked[strlen($picked)-1] = ' ';
++		}
+         	if (!isset($pick)){
+-		$pick = 'Human';
++			$pick = 'Human';
++			$picked = $pick;
+         	}
+-  		//$wgOut->addHtml("Pick: ".$pick."<br/>");
++  		//$wgOut->addHtml("Pick: ".$pick.$picked."<br/>");
+ 
+ 	        $wgOut->setPagetitle("Browse Pathways");
+ 
+ 		$nsForm = $this->namespaceForm( $namespace, $pick);       
+ 
+                 $wgOut->addHtml( $nsForm . '<hr />');
+-		$wgOut->addWikiText("<DPL>category=$pick
++		$wgOut->addWikiText("<DPL>category=$picked
+                                 notnamespace=Image
+                                 namespace=Pathway
+                                 shownamespace=false
+@@ -147,6 +159,7 @@
+ 		$arr = Pathway::getAvailableSpecies();
+ 		asort($arr);
+ 		$selected = $pick;
++		$all = 'All Species';
+ 
+                 foreach ($arr as $index) {
+                         if ($index === $selected) {
+@@ -156,6 +169,13 @@
+                                 $speciesselect .= "\t" . Xml::element("option", array("value" => $index), $index) . "\n";
+                         }
+                 }
++		if ($selected == $all){
++			$speciesselect .= "\t" . Xml::element("option",
++                                         array("value" => $all, "selected" => "selected"), $all) . "\n";
++                 } else {
++                         $speciesselect .= "\t" . Xml::element("option", array("value" => $all), $all) . "\n";
++                 }
++
+                 $speciesselect .= "</select>\n";
+ 
+ 	$submitbutton = '<input type="submit" value="Go" name="pick" />';

@@ -1,0 +1,25 @@
+Index: trunk/wikipathways/wpi/wpi.php
+===================================================================
+--- trunk/wikipathways/wpi/wpi.php	(revision 1119)
++++ trunk/wikipathways/wpi/wpi.php	(revision 1120)
+@@ -405,7 +405,7 @@
+ 
+ 		$basePath = dirname(realpath(__FILE__));
+ 		$imgFile = $basePath . '/tmp/' . $imgName;
+-		$cmd = "java -jar $basePath/bin/pathvisio_convert.jar $gpmlFile $imgFile 2>&1";
++		$cmd = "java -jar bin/pathvisio_converter.jar $gpmlFile $imgFile 2>&1";
+ 		wfDebug($cmd);
+ 		exec($cmd, $output, $status);
+ 		
+Index: trunk/wikipathways/LocalSettings.php
+===================================================================
+--- trunk/wikipathways/LocalSettings.php	(revision 1119)
++++ trunk/wikipathways/LocalSettings.php	(revision 1120)
+@@ -194,7 +194,6 @@
+ require_once('wpi/extensions/googleSearch.php');
+ require_once('wpi/extensions/button.php');
+ require_once('wpi/extensions/pathwayThumb.php');
+-require_once('wpi/extensions/BrowsePathwaysPage/BrowsePathwaysPage.php');
+ require_once('wpi/extensions/editApplet.php');
+ require_once('wpi/extensions/listPathways.php');
+ require_once('wpi/extensions/movePathway.php');

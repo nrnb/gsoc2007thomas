@@ -1,0 +1,185 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 948)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 949)
+@@ -1,18 +1,12 @@
+ package org.pathvisio.gui.swing.propertypanel;
+ 
+-import java.awt.Component;
+ import java.util.ArrayList;
+-import java.util.EventObject;
++import java.util.Collection;
+ import java.util.HashSet;
+ import java.util.List;
+-import java.util.Set;
+ 
+ import javax.swing.DefaultCellEditor;
+-import javax.swing.JTable;
+ import javax.swing.JTextField;
+-import javax.swing.event.CellEditorListener;
+-import javax.swing.event.ChangeEvent;
+-import javax.swing.event.EventListenerList;
+ import javax.swing.table.AbstractTableModel;
+ import javax.swing.table.TableCellEditor;
+ import javax.swing.table.TableCellRenderer;
+@@ -29,7 +23,7 @@
+ public class PathwayTableModel extends AbstractTableModel implements SelectionListener, PathwayListener {
+ 	TableCellEditor defaultEditor = new DefaultCellEditor(new JTextField());
+ 	
+-	Set<PathwayElement> input;
++	Collection<PathwayElement> input;
+ 	List<TypedProperty> properties;
+ 	
+ 	public PathwayTableModel() {
+@@ -63,7 +57,7 @@
+ 		fireTableDataChanged();
+ 	}
+ 	
+-	protected List<TypedProperty> generateProperties(Set<PathwayElement> elements) {
++	protected List<TypedProperty> generateProperties(Collection<PathwayElement> elements) {
+ 		List<TypedProperty> properties = new ArrayList<TypedProperty>();
+ 		List<PropertyType> propTypes = getProperties(elements);
+ 		for(PropertyType pt : propTypes) {
+@@ -73,7 +67,7 @@
+ 		return properties;
+ 	}
+ 	
+-	protected List<PropertyType> getProperties(Set<PathwayElement> elements) {
++	protected List<PropertyType> getProperties(Collection<PathwayElement> elements) {
+ 		ArrayList<PropertyType> properties = null;
+ 		ArrayList<PropertyType> remove = new ArrayList<PropertyType>();
+ 		for(PathwayElement e : elements) {
+@@ -94,7 +88,7 @@
+ 		return properties == null ? new ArrayList<PropertyType>() : properties;
+ 	}
+ 	
+-	TypedProperty getAggregateProperty(PropertyType key, Set<PathwayElement> elements) {
++	TypedProperty getAggregateProperty(PropertyType key, Collection<PathwayElement> elements) {
+ 		Object value = null;
+ 		boolean first = true;
+ 		for(PathwayElement e : elements) {
+@@ -121,14 +115,16 @@
+ 	}
+ 	
+ 	public Object getValueAt(int rowIndex, int columnIndex) {
+-		TypedProperty p = properties.get(rowIndex);
++		TypedProperty p = getPropertyAt(rowIndex);
+ 		if(columnIndex == 0) return p.getType().desc();
+-		else return p.getViewValue();
++		else return p.getValue();
+ 	}
+ 
+ 	public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+-		// TODO Auto-generated method stub
+-		super.setValueAt(aValue, rowIndex, columnIndex);
++		if(columnIndex != 0) {
++			TypedProperty p = getPropertyAt(rowIndex);
++			p.setValue(aValue);
++		}
+ 	}
+ 	
+ 	public String getColumnName(int column) {
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 948)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 949)
+@@ -14,6 +14,7 @@
+ import javax.swing.JDialog;
+ import javax.swing.JLabel;
+ import javax.swing.JTable;
++import javax.swing.JTextField;
+ import javax.swing.border.Border;
+ import javax.swing.table.DefaultTableCellRenderer;
+ import javax.swing.table.TableCellEditor;
+@@ -50,11 +51,7 @@
+ 	public T getValue() {
+ 		return value;
+ 	}
+-
+-	public T getViewValue() {
+-		return value;
+-	}
+-
++	
+ 	public PropertyType getType() {
+ 		return type;
+ 	}
+@@ -71,14 +68,18 @@
+ 			return lineTypeRenderer;
+ 		case LINESTYLE:
+ 			return lineStyleRenderer;
+-		default: return null;
+ 		}
++		switch(type.type()) {
++		case DOUBLE:
++			return doubleRenderer;
++		}
++		return null;
+ 	}
+ 
+ 	public TableCellEditor getCellEditor() {
+ 		switch(type) {
+ 		case COLOR:
+-			return colorEditor;
++			return null;
+ 		default: return null;
+ 		}
+ 	}
+@@ -104,15 +105,17 @@
+ 		case LINETYPE:
+ 			return new TypedProperty<LineType>(elements, (LineType)value, type, different);
+ 		case LINESTYLE:
+-			return new TypedProperty<Integer>(elements, (Integer)value, type, different);	
++			return new TypedProperty<Integer>(elements, (Integer)value, type, different);
++		case DOUBLE:
++			return new TypedProperty<Double>(elements, (Double)value, type, different);
+ 		default:
+ 			return new TypedProperty<Object>(elements, value, type, different);
+ 		}
+ 	}
+ 
+-	private ColorEditor colorEditor = new ColorEditor();
++	//private ColorEditor colorEditor = new ColorEditor();
+ 	
+-	private class ColorEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
++	private static class ColorEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
+ 		Color currentColor;
+ 		JButton button;
+ 		JColorChooser colorChooser;
+@@ -164,7 +167,8 @@
+ 	private ColorRenderer colorRenderer = new ColorRenderer();
+ 	private ComboRenderer lineTypeRenderer = new ComboRenderer(LineType.getNames());
+ 	private ComboRenderer lineStyleRenderer = new ComboRenderer(LineStyle.getNames());
+-
++	private DoubleRenderer doubleRenderer = new DoubleRenderer();
++	
+ 	private DefaultTableCellRenderer differentRenderer = new DefaultTableCellRenderer() {
+ 		protected void setValue(Object value) {
+ 			value = "Different values";
+@@ -172,7 +176,7 @@
+ 		}
+ 	};
+ 
+-	private class ComboRenderer extends JComboBox implements TableCellRenderer {
++	private static class ComboRenderer extends JComboBox implements TableCellRenderer {
+ 		public ComboRenderer(Object[] items) {
+ 			super(items);
+ 		}
+@@ -182,8 +186,15 @@
+ 			return this;
+ 		}
+ 	}
+-
+-	private class ColorRenderer extends JLabel implements TableCellRenderer {
++	
++	private static class DoubleRenderer extends DefaultTableCellRenderer {		
++		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
++			Double d = Math.round((Double)(value) * 100.0) / 100.0;
++			return super.getTableCellRendererComponent(table, d, isSelected, hasFocus, row, column);
++		}		
++	}
++	
++	private static class ColorRenderer extends JLabel implements TableCellRenderer {
+ 		Border unselectedBorder = null;
+ 		Border selectedBorder = null;
+ 		boolean isBordered = true;

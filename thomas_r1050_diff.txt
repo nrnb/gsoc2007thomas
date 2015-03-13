@@ -1,0 +1,51 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/listPathways.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/listPathways.php	(revision 1049)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/listPathways.php	(revision 1050)
+@@ -42,11 +42,4 @@
+ 	$html = tag('ul', $html);
+ 	return $html;
+ }
+-
+-function tag($name, $text, $attributes = array()) {
+-	foreach(array_keys($attributes) as $key) {
+-		if($value = $attributes[$key])$attr = $key . '="' . $value . '" ';
+-	}
+-	return "<$name $attr>$text</$name>";
+-}
+ ?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/CreatePathwayPage/CreatePathwayPage_body.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/CreatePathwayPage/CreatePathwayPage_body.php	(revision 1049)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/CreatePathwayPage/CreatePathwayPage_body.php	(revision 1050)
+@@ -46,14 +46,4 @@
+                 }
+         }
+ }
+-
+-
+-function tag($name, $content, $attr = array()) {
+-	$html = "<$name ";
+-	foreach(array_keys($attr) as $key) {
+-		$html .= "$key=\"$attr[$key]\"";
+-	}
+-	$html .= ">$content</$name>";
+-	return $html;
+-}
+ ?>
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1049)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1050)
+@@ -649,4 +649,11 @@
+ 	fwrite($handle, $data);
+ 	fclose($handle);
+ }
++
++function tag($name, $text, $attributes = array()) {
++	foreach(array_keys($attributes) as $key) {
++		if($value = $attributes[$key])$attr .= $key . '="' . $value . '" ';
++	}
++	return "<$name $attr>$text</$name>";
++}
+ ?>

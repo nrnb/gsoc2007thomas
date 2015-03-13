@@ -1,0 +1,931 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 942)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 943)
+@@ -4,13 +4,18 @@
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+ 
++import javax.swing.ImageIcon;
+ import javax.swing.JComboBox;
++import javax.swing.JLabel;
+ import javax.swing.JMenu;
+ import javax.swing.JMenuBar;
++import javax.swing.JMenuItem;
+ import javax.swing.JPanel;
+ import javax.swing.JScrollPane;
++import javax.swing.JSplitPane;
+ import javax.swing.JToolBar;
+ 
++import org.pathvisio.Engine;
+ import org.pathvisio.gui.swing.CommonActions.CopyAction;
+ import org.pathvisio.gui.swing.CommonActions.ExportAction;
+ import org.pathvisio.gui.swing.CommonActions.ImportAction;
+@@ -21,10 +26,14 @@
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
++import com.mammothsoftware.frwk.ddb.DropDownButton;
++
+ public class MainPanel extends JPanel {
++	private JSplitPane splitPane;
+ 	private JMenuBar menuBar;
+ 	private JToolBar toolBar;
+-	private JScrollPane scrollPane;
++	private JScrollPane pathwayScrollPane;
++	private JScrollPane sidebarScrollPane;
+ 	
+ 	public MainPanel() {
+ 		setLayout(new BorderLayout());
+@@ -37,8 +46,15 @@
+ 		add(toolBar, BorderLayout.NORTH);
+ 		//menuBar will be added by container (JFrame or JApplet)
+ 		
+-		scrollPane = new JScrollPane(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+-		add(scrollPane, BorderLayout.CENTER);
++		
++		
++		pathwayScrollPane = new JScrollPane();
++		sidebarScrollPane = new JScrollPane();
++		
++		splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, pathwayScrollPane, sidebarScrollPane);
++		splitPane.setResizeWeight(1);
++		splitPane.setOneTouchExpandable(true);
++		add(splitPane, BorderLayout.CENTER);
+ 	}
+ 	
+ 	protected void addMenuActions(JMenuBar mb) {
+@@ -78,6 +94,7 @@
+ 		tb.addSeparator();
+ 		
+ 		tb.addSeparator();
++		tb.add(new JLabel("Zoom:", JLabel.LEFT));
+ 		JComboBox combo = new JComboBox(new Object[] { 
+ 				new ZoomAction(VPathway.ZOOM_TO_FIT),
+ 				new ZoomAction(10),
+@@ -111,14 +128,29 @@
+ 		
+ 		tb.add(new NewElementAction(VPathway.NEWGENEPRODUCT));
+ 		tb.add(new NewElementAction(VPathway.NEWLABEL));
+-		tb.add(new NewElementAction(VPathway.NEWLINEMENU));
++		//New line menu
++		DropDownButton lineButton = new DropDownButton(new ImageIcon(Engine.getResourceURL("icons/newlinemenu.gif")));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINE)));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINEARROW)));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINEDASHED)));
++		lineButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLINEDASHEDARROW)));
++		lineButton.setRunFirstItem(true);
++		tb.add(lineButton);
++		
+ 		tb.add(new NewElementAction(VPathway.NEWRECTANGLE));
+ 		tb.add(new NewElementAction(VPathway.NEWOVAL));
+ 		tb.add(new NewElementAction(VPathway.NEWARC));
+ 		tb.add(new NewElementAction(VPathway.NEWBRACE));
+ 		tb.add(new NewElementAction(VPathway.NEWTBAR));
+-		tb.add(new NewElementAction(VPathway.NEWLINESHAPEMENU));
+-				
++		
++		//New lineshape menu
++		DropDownButton lineShapeButton = new DropDownButton(new ImageIcon(Engine.getResourceURL("icons/newlineshapemenu.gif")));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLIGANDROUND)));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWRECEPTORROUND)));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWLIGANDSQUARE)));
++		lineShapeButton.addComponent(new JMenuItem(new NewElementAction(VPathway.NEWRECEPTORSQUARE)));
++		lineShapeButton.setRunFirstItem(true);
++		tb.add(lineShapeButton);
+ 	}
+ 	
+ 	public JMenuBar getMenuBar() {
+@@ -130,11 +162,11 @@
+ 	}
+ 	
+ 	public void setPathway(VPathwaySwing vPathway) {
+-		scrollPane.setViewportView(vPathway);
++		pathwayScrollPane.setViewportView(vPathway);
+ 	}
+ 	
+ 	public JScrollPane getScrollPane() {
+-		return scrollPane;
++		return pathwayScrollPane;
+ 	}
+ }
+ 
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/SidebarManager.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/SidebarManager.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/SidebarManager.java	(revision 943)
+@@ -0,0 +1,10 @@
++package org.pathvisio.gui.swing.propertypanel;
++
++import java.util.Collection;
++import java.util.List;
++
++import org.pathvisio.model.PathwayElement;
++
++public class SidebarManager {
++
++}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 943)
+@@ -0,0 +1,85 @@
++package org.pathvisio.gui.swing.propertypanel;
++
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.List;
++
++import javax.swing.table.AbstractTableModel;
++
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.model.PropertyType;
++
++public class PathwayTableModel extends AbstractTableModel {
++	List<PathwayElement> input;
++	List<TypedProperty> properties;
++	
++	public void setInput(PathwayElement pwElm) {
++		input.clear();
++		input.add(pwElm);
++		fireTableDataChanged();
++	}
++	
++	public void setInput(Collection<PathwayElement> input) {
++		this.input.clear();
++		this.input.addAll(input);
++		fireTableDataChanged();
++	}
++	
++	protected List<TypedProperty> generateProperties(List<PathwayElement> elements) {
++		List<TypedProperty> properties = new ArrayList<TypedProperty>();
++		List<PropertyType> propTypes = getProperties(elements);
++		for(PropertyType pt : propTypes) {
++			Object value = getAggregateValue(pt, elements);
++			properties.add(TypedProperty.getInstance(value, pt));
++		}
++		return properties;
++	}
++	
++	protected List<PropertyType> getProperties(List<PathwayElement> elements) {
++		List<PropertyType> properties = null;
++		List<PropertyType> remove = new ArrayList<PropertyType>();
++		for(PathwayElement e : elements) {
++			if(properties == null) {
++				properties = e.getAttributes();
++				continue;
++			}
++			remove.clear();
++			List<PropertyType> attributes = e.getAttributes();
++			for(PropertyType p : properties) {
++				if(!attributes.contains(p)) {
++					remove.add(p);
++				}
++			}
++			properties.removeAll(remove);
++		}
++		return properties;
++	}
++	
++	Object getAggregateValue(PropertyType key, List<PathwayElement> elements) {
++		Object value = TypedProperty.DIFFERENT;
++		for(int i = 0; i < elements.size(); i++) {
++			PathwayElement e = elements.get(i);
++			Object o = e.getProperty(key);
++			if(i != 0 && (o == null || !o.equals(value))) {
++				return TypedProperty.DIFFERENT;
++			}
++
++			value = o;
++		}
++		return value;
++	}
++		
++	public int getColumnCount() {
++		return 2;
++	}
++
++	public int getRowCount() {
++		return properties.size();
++	}
++
++	public Object getValueAt(int rowIndex, int columnIndex) {
++		TypedProperty p = properties.get(rowIndex);
++		if(columnIndex == 0) return p.getType().desc();
++		else return p.getViewValue();
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 943)
+@@ -0,0 +1,56 @@
++package org.pathvisio.gui.swing.propertypanel;
++
++import java.awt.Color;
++
++import org.pathvisio.model.PropertyType;
++
++public class TypedProperty {
++	public static final Object DIFFERENT = new Object();
++	Object value = DIFFERENT;
++	PropertyType type;
++	
++	public TypedProperty(Object value, PropertyType type) {
++		this.value = value;
++	}
++		
++	public Object getViewValue() {
++		return value;
++	}
++	
++	public String stringValue() {
++		return value.toString();
++	}
++	
++	public PropertyType getType() {
++		return type;
++	}
++	
++	public static TypedProperty getInstance(Object value, PropertyType type) {
++		switch(type.type()) {
++		case STRING:
++			return new StringProperty(value, type);
++		case COLOR:
++			return new ColorProperty(value, type);
++		default:
++			return new TypedProperty(value, type);
++		}
++	}
++	
++	public static class StringProperty extends TypedProperty {
++		public StringProperty(Object value, PropertyType type) {
++			super(value, type);
++		}
++		public String getViewValue() {
++			return (String)value;
++		}
++	}
++
++	public static class ColorProperty extends TypedProperty {
++		public ColorProperty(Object value, PropertyType type) {
++			super(value, type);
++		}
++		public Color getViewValue() {
++			return (Color)value;
++		}
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 942)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 943)
+@@ -20,13 +20,16 @@
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
+ import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public abstract class CommonActions {
+-	private static URL IMG_IMPORT = Engine.getResourceURL("icons/open.gif");
+-	private static URL IMG_EXPORT = Engine.getResourceURL("icons/save.gif");
+-	private static URL IMG_COPY= Engine.getResourceURL("icons/save.gif");
+-	private static URL IMG_PASTE = Engine.getResourceURL("icons/save.gif");
++	private static URL IMG_SAVE = Engine.getResourceURL("icons/save.gif");
++	private static URL IMG_IMPORT = Engine.getResourceURL("icons/import.gif");
++	private static URL IMG_EXPORT = Engine.getResourceURL("icons/export.gif");
++	private static URL IMG_COPY= Engine.getResourceURL("icons/copy.gif");
++	private static URL IMG_PASTE = Engine.getResourceURL("icons/paste.gif");
+ 	
+ 	static class ZoomAction extends AbstractAction {
+ 		Component parent;
+@@ -56,8 +59,16 @@
+ 	}
+ 	
+ 	static class SaveAction extends AbstractAction {
++		public SaveAction() {
++			super("Save", new ImageIcon(IMG_SAVE));
++			putValue(Action.SHORT_DESCRIPTION, "Save the pathway");
++			putValue(Action.LONG_DESCRIPTION, "Save the pathway");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
++		}
++
+ 		public void actionPerformed(ActionEvent e) {
+-			//TODO
++			// TODO Auto-generated method stub
++			
+ 		}
+ 	}
+ 	
+@@ -170,7 +181,7 @@
+ 		}
+ 	}
+ 	
+-	static class NewElementAction extends AbstractAction {
++	static class NewElementAction extends AbstractAction implements VPathwayListener {
+ 		int element;
+ 		public NewElementAction(int type) {
+ 			super();
+@@ -256,7 +267,20 @@
+ 		}
+ 		
+ 		public void actionPerformed(ActionEvent e) {
+-			Engine.getActiveVPathway().setNewGraphics(element);
++			VPathway vp = Engine.getActiveVPathway();
++			vp.addVPathwayListener(this);
++			if(vp != null) {
++				setEnabled(true);
++				vp.setNewGraphics(element);
++			}
+ 		}
++
++		public void vPathwayEvent(VPathwayEvent e) {
++			if(e.getType() == VPathwayEvent.NEW_ELEMENT_ADDED) {
++				setEnabled(false);
++				e.getVPathway().setNewGraphics(VPathway.NEWNONE);
++				e.getVPathway().removeVPathwayListener(this);	
++			}
++		}
+ 	}
+ }
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 942)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 943)
+@@ -19,12 +19,12 @@
+ 		frame.setJMenuBar(mainPanel.getMenuBar());
+ 		frame.setSize(800, 600);
+ 		
+-		try {
+-		    UIManager.setLookAndFeel(
+-		        UIManager.getSystemLookAndFeelClassName());
+-		} catch (Exception ex) {
+-			Engine.log.error("Unable to load native look and feel", ex);
+-		}
++//		try {
++//		    UIManager.setLookAndFeel(
++//		        UIManager.getSystemLookAndFeelClassName());
++//		} catch (Exception ex) {
++//			Engine.log.error("Unable to load native look and feel", ex);
++//		}
+ 		
+ 		//Display the window.
+ 		frame.setVisible(true);
+Index: branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java	(revision 942)
++++ branches/g2d-branch/src/v1/org/pathvisio/gui/swt/MainWindow.java	(revision 943)
+@@ -61,7 +61,8 @@
+ import org.pathvisio.search.PathwaySearchComposite;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.swt.VPathwaySWT;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
+ import org.pathvisio.visualization.LegendPanel;
+ import org.pathvisio.visualization.VisualizationManager;
+ 
+Index: branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 942)
++++ branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 943)
+@@ -69,6 +69,8 @@
+ import org.pathvisio.search.PathwaySearchComposite;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayEvent;
++import org.pathvisio.view.VPathwayListener;
+ import org.pathvisio.visualization.LegendPanel;
+ import org.pathvisio.visualization.VisualizationDialog;
+ import org.pathvisio.visualization.VisualizationManager;
+@@ -81,7 +83,7 @@
+  * loading, creating and saving drawings to and from GPML.
+  */
+ public class MainWindow extends ApplicationWindow implements 
+-						ApplicationEventListener, ExpressionDataListener
++						ApplicationEventListener, ExpressionDataListener, VPathwayListener
+ {
+ 	private static final long serialVersionUID = 1L;
+ 	static int ZOOM_TO_FIT = -1;
+@@ -1082,4 +1084,15 @@
+ 			break;
+ 		}
+ 	}
++	
++	public void vPathwayEvent(VPathwayEvent e) {
++		//SwtEngine.getWindow().showLegend(!editMode);	
++		switch(e.getType()) {
++		case VPathwayEvent.EDIT_MODE_OFF:
++			showLegend(true);
++		case VPathwayEvent.EDIT_MODE_ON:
++			showLegend(false);
++		}
++	}
++	
+ } // end of class
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 942)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 943)
+@@ -32,7 +32,6 @@
+ import java.util.Set;
+ 
+ import org.pathvisio.Engine;
+-import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -309,8 +308,10 @@
+ 		{
+ 			clearSelection();
+ 		}
+-		//SwtEngine.getWindow().showLegend(!editMode);	
++
+ 		redraw();
++		int type = editMode ? VPathwayEvent.EDIT_MODE_ON : VPathwayEvent.EDIT_MODE_OFF;
++		fireVPathwayEvent(new VPathwayEvent(this, VPathwayEvent.EDIT_MODE_OFF));
+ 	}
+ 	
+ 	private double zoomFactor = 1.0/15.0;
+@@ -954,7 +955,8 @@
+ 		
+ 		vPreviousX = ve.x;
+ 		vPreviousY = ve.y;
+-				
++		
++		fireVPathwayEvent(new VPathwayEvent(this, lastAdded, VPathwayEvent.NEW_ELEMENT_ADDED));
+ 	}
+ 	
+ 
+@@ -1276,6 +1278,31 @@
+ 		}
+ 	}
+ 
++	private List<VPathwayListener> listeners = new ArrayList<VPathwayListener>();
++	private List<VPathwayListener> removeListeners = new ArrayList<VPathwayListener>();
++	
++	public void addVPathwayListener(VPathwayListener l) {
++		listeners.add(l);
++	}
++	
++	public void removeVPathwayListener(VPathwayListener l) {
++		removeListeners.add(l);
++	}
++	
++	private void cleanupListeners() {
++		//Do not remove immediately, to prevent ConcurrentModificationException
++		//when the listener removes itself
++		listeners.removeAll(removeListeners);
++		removeListeners.clear();
++	}
++	
++	protected void fireVPathwayEvent(VPathwayEvent e) {
++		cleanupListeners();
++		for(VPathwayListener l : listeners) {
++			l.vPathwayEvent(e);
++		}
++	}
++	
+ 	public void visualizationEvent(VisualizationEvent e) {
+ 		switch(e.type) {
+ 		case(VisualizationEvent.COLORSET_MODIFIED):
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 942)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 943)
+@@ -7,8 +7,28 @@
+ 	public static final int EDIT_MODE_ON = 1;
+ 	public static final int EDIT_MODE_OFF = 2;
+ 	
++	int type;
++	VPathwayElement affectedElement;
++	
+ 	public VPathwayEvent(VPathway source, int type) {
+ 		super(source);
++		this.type = type;
+ 	}
+-
++	
++	public VPathwayEvent(VPathway source, VPathwayElement affectedElement, int type) {
++		this(source, type);
++		this.affectedElement = affectedElement;
++	}
++	
++	public VPathwayElement getAffectedElement() {
++		return affectedElement;
++	}
++	
++	public int getType() {
++		return type;
++	}
++	
++	public VPathway getVPathway() {
++		return (VPathway)getSource();
++	}
+ }
+Index: branches/g2d-branch/src/core/com/mammothsoftware/frwk/ddb/RolloverButton.java
+===================================================================
+--- branches/g2d-branch/src/core/com/mammothsoftware/frwk/ddb/RolloverButton.java	(revision 0)
++++ branches/g2d-branch/src/core/com/mammothsoftware/frwk/ddb/RolloverButton.java	(revision 943)
+@@ -0,0 +1,113 @@
++// Copyright (C) 2005 Mammoth Software LLC
++//
++// This library is free software; you can redistribute it and/or
++// modify it under the terms of the GNU Lesser General Public
++// License as published by the Free Software Foundation; either
++// version 2.1 of the License, or (at your option) any later version.
++//
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++// Lesser General Public License for more details.
++//
++// You should have received a copy of the GNU Lesser General Public
++// License along with this library; if not, write to the Free Software
++// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
++//
++// Contact the author at: info@mammothsoftware.com
++package com.mammothsoftware.frwk.ddb;
++
++import java.awt.Dimension;
++import java.awt.event.MouseAdapter;
++import java.awt.event.MouseEvent;
++import java.awt.event.MouseListener;
++
++import javax.swing.Action;
++import javax.swing.BorderFactory;
++import javax.swing.Icon;
++import javax.swing.JButton;
++import javax.swing.border.Border;
++import javax.swing.border.CompoundBorder;
++
++/**
++ * A button that uses a mouse listener to indicate rollover.
++ * 
++ * @author m. bangham
++ * Copyright 2005 Mammoth Software LLC
++ */
++public class RolloverButton extends JButton {
++	
++	public RolloverButton() {
++		init();
++		initRolloverListener();
++	}
++	
++	public RolloverButton(Icon icon, int size) {
++		super(icon);
++		init();
++		initRolloverListener();
++
++		setFixedSize(size);
++	}
++	
++	public RolloverButton(Icon icon, int size, boolean isRollover) {
++		super(icon);
++		init();
++		if (isRollover) initRolloverListener();
++		
++		setFixedSize(size);
++	}
++	
++	public RolloverButton(int size, boolean isRollover) {
++		super();
++		init();
++		if (isRollover) initRolloverListener();
++		
++		setFixedSize(size);
++	}
++	
++	public RolloverButton(Action action, int size) {
++		// Note: using setAction(action) causes both icon and text
++		// to be displayed on toolbar.
++		super((Icon)action.getValue(Action.SMALL_ICON));
++		init();
++		initRolloverListener();
++		addActionListener(action);
++		setFixedSize(size);
++	}
++
++	private void init() {
++		setRequestFocusEnabled(false);
++		setRolloverEnabled(true);
++	}
++	
++	protected void setFixedSize(int size) {
++		setPreferredSize(new Dimension(size, size));
++		setMaximumSize(new Dimension(size, size));
++		setMinimumSize(new Dimension(size, size));
++	}
++	
++	protected void initRolloverListener() {
++		MouseListener l = new MouseAdapter(){
++			Border curBorder = null;
++			public void mouseEntered(MouseEvent e) {
++				curBorder = getBorder();
++				/* Borders can have different insets - get the size and force it
++				 * so the new rollover border doesn't change the button size. */
++				setBorder(new CompoundBorder(getRolloverBorder(), curBorder));
++				getModel().setRollover(true);
++			}
++			public void mouseExited(MouseEvent e) {
++				setBorder(curBorder);
++				getModel().setRollover(false);
++			}
++		};
++		addMouseListener(l);
++	}
++	
++	protected Border getRolloverBorder() {
++		Border border = BorderFactory.createRaisedBevelBorder();
++		
++		return border;
++	}
++}
+Index: branches/g2d-branch/src/core/com/mammothsoftware/frwk/ddb/DropDownButton.java
+===================================================================
+--- branches/g2d-branch/src/core/com/mammothsoftware/frwk/ddb/DropDownButton.java	(revision 0)
++++ branches/g2d-branch/src/core/com/mammothsoftware/frwk/ddb/DropDownButton.java	(revision 943)
+@@ -0,0 +1,241 @@
++// Copyright (C) 2005 Mammoth Software LLC
++//
++// This library is free software; you can redistribute it and/or
++// modify it under the terms of the GNU Lesser General Public
++// License as published by the Free Software Foundation; either
++// version 2.1 of the License, or (at your option) any later version.
++//
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++// Lesser General Public License for more details.
++//
++// You should have received a copy of the GNU Lesser General Public
++// License along with this library; if not, write to the Free Software
++// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
++//
++// Contact the author at: info@mammothsoftware.com
++package com.mammothsoftware.frwk.ddb;
++
++import java.awt.Color;
++import java.awt.Component;
++import java.awt.Dimension;
++import java.awt.Graphics;
++import java.awt.Insets;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.awt.event.MouseAdapter;
++import java.awt.event.MouseEvent;
++import java.awt.event.MouseListener;
++
++import javax.swing.BorderFactory;
++import javax.swing.Icon;
++import javax.swing.JButton;
++import javax.swing.JMenuItem;
++import javax.swing.JPopupMenu;
++import javax.swing.JToolBar;
++import javax.swing.border.Border;
++import javax.swing.border.CompoundBorder;
++
++/**
++ * A Drop Down Button.
++ * 
++ * @author m. bangham
++ * Copyright 2005 Mammoth Software LLC
++ */
++public class DropDownButton extends JButton implements ActionListener {
++	private JPopupMenu popup = new JPopupMenu();
++	private JToolBar tb = new ToolBar();
++	private JButton mainButton;
++	private JButton arrowButton;
++	private ActionListener mainButtonListener = new ActionListener() {
++		public void actionPerformed(ActionEvent e) {
++			Component component = popup.getComponent(0);
++			if (component instanceof JMenuItem) {
++				JMenuItem item = (JMenuItem)component;
++				item.doClick(0);
++			}
++		}
++	};
++	
++	public DropDownButton(Icon icon) {
++		this();
++		mainButton = new RolloverButton(icon, 25, false);
++		arrowButton = new RolloverButton(new DownArrow(), 11, false);
++		init();
++	}
++	
++	public DropDownButton(Icon icon, int size) {
++		this();
++		mainButton = new RolloverButton(icon, size, false);
++		arrowButton = new RolloverButton(new DownArrow(), 11, false);
++		init();
++	}
++	
++	public DropDownButton(RolloverButton mainButton, RolloverButton arrowButton) {
++		this();
++		this.mainButton = mainButton;
++		this.arrowButton = arrowButton;
++		init();
++	}
++	
++	private DropDownButton() {
++		super();
++		setBorder(null);
++	}
++	
++	public void updateUI() {
++		super.updateUI();
++		setBorder(null);
++	}
++	
++	protected Border getRolloverBorder() {
++		return BorderFactory.createRaisedBevelBorder();
++	}
++	
++	private void initRolloverListener() {
++		MouseListener l = new MouseAdapter(){
++			Border mainBorder = null;
++			Border arrowBorder = null;
++			public void mouseEntered(MouseEvent e) {
++				mainBorder = mainButton.getBorder();
++				arrowBorder = mainButton.getBorder();
++				mainButton.setBorder(new CompoundBorder(getRolloverBorder(), mainBorder));
++				arrowButton.setBorder(new CompoundBorder(getRolloverBorder(), arrowBorder));
++				mainButton.getModel().setRollover(true);
++				arrowButton.getModel().setRollover(true);
++			}
++			public void mouseExited(MouseEvent e) {
++				mainButton.setBorder(mainBorder);
++				arrowButton.setBorder(arrowBorder);
++				mainButton.getModel().setRollover(false);
++				arrowButton.getModel().setRollover(false);
++			}
++		};
++		mainButton.addMouseListener(l);
++		arrowButton.addMouseListener(l);
++	}
++	
++	private void init() {
++		initRolloverListener();
++		
++      Icon disDownArrow = new DisabledDownArrow();
++      arrowButton.setDisabledIcon(disDownArrow);
++      arrowButton.setMaximumSize(new Dimension(11,100));
++      mainButton.addActionListener(this); 
++      arrowButton.addActionListener(this);
++      
++      setMargin(new Insets(0, 0, 0, 0));
++      
++      
++      // Windows draws border around buttons, but not toolbar buttons
++      // Using a toolbar keeps the look consistent.
++      tb.setBorder(null);
++      tb.setMargin(new Insets(0, 0, 0, 0));
++      tb.setFloatable(false);
++      tb.add(mainButton);
++      tb.add(arrowButton);
++      add(tb);
++      
++      setFixedSize(mainButton, arrowButton);
++  
++	}
++	/*
++	 * Forces the width of this button to be the sum of the widths of the main
++	 * button and the arrow button. The height is the max of the main button or
++	 * the arrow button.
++	 */
++	private void setFixedSize(JButton mainButton, JButton arrowButton) {
++      int width = (int)(mainButton.getPreferredSize().getWidth() +
++      					arrowButton.getPreferredSize().getWidth());
++      int height = (int)Math.max(mainButton.getPreferredSize().getHeight(),
++      					arrowButton.getPreferredSize().getHeight());
++
++      setMaximumSize(new Dimension(width, height));
++      setMinimumSize(new Dimension(width, height));
++      setPreferredSize(new Dimension(width, height));
++	}
++   
++	/**
++	 * Removes a component from the popup
++	 * @param component
++	 */
++	public void removeComponent(Component component) {
++		popup.remove(component);
++	}
++
++	/**
++	 * Adds a component to the popup
++	 * @param component
++	 * @return
++	 */
++	public Component addComponent(Component component) {
++		return popup.add(component);
++	}
++	
++	/**
++	 * Indicates that the first item in the menu should be executed
++	 * when the main button is clicked
++	 * @param isRunFirstItem True for on, false for off
++	 */
++	public void setRunFirstItem(boolean isRunFirstItem) {
++		mainButton.removeActionListener(this);
++		if (!isRunFirstItem) {
++			mainButton.addActionListener(this);
++		}
++		else
++			mainButton.addActionListener(mainButtonListener);
++	}
++	
++   /*------------------------------[ ActionListener ]---------------------------------------------------*/ 
++	 
++   public void actionPerformed(ActionEvent ae){ 
++        JPopupMenu popup = getPopupMenu(); 
++        popup.show(this, 0, this.getHeight()); 
++    } 
++   
++   protected JPopupMenu getPopupMenu() { return popup; }
++	
++   private static class DownArrow implements Icon {
++   	 
++      Color arrowColor = Color.black;
++
++      public void paintIcon(Component c, Graphics g, int x, int y) {
++          g.setColor(arrowColor);
++          g.drawLine(x, y, x+4, y);
++          g.drawLine(x+1, y+1, x+3, y+1);
++          g.drawLine(x+2, y+2, x+2, y+2);
++      }
++
++      public int getIconWidth() {
++          return 6;
++      }
++
++      public int getIconHeight() {
++          return 4;
++      }
++
++  }
++   
++   private static class DisabledDownArrow extends DownArrow {
++   	 
++      public DisabledDownArrow() {
++          arrowColor = new Color(140, 140, 140);
++      }
++
++      public void paintIcon(Component c, Graphics g, int x, int y) {
++          super.paintIcon(c, g, x, y);
++          g.setColor(Color.white);
++          g.drawLine(x+3, y+2, x+4, y+1);
++          g.drawLine(x+3, y+3, x+5, y+1);
++      }
++  }
++   
++   private static class ToolBar extends JToolBar {
++   	public void updateUI() {
++   		super.updateUI();
++   		setBorder(null);
++   	}
++   }
++
++}
+Index: branches/g2d-branch/icons/paste.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/paste.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/export.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/export.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/copy.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/copy.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: branches/g2d-branch/icons/import.gif
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/g2d-branch/icons/import.gif
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+

@@ -1,0 +1,48 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_edit_v1_mp.png
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_edit_v1_mp.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+Name: svn:executable
+   + *
+
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_history_v1.png
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_history_v1.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+Name: svn:executable
+   + *
+
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_edit_v1.png
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_edit_v1.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+Name: svn:executable
+   + *
+
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_edit_v1_mo.png
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: branches/pwywiki-branch/tools/pathwaywiki/www/skins/common/images/custom_button_edit_v1_mo.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+Name: svn:executable
+   + *
+

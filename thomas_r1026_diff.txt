@@ -1,0 +1,60 @@
+Index: trunk/lib/apache/commons-httpclient-3.0.1.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/apache/commons-httpclient-3.0.1.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/lib/apache/commons-codec-1.3.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/apache/commons-codec-1.3.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/lib/apache/ws-commons-util-1.0.1.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/apache/ws-commons-util-1.0.1.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/lib/apache/xmlrpc-common-3.0.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/apache/xmlrpc-common-3.0.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/lib/apache/commons-logging-1.1.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/apache/commons-logging-1.1.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Index: trunk/lib/apache/xmlrpc-client-3.0.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/apache/xmlrpc-client-3.0.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+

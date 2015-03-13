@@ -1,0 +1,756 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/SwingUserInterfaceHandler.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/SwingUserInterfaceHandler.java	(revision 1041)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/SwingUserInterfaceHandler.java	(revision 1042)
+@@ -4,6 +4,10 @@
+ 
+ import javax.swing.JOptionPane;
+ 
++import org.jdesktop.swingworker.SwingWorker;
++import org.pathvisio.gui.swing.progress.ProgressDialog;
++import org.pathvisio.gui.swing.progress.SwingProgressKeeper;
++import org.pathvisio.util.RunnableWithProgress;
+ import org.pathvisio.wikipathways.UserInterfaceHandler;
+ 
+ public class SwingUserInterfaceHandler implements UserInterfaceHandler {
+@@ -43,12 +47,22 @@
+ 	public void showInfo(String title, String message) {
+ 		JOptionPane.showMessageDialog(parent, message, title, JOptionPane.INFORMATION_MESSAGE);
+ 	}
+-	
+-	public int startProgress() {
+-		return 0;
+-	}
+-	
+-	public void stopProgress(int id) {
+ 		
++	public void runWithProgress(final RunnableWithProgress runnable, String title, int totalWork, boolean canCancel, boolean modal) {
++		SwingProgressKeeper pk = new SwingProgressKeeper(totalWork);
++		final ProgressDialog d = new ProgressDialog(JOptionPane.getFrameForComponent(parent), title, pk, canCancel, modal);
++				
++		runnable.setProgressKeeper(pk);
++		SwingWorker sw = new SwingWorker() {
++			protected Object doInBackground() throws Exception {
++				runnable.run();
++				runnable.getProgressKeeper().finished();
++				return runnable.get();
++			}
++		};
++		
++		sw.execute();
++		
++		d.setVisible(true); //If dialog is modal, method will return when progresskeeper is finished
+ 	}
+ }
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1041)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1042)
+@@ -26,8 +26,6 @@
+ 
+ import javax.swing.AbstractAction;
+ import javax.swing.Action;
+-import javax.swing.Box;
+-import javax.swing.BoxLayout;
+ import javax.swing.ImageIcon;
+ import javax.swing.JApplet;
+ import javax.swing.JOptionPane;
+@@ -37,47 +35,51 @@
+ import org.pathvisio.gui.swing.GuiInit;
+ import org.pathvisio.gui.swing.MainPanel;
+ import org.pathvisio.gui.swing.SwingEngine;
++import org.pathvisio.util.ProgressKeeper;
++import org.pathvisio.util.RunnableWithProgress;
+ import org.pathvisio.wikipathways.Parameter;
++import org.pathvisio.wikipathways.UserInterfaceHandler;
+ import org.pathvisio.wikipathways.WikiPathways;
+ 
+ public class AppletMain extends JApplet {	
+ 	private static final long serialVersionUID = 1L;
+ 
+ 	private static WikiPathways wiki;
+-	
++
+ 	public static final String PAR_PATHWAY_URL = "pathway.url";
+ 	public void init() {
+ 		Engine.log.trace("init applet");
+-		super.init();
+-		
+-		GuiInit.init();
+-	
+-		MainPanel mainPanel = SwingEngine.getApplicationPanel();
+-		
+-		Action saveAction = new ExitAction(true);
+-		Action discardAction = new ExitAction(false);
+-		
+-		JToolBar tb = mainPanel.getToolBar();
+-		
+-		tb.setLayout(new BoxLayout(tb,BoxLayout.LINE_AXIS));		
+-		tb.add(Box.createHorizontalGlue());		
+-		tb.addSeparator();		
+-		tb.add(saveAction);
+-		tb.add(discardAction);
+-		
+-		wiki = new WikiPathways(new SwingUserInterfaceHandler(this));
+-		parseArguments();
+-		loadCookies();
+-		
+-		add(mainPanel);
+-		
+-		try { 
+-			wiki.init(SwingEngine.createWrapper());
+-		} catch(Exception e) {
+-			Engine.log.error("Unable to load pathway", e);
+-			JOptionPane.showMessageDialog(
+-					this, e.getClass() + ": " + e.getMessage(), "Error while initializing editor", JOptionPane.ERROR_MESSAGE);
+-		}
++		final UserInterfaceHandler uiHandler = new SwingUserInterfaceHandler(JOptionPane.getFrameForComponent(this));
++		final MainPanel mainPanel = SwingEngine.getApplicationPanel();
++		RunnableWithProgress r = new RunnableWithProgress() {
++			public Object excecuteCode() {
++				GuiInit.init();
++								
++				Action saveAction = new ExitAction(true);
++				Action discardAction = new ExitAction(false);
++				
++				JToolBar tb = mainPanel.getToolBar();
++					
++				tb.addSeparator();		
++				tb.add(saveAction);
++				tb.add(discardAction);
++				
++				wiki = new WikiPathways(uiHandler);
++				parseArguments();
++				loadCookies();
++								
++				try { 
++					wiki.init(SwingEngine.createWrapper());
++				} catch(Exception e) {
++					Engine.log.error("Unable to load pathway", e);
++					JOptionPane.showMessageDialog(
++							AppletMain.this, e.getClass() + ": " + e.getMessage(), "Error while initializing editor", JOptionPane.ERROR_MESSAGE);
++				};
++				return null;
++			}
++		};
++		uiHandler.runWithProgress(r, "Loading pathway", ProgressKeeper.PROGRESS_UNKNOWN, false, false);
++		getContentPane().add(mainPanel);
+ 	}
+ 	
+ 	public void start() {
+@@ -149,6 +151,7 @@
+ 		boolean doSave;
+ 		public ExitAction(boolean save) {
+ 			super("Finish", new ImageIcon(save ? Engine.getResourceURL("icons/apply.gif") : Engine.getResourceURL("icons/cancel.gif")));
++			this.doSave = save;
+ 			String descr = doSave ? "Save pathway and close editor" : "Discard pathway and close editor";
+ 			putValue(Action.SHORT_DESCRIPTION, descr);
+ 		}
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1041)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1042)
+@@ -41,6 +41,8 @@
+ import org.pathvisio.Engine;
+ import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.model.ConverterException;
++import org.pathvisio.util.ProgressKeeper;
++import org.pathvisio.util.RunnableWithProgress;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ import org.xml.sax.SAXException;
+@@ -62,20 +64,20 @@
+ 	}
+ 		
+ 	public void init(VPathwayWrapper wrapper) throws Exception {
+-		for(Parameter p : Parameter.values()) {
+-			//Check for required
+-			assert !p.isRequired() || p.getValue() != null : 
+-				"Missing required argument '" + p.name() + "'";
+-		}
+-		
+-		if(isNew()) { //Create new pathway
+-			Engine.newPathway(wrapper);
+-		} else { //Download and open the pathway
+-			Engine.openPathway(new URL(getPwURL()), wrapper);
+-		}
+-		
+-		//TODO: notify user about this and hide edit actions
+-		Engine.getActiveVPathway().setEditMode(isReadOnly());
++			for(Parameter p : Parameter.values()) {
++				//Check for required
++				assert !p.isRequired() || p.getValue() != null : 
++					"Missing required argument '" + p.name() + "'";
++			}
++
++			if(isNew()) { //Create new pathway
++				Engine.newPathway(wrapper);
++			} else { //Download and open the pathway
++				Engine.openPathway(new URL(getPwURL()), wrapper);
++			}
++
++			//TODO: notify user about this and hide edit actions
++			Engine.getActiveVPathway().setEditMode(isReadOnly());
+ 	}
+ 	
+ 	public String getPwName() {
+@@ -120,20 +122,25 @@
+ 		}
+ 		return localFile;
+ 	}
+-	
++		
+ 	public boolean saveUI() {
+ 		VPathway vPathway = Engine.getActiveVPathway();
+-		if(vPathway == null || vPathway.getGmmlData().hasChanged()) {
+-			String description = uiHandler.askInput("Specify description", "Give a description of your changes");
+-			try {
+-				int id = uiHandler.startProgress();
+-				saveToWiki(description);
+-				uiHandler.stopProgress(id);
+-				return true;
+-			} catch (Exception e) {
+-				Engine.log.error("Unable to save pathway", e);
+-				uiHandler.showError("Unable to save pathway", e.getClass() + ": " + e.getMessage());
+-			}
++		if(vPathway != null && vPathway.getGmmlData().hasChanged()) {
++			final String description = uiHandler.askInput("Specify description", "Give a description of your changes");
++			RunnableWithProgress<Boolean> r = new RunnableWithProgress<Boolean>() {
++				public Boolean excecuteCode() {
++					try {
++						saveToWiki(description);
++						return true;
++					} catch (Exception e) {
++						Engine.log.error("Unable to save pathway", e);
++						uiHandler.showError("Unable to save pathway", e.getClass() + ": " + e.getMessage());
++					}
++					return false;
++				}
++			};
++			uiHandler.runWithProgress(r, "Saving pathway", ProgressKeeper.PROGRESS_UNKNOWN, false, true);
++			return r.get();
+ 		}
+ 		return false;
+ 	}
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/UserInterfaceHandler.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/UserInterfaceHandler.java	(revision 1041)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/UserInterfaceHandler.java	(revision 1042)
+@@ -1,5 +1,7 @@
+ package org.pathvisio.wikipathways;
+ 
++import org.pathvisio.util.RunnableWithProgress;
++
+ public interface UserInterfaceHandler {		
+ 	public static final int Q_CANCEL = -1;
+ 	public static final int Q_TRUE = 0;
+@@ -11,6 +13,5 @@
+ 	public boolean askQuestion(String title, String message);
+ 	public int askCancellableQuestion(String title, String message);
+ 	
+-	public int startProgress();
+-	public void stopProgress(int id);
++	public void runWithProgress(RunnableWithProgress runnable, String title, int totalWork, boolean canCancel, boolean modal);
+ }
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1041)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1042)
+@@ -18,6 +18,7 @@
+ 
+ import java.awt.BorderLayout;
+ import java.awt.Container;
++import java.awt.FlowLayout;
+ import java.awt.Frame;
+ import java.awt.event.ActionEvent;
+ import java.awt.event.ActionListener;
+@@ -52,7 +53,9 @@
+ import org.pathvisio.gui.swing.propertypanel.PathwayTableModel;
+ import org.pathvisio.model.ObjectType;
+ import org.pathvisio.model.PathwayElement;
++import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.Graphics;
++import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+@@ -82,7 +85,7 @@
+ 		toolBar = new JToolBar();
+ 		addToolBarActions(toolBar);
+ 
+-		add(toolBar, BorderLayout.NORTH);
++		add(toolBar, BorderLayout.PAGE_START);
+ 		// menuBar will be added by container (JFrame or JApplet)
+ 
+ 		pathwayScrollPane = new JScrollPane();
+@@ -120,6 +123,27 @@
+ 		editMenu.add(new CopyAction());
+ 		editMenu.add(new PasteAction());
+ 
++		JMenu selectionMenu = new JMenu("Selection");
++		JMenu alignMenu = new JMenu("Align");
++		JMenu stackMenu = new JMenu("Stack");
++		
++		alignMenu.add(new CommonActions.AlignAction(AlignType.CENTERX));
++		alignMenu.add(new CommonActions.AlignAction(AlignType.CENTERY));
++		alignMenu.add(new CommonActions.AlignAction(AlignType.LEFT));
++		alignMenu.add(new CommonActions.AlignAction(AlignType.RIGHT));
++		alignMenu.add(new CommonActions.AlignAction(AlignType.TOP));
++		alignMenu.add(new CommonActions.AlignAction(AlignType.WIDTH));
++		alignMenu.add(new CommonActions.AlignAction(AlignType.HEIGHT));
++		stackMenu.add(new CommonActions.StackAction(StackType.CENTERX));
++		stackMenu.add(new CommonActions.StackAction(StackType.CENTERY));
++		stackMenu.add(new CommonActions.StackAction(StackType.LEFT));
++		stackMenu.add(new CommonActions.StackAction(StackType.RIGHT));
++		stackMenu.add(new CommonActions.StackAction(StackType.TOP));
++		stackMenu.add(new CommonActions.StackAction(StackType.BOTTOM));
++		
++		selectionMenu.add(alignMenu);
++		selectionMenu.add(stackMenu);
++		
+ 		JMenu viewMenu = new JMenu("View");
+ 		JMenu zoomMenu = new JMenu("Zoom");
+ 		viewMenu.add(zoomMenu);
+@@ -134,10 +158,13 @@
+ 
+ 		mb.add(pathwayMenu);
+ 		mb.add(editMenu);
++		mb.add(selectionMenu);
+ 		mb.add(viewMenu);
+ 	}
+ 
+ 	protected void addToolBarActions(JToolBar tb) {
++		tb.setLayout(new WrapLayout(1, 1));
++		
+ 		tb.add(new SaveLocalAction());
+ 		tb.add(new SaveToServerAction());
+ 		tb.add(new ImportAction(this));
+@@ -213,7 +240,22 @@
+ 				VPathway.NEWRECEPTORSQUARE)));
+ 		lineShapeButton.setRunFirstItem(true);
+ 		tb.add(lineShapeButton);
+-
++		
++		tb.addSeparator();
++		
++		tb.add(new CommonActions.AlignAction(AlignType.CENTERX));
++		tb.add(new CommonActions.AlignAction(AlignType.CENTERY));
++		tb.add(new CommonActions.AlignAction(AlignType.LEFT));
++		tb.add(new CommonActions.AlignAction(AlignType.RIGHT));
++		tb.add(new CommonActions.AlignAction(AlignType.TOP));
++		tb.add(new CommonActions.AlignAction(AlignType.WIDTH));
++		tb.add(new CommonActions.AlignAction(AlignType.HEIGHT));
++		tb.add(new CommonActions.StackAction(StackType.CENTERX));
++		tb.add(new CommonActions.StackAction(StackType.CENTERY));
++		tb.add(new CommonActions.StackAction(StackType.LEFT));
++		tb.add(new CommonActions.StackAction(StackType.RIGHT));
++		tb.add(new CommonActions.StackAction(StackType.TOP));
++		tb.add(new CommonActions.StackAction(StackType.BOTTOM));
+ 	}
+ 
+ 	public JMenuBar getMenuBar() {
+Index: trunk/src/swing/org/pathvisio/gui/swing/progress/ProgressDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/progress/ProgressDialog.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/progress/ProgressDialog.java	(revision 1042)
+@@ -0,0 +1,72 @@
++package org.pathvisio.gui.swing.progress;
++
++import java.awt.BorderLayout;
++import java.awt.Container;
++import java.awt.Frame;
++import java.awt.GridLayout;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++
++import javax.swing.BorderFactory;
++import javax.swing.BoxLayout;
++import javax.swing.JButton;
++import javax.swing.JDialog;
++import javax.swing.JPanel;
++
++import org.pathvisio.util.ProgressKeeper.ProgressEvent;
++import org.pathvisio.util.ProgressKeeper.ProgressListener;
++
++public class ProgressDialog extends JDialog implements ActionListener, ProgressListener {
++	private final String CANCEL = "Cancel";
++	
++	SwingProgressKeeper keeper;
++	JPanel dialogPane;
++
++	public ProgressDialog(Frame frame, String title, SwingProgressKeeper progressKeeper, boolean canCancel, boolean modal) {
++		super(frame, title, modal);
++		
++		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
++		
++		keeper = progressKeeper;
++		keeper.addListener(this);
++		
++		dialogPane = new JPanel();
++		dialogPane.setLayout(new GridLayout());
++		dialogPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
++		dialogPane.add(keeper.getJProgressBar());
++				
++		Container contentPane = getContentPane();
++		contentPane.add(dialogPane, BorderLayout.CENTER);
++
++		if(canCancel) {
++			JButton cancelButton = new JButton(CANCEL);
++			cancelButton.addActionListener(this);
++			getRootPane().setDefaultButton(cancelButton);
++
++			JPanel buttonPane = new JPanel();
++			buttonPane.setLayout(new BoxLayout(buttonPane, BoxLayout.LINE_AXIS));
++			buttonPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
++			buttonPane.add(cancelButton);
++			contentPane.add(buttonPane, BorderLayout.PAGE_END);
++		}
++		pack();
++		setLocationRelativeTo(frame);
++	}
++	
++	protected void cancelPressed() {
++		keeper.cancel();
++		setVisible(false);
++	}
++	
++	public void actionPerformed(ActionEvent e) {
++		if(CANCEL.equals(e.getActionCommand())) {
++			cancelPressed();
++		}
++	}
++
++	public void progressFinished(ProgressEvent e) {
++		if(e.getType() == ProgressEvent.FINISHED) {
++			setVisible(false);
++		}
++	}
++}
+\ No newline at end of file
+Index: trunk/src/swing/org/pathvisio/gui/swing/progress/SwingProgressKeeper.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/progress/SwingProgressKeeper.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/progress/SwingProgressKeeper.java	(revision 1042)
+@@ -0,0 +1,36 @@
++package org.pathvisio.gui.swing.progress;
++
++import javax.swing.JProgressBar;
++
++import org.pathvisio.util.ProgressKeeper;
++
++public class SwingProgressKeeper extends ProgressKeeper {
++	JProgressBar progressBar;
++	
++	public SwingProgressKeeper(int totalWork) {
++		super(totalWork);
++		progressBar = new JProgressBar(0, totalWork < 1 ? 1 : totalWork);
++		if(totalWork == ProgressKeeper.PROGRESS_UNKNOWN) {
++			progressBar.setIndeterminate(true);
++		}
++	}
++	
++	public void report(String name) {
++		super.setTaskName(name);
++		progressBar.setString(name);
++	}
++	
++	public void worked(int w) {
++		super.worked(w);
++		progressBar.setValue(getProgress());
++	}
++	
++	public JProgressBar getJProgressBar() {
++		return progressBar;
++	}
++	
++	public void finished() {
++		progressBar.setValue(getTotalWork());
++		super.finished();
++	}
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/WrapLayout.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/WrapLayout.java	(revision 0)
++++ trunk/src/swing/org/pathvisio/gui/swing/WrapLayout.java	(revision 1042)
+@@ -0,0 +1,109 @@
++/*
++ * Copied from http://www.koders.com/java/fid7E9F096AF4B92647A91B0C00B2DC70377B296FFB.aspx
++ * No licence information?
++ */
++package org.pathvisio.gui.swing;
++
++import java.awt.Component;
++import java.awt.Container;
++import java.awt.Dimension;
++import java.awt.LayoutManager;
++
++public class WrapLayout implements LayoutManager {
++
++    protected int hgap;
++    protected int vgap;
++
++    public WrapLayout() {
++        this(8, 8);
++    }
++
++    public WrapLayout(int hgap, int vgap) {
++        this.hgap = hgap;
++        this.vgap = vgap;
++    }
++
++    public void addLayoutComponent(String name, Component c) { }
++
++    public void layoutContainer(Container parent) {
++        int width = parent.getWidth();
++        int x = 0;
++        int y = 0;
++        int current_height = 0;
++        for ( Component c : parent.getComponents() ) {
++            Dimension d = c.getPreferredSize();
++            if ( ( hgap + x + d.width + hgap > width ) && ( x > 0 ) ) {
++                y += current_height + vgap;
++                x = 0;
++                current_height = 0;
++            }
++            if ( d.height > current_height ) {
++                current_height = d.height;
++            }
++            c.setBounds(hgap + x, vgap + y, d.width, d.height);
++            x += d.width + hgap;
++        }
++    }
++
++    public Dimension minimumLayoutSize(Container parent) {
++        Dimension result = new Dimension();
++        result.width = 0;
++        result.height = 0;
++        for ( Component c : parent.getComponents() ) {
++            Dimension d = c.getPreferredSize();
++            if ( d.width > result.width ) {
++                result.width = d.width;
++            }
++            if ( d.height > result.height ) {
++                result.height = d.height;
++            }
++        }
++        result.width = result.width + hgap * 2;
++        result.height = result.height + vgap * 2;
++        return result;
++    }
++
++    public Dimension preferredLayoutSize(Container parent) {
++        Dimension result = new Dimension();
++        result.width = parent.getWidth();
++        result.height = vgap;
++        int x = 0;
++        int current_height = 0;
++        for ( Component c : parent.getComponents() ) {
++            Dimension d = c.getPreferredSize();
++            if ( ( hgap + x + d.width + hgap > result.width ) && ( x > 0 ) ) {
++                result.height += current_height + vgap;
++                x = 0;
++                current_height = 0;
++            }
++            if ( d.height > current_height ) {
++                current_height = d.height;
++            }
++            x += d.width + hgap;
++        }
++        if ( current_height > 0 ) {
++            result.height += current_height + vgap;
++        }
++        result.width += hgap;
++        return result;
++    }
++
++    public void removeLayoutComponent(Component comp) { }
++
++    public int getHgap() {
++        return hgap;
++    }
++
++    public int getVgap() {
++        return vgap;
++    }
++
++    public void setHgap(int hgap) {
++        this.hgap = hgap;
++    }
++
++    public void setVgap(int vgap) {
++        this.vgap = vgap;
++    }
++
++}
+Index: trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 1041)
++++ trunk/src/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 1042)
+@@ -33,6 +33,8 @@
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.view.AlignType;
++import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
+@@ -308,4 +310,34 @@
+ 			}
+ 		}
+ 	}
++	
++	static class StackAction extends AbstractAction {
++		StackType type;
++		
++		public StackAction(StackType t) {
++			super(t.getLabel(), new ImageIcon(Engine.getResourceURL(t.getIcon())));
++			putValue(Action.SHORT_DESCRIPTION, t.getDescription());
++			type = t;
++		}
++		
++		public void actionPerformed(ActionEvent e) {
++			VPathway vp = Engine.getActiveVPathway();
++			if(vp != null) vp.stackSelected(type);
++		}
++	}
++	
++	static class AlignAction extends AbstractAction {
++		AlignType type;
++
++		public AlignAction(AlignType t) {
++			super(t.getLabel(), new ImageIcon(Engine.getResourceURL(t.getIcon())));
++			putValue(Action.SHORT_DESCRIPTION, t.getDescription());
++			type = t;
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			VPathway vp = Engine.getActiveVPathway();
++			if(vp != null) vp.alignSelected(type);
++		}
++	}	
+ }
+Index: trunk/src/core/org/pathvisio/util/ProgressKeeper.java
+===================================================================
+--- trunk/src/core/org/pathvisio/util/ProgressKeeper.java	(revision 1041)
++++ trunk/src/core/org/pathvisio/util/ProgressKeeper.java	(revision 1042)
+@@ -16,7 +16,12 @@
+ //
+ package org.pathvisio.util;
+ 
++import java.util.ArrayList;
++import java.util.EventObject;
++import java.util.List;
++
+ public class ProgressKeeper {
++	public static final int PROGRESS_UNKNOWN = -1;
+ 	volatile String taskName;
+ 	volatile boolean cancelled;
+ 	
+@@ -41,6 +46,7 @@
+ 	
+ 	public void finished() {
+ 		progress = total;
++		fireProgressEvent(ProgressEvent.FINISHED);
+ 	}
+ 	
+ 	public void cancel() {
+@@ -55,7 +61,38 @@
+ 		return total;
+ 	}
+ 	
++	public int getProgress() {
++		return progress;
++	}
++	
+ 	public void report(String message) {
+ 		//To be implemented by subclasses if needed
+ 	}
++		
++	void fireProgressEvent(int type) {
++		for(ProgressListener l : listeners)
++			l.progressFinished(new ProgressEvent(this, type));
++	}
++	
++	List<ProgressListener> listeners = new ArrayList<ProgressListener>();
++	
++	public void addListener(ProgressListener l) {
++		if(!listeners.contains(l)) listeners.add(l);
++	}
++	
++	public class ProgressEvent extends EventObject {
++		public static final int FINISHED = 0;
++		
++		private int type;
++		public ProgressEvent(ProgressKeeper source, int type) {
++			super(source);
++			this.type = type;
++		}
++		public int getType() { return type; }
++		public ProgressKeeper getProgressKeeper() { return (ProgressKeeper)getSource(); }
++	}
++	
++	public interface ProgressListener {
++		public void progressFinished(ProgressEvent e);
++	}
+ }
+Index: trunk/src/core/org/pathvisio/util/RunnableWithProgress.java
+===================================================================
+--- trunk/src/core/org/pathvisio/util/RunnableWithProgress.java	(revision 0)
++++ trunk/src/core/org/pathvisio/util/RunnableWithProgress.java	(revision 1042)
+@@ -0,0 +1,24 @@
++package org.pathvisio.util;
++
++public abstract class RunnableWithProgress<T> implements Runnable {
++	ProgressKeeper p;
++	T value;
++	
++	public ProgressKeeper getProgressKeeper() {
++		if(p == null) p = new ProgressKeeper(ProgressKeeper.PROGRESS_UNKNOWN);
++		return p;
++	}
++	public void setProgressKeeper(ProgressKeeper progress) {
++		p = progress;
++	}
++	
++	public void run() {
++		value = excecuteCode();
++	}
++	
++	public abstract T excecuteCode();
++	
++	public T get() {
++		return value;
++	}
++}
+Index: trunk/build.xml
+===================================================================
+--- trunk/build.xml	(revision 1041)
++++ trunk/build.xml	(revision 1042)
+@@ -163,7 +163,7 @@
+ 		<jar jarfile="wikipathways.jar">
+ 			<fileset dir="${build.wikipathways.dir}" includes="**/*.class"/>
+             <manifest>
+-                <attribute name="Class-Path" value="jdom.jar resources.jar apache/commons-codec-1.3.jar apache/commons-httpclient-3.0.1.jar apache/commons-logging-1.1.jar apache/ws-commons-util-1.0.1.jar apache/xmlrpc-client-3.0.jar apache/xmlrpc-common-3.0.jar"/>
++                <attribute name="Class-Path" value="jdom.jar resources.jar swing-worker-1.1.jar apache/commons-codec-1.3.jar apache/commons-httpclient-3.0.1.jar apache/commons-logging-1.1.jar apache/ws-commons-util-1.0.1.jar apache/xmlrpc-client-3.0.jar apache/xmlrpc-common-3.0.jar"/>
+             </manifest>
+ 		</jar>
+ 		<!-- different resources.jar, only with minimal data -->
+@@ -224,6 +224,7 @@
+ 			<fileset dir="${lib.dir}">
+ 				<include name="apache/*.jar"/>
+ 				<include name="jdom.jar"/>
++				<include name="swing-worker-1.1.jar"/>
+ 			</fileset>
+ 			
+ 		</copy>
+Index: trunk/lib/swing-worker-1.1.jar
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream
+
+Property changes on: trunk/lib/swing-worker-1.1.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+

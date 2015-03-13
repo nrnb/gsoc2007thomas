@@ -1,0 +1,602 @@
+Index: trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java	(revision 1086)
++++ trunk/src/swing/org/pathvisio/gui/swing/BackpagePane.java	(revision 1087)
+@@ -16,6 +16,8 @@
+ //
+ package org.pathvisio.gui.swing;
+ 
++import java.util.Vector;
++
+ import javax.swing.JEditorPane;
+ 
+ import org.pathvisio.ApplicationEvent;
+@@ -32,6 +34,9 @@
+ 
+ public class BackpagePane extends JEditorPane implements SelectionListener, ApplicationEventListener {
+ 	PathwayElement input;
++	int maxThreads = 5;
++	Vector<Thread> runningThreads = new Vector<Thread>();
++	volatile PathwayElement lastSelected;
+ 	
+ 	public BackpagePane() {
+ 		super();
+@@ -48,20 +53,51 @@
+ 		if(e == null) {
+ 			setText(Gdb.getBackpageHTML(null, null, null));
+ 		} else if(input != e) {
+-			input = e;
+-			if(e.getObjectType() == ObjectType.DATANODE) {
+-				new Thread() {
+-					public void run() {
+-						setText(Gdb.getBackpageHTML(
+-								e.getGeneID(), 
+-								e.getSystemCode(), 
+-								e.getBackpageHead()));
+-					}
+-				}.start();
++			System.err.println("Setting input " + e);
++			//First check if the number of running threads is not too high
++			//(may happen when many SelectionEvent follow very fast)
++			if(runningThreads.size() < maxThreads) {
++				System.err.println("Query in thread " + e);
++				input = e;
++				if(e.getObjectType() == ObjectType.DATANODE) {
++					Thread t = new Thread() {
++						public void run() {
++							System.err.println("++++++++++++++");
++							System.err.println("Adding thread " + this);
++							runningThreads.add(this);
++							setText(Gdb.getBackpageHTML(
++									e.getGeneID(), 
++									e.getSystemCode(), 
++									e.getBackpageHead()));
++							System.err.println("Removing thread " + this);
++							System.err.println("++++++++++++++");
++							runningThreads.remove(this);
++							check();
++						}
++					};
++					t.setPriority(Thread.MIN_PRIORITY);
++					t.start();
++					lastSelected = null;
++				}				
++			} else {
++				System.err.println("Queue lastSelected " + e);
++				//When we're on our maximum, remember this element
++				//and ignore it when a new one is selected
++				lastSelected = e;
+ 			}
++			System.err.println("--------------");
+ 		}
+ 	}
+ 
++	private void check() {
++		System.err.println("=====CHECK===");
++		if(lastSelected != null) {
++			System.err.println("From checked " + lastSelected);
++			setInput(lastSelected);
++		}
++		System.err.println("==============");
++	}
++	
+ 	public void selectionEvent(SelectionEvent e) {
+ 		switch(e.type) {
+ 		case SelectionEvent.OBJECT_ADDED:
+Index: trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1086)
++++ trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1087)
+@@ -1,20 +1,39 @@
+ package org.pathvisio.gui.swing;
+ 
+ import java.awt.Component;
++import java.util.ArrayList;
++import java.util.List;
+ 
++import javax.swing.Action;
++
++import org.pathvisio.gui.swing.actions.PropertiesAction;
+ import org.pathvisio.gui.swing.menus.PathwayElementMenu;
++import org.pathvisio.view.Group;
+ import org.pathvisio.view.Handle;
+ import org.pathvisio.view.MouseEvent;
+ import org.pathvisio.view.SelectionBox;
++import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayElement;
+ import org.pathvisio.view.VPathwayEvent;
+ import org.pathvisio.view.VPathwayListener;
++import org.pathvisio.view.ViewActions;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class PathwayElementMenuListener implements VPathwayListener {    
+-	public static PathwayElementMenu getMenuInstance(VPathwayElement e) {
++	private static PathwayElementMenu getMenuInstance(VPathwayElement e) {
+ 		if(e instanceof Handle) e = ((Handle)e).getParent();
+-		return new PathwayElementMenu(e);
++		VPathway vp = e.getDrawing();
++		List<Action> actions = new ArrayList<Action>();
++		ViewActions vActions = vp.getViewActions();
++		actions.add(new PropertiesAction(e));
++		actions.add(vActions.delete);
++		actions.add(vActions.selectAll);
++		actions.add(vActions.selectDataNodes);
++		
++		if(e instanceof SelectionBox) {
++		} else if (e instanceof Group) {
++		}
++		return new PathwayElementMenu(e, actions);
+ 	}
+ 	
+ 	public void vPathwayEvent(VPathwayEvent e) {
+@@ -23,13 +42,7 @@
+ 		case VPathwayEvent.ELEMENT_CLICKED_DOWN:
+ 			assert(e.getVPathway() != null);
+ 			assert(e.getVPathway().getWrapper() instanceof VPathwaySwing);
+-			VPathwayElement element = e.getAffectedElement();
+-			if(element instanceof Handle) element = ((Handle)element).getParent();
+ 			
+-			if(element instanceof SelectionBox) {
+-				return;
+-			}
+-			
+ 			if(e.getMouseEvent().isPopupTrigger()) {
+ 				Component invoker = (VPathwaySwing)e.getVPathway().getWrapper();
+ 				MouseEvent me = e.getMouseEvent();
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1086)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1087)
+@@ -59,6 +59,7 @@
+ import org.pathvisio.model.PathwayElement;
+ import org.pathvisio.view.AlignType;
+ import org.pathvisio.view.Graphics;
++import org.pathvisio.view.SelectionBox;
+ import org.pathvisio.view.StackType;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayEvent;
+@@ -335,7 +336,8 @@
+ 	public void vPathwayEvent(VPathwayEvent e) {
+ 		switch(e.getType()) {
+ 		case VPathwayEvent.ELEMENT_DOUBLE_CLICKED:
+-			if(e.getAffectedElement() instanceof Graphics) {
++			if(e.getAffectedElement() instanceof Graphics && 
++					!(e.getAffectedElement() instanceof SelectionBox)) {
+ 				PathwayElement p = ((Graphics)e.getAffectedElement()).getGmmlData();
+ 				if(p != null) {
+ 					PathwayElementDialog.getInstance(p, 
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1086)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/TypedProperty.java	(revision 1087)
+@@ -240,6 +240,7 @@
+ 	}
+ 	
+ 	private static class CommentsEditor extends AbstractCellEditor implements TableCellEditor, ActionListener {
++		static final String BUTTON_LABEL = "View/edit comments";
+ 		JButton button;
+ 		PathwayElement currentElement;
+ 		TypedProperty property;
+@@ -248,27 +249,32 @@
+ 
+ 		public CommentsEditor() {
+ 			button = new JButton();
+-			button.setText("View/edit comments");
++			button.setText(BUTTON_LABEL);
+ 			button.setActionCommand("edit");
+ 			button.addActionListener(this);
+ 		}
+ 
+ 		public void setInput(TypedProperty p) {
+ 			property = p;
+-			if(p.elements.size() > 1) {
+-				button.setEnabled(false);
+-			} else {
+-				button.setEnabled(true);
+-			}
++			button.setText("");
++			if(!mayEdit()) fireEditingCanceled();
++			button.setText(BUTTON_LABEL);
+ 		}
+ 		
++		boolean mayEdit() { return property.elements.size() == 1; }
++		
+ 		public void actionPerformed(ActionEvent e) {
++			if(!mayEdit()) {
++				fireEditingCanceled();
++				return;
++			}
+ 			if (EDIT.equals(e.getActionCommand()) && property != null) {
+ 				currentElement = property.getFirstElement();
+ 				if(currentElement != null) {
+ 					PathwayElementDialog d = PathwayElementDialog.getInstance(currentElement);
+ 					d.selectPathwayElementPanel(PathwayElementDialog.TAB_COMMENTS);
+ 					d.setVisible(true);
++					fireEditingCanceled(); //Value is directly saved in dialog
+ 				}
+ 			}
+ 		}
+Index: trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1086)
++++ trunk/src/swing/org/pathvisio/gui/swing/menus/PathwayElementMenu.java	(revision 1087)
+@@ -16,19 +16,34 @@
+ //
+ package org.pathvisio.gui.swing.menus;
+ 
+-import java.awt.Rectangle;
++import java.util.Collection;
++import java.util.Collections;
+ 
++import javax.swing.Action;
+ import javax.swing.JPopupMenu;
+ 
+ import org.pathvisio.gui.swing.actions.PropertiesAction;
+-import org.pathvisio.view.Handle;
+ import org.pathvisio.view.VPathwayElement;
+ 
+-public class PathwayElementMenu extends JPopupMenu {
++public class PathwayElementMenu extends JPopupMenu {		
+ 	VPathwayElement element;
+ 	
+ 	public PathwayElementMenu(VPathwayElement e) {
++		this(e, new Action[] { new PropertiesAction(e) });
++	}
++	
++	public PathwayElementMenu(VPathwayElement e, Action[] actions) {
+ 		element = e;
+-		add(new PropertiesAction(e));
++		for(Action a : actions) {
++			if(a != null) {
++				add(a);
++			} else {
++				addSeparator();
++			}
++		}
+ 	}
++	
++	public PathwayElementMenu(VPathwayElement e, Collection<Action> actions) {
++		this(e, actions.toArray(new Action[actions.size()]));
++	}
+ }
+Index: trunk/src/core/org/pathvisio/model/PathwayElement.java
+===================================================================
+--- trunk/src/core/org/pathvisio/model/PathwayElement.java	(revision 1086)
++++ trunk/src/core/org/pathvisio/model/PathwayElement.java	(revision 1087)
+@@ -504,7 +504,11 @@
+ 			setFillColor((Color) value);
+ 			break;
+ 		case SHAPETYPE:
+-			setShapeType(ShapeType.values()[(Integer) value]);
++			if(value instanceof ShapeType) {
++				setShapeType((ShapeType)value);
++			} else {
++				setShapeType(ShapeType.values()[(Integer) value]);
++			}
+ 			break;
+ 		case ROTATION:
+ 			setRotation((Double) value);
+@@ -523,7 +527,11 @@
+ 			setMEndY((Double) value);
+ 			break;
+ 		case LINETYPE:
+-			setLineType(LineType.values()[(Integer) value]);
++			if(value instanceof LineType) {
++				setLineType((LineType)value);
++			} else {
++				setLineType(LineType.values()[(Integer) value]);
++			}
+ 			break;
+ 		case LINESTYLE:
+ 			setLineStyle((Integer) value);
+Index: trunk/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1086)
++++ trunk/src/core/org/pathvisio/view/VPathway.java	(revision 1087)
+@@ -35,6 +35,7 @@
+ import java.util.Set;
+ 
+ import javax.swing.AbstractAction;
++import javax.swing.Action;
+ import javax.swing.KeyStroke;
+ 
+ import org.pathvisio.Engine;
+@@ -51,6 +52,8 @@
+ import org.pathvisio.model.PathwayElement.MPoint;
+ import org.pathvisio.view.SelectionBox.SelectionListener;
+ 
++import com.hp.hpl.jena.iri.impl.GroupAction;
++
+ /**
+  * This class implements and handles a drawing. Graphics objects are stored in
+  * the drawing and can be visualized. The class also provides methods for mouse
+@@ -84,7 +87,7 @@
+ 	 * The {@link Graphics} that is directly selected since last mouseDown event
+ 	 */
+ 	public Graphics selectedGraphics = null;
+-	
++		
+ 	/**
+ 	 * {@link InfoBox} object that contains information about this pathway,
+ 	 * currently only used for information in {@link gmmlVision.PropertyPanel}
+@@ -1153,23 +1156,36 @@
+ //		}
+ //	}
+ 
+-	private void selectGeneProducts()
+-	{
++	/**
++	 * Select all objects of the given class
++	 * @param c The class of the objects to be selected
++	 */
++	void selectObjects(Class c) {
+ 		clearSelection();
+-		for (VPathwayElement o : getDrawingObjects())
+-		{
+-			if (o instanceof GeneProduct)
+-				s.addToSelection(o);
++		for(VPathwayElement vpe : getDrawingObjects()) {
++			if(c.isInstance(vpe)) {
++				s.addToSelection(vpe);
++			}
+ 		}
++		redrawDirtyRect();
+ 	}
+ 	
+-	private void selectAll()
++	/**
++	 * Select all gene products (datanodes) on the pathway
++	 *@deprecated use {@link #selectObjects(Class)} instead
++	 */
++	private void selectGeneProducts() {
++		selectObjects(GeneProduct.class);
++	}
++	
++	void selectAll()
+ 	{
+ 		clearSelection();
+ 		for (VPathwayElement o : getDrawingObjects())
+ 		{
+ 			s.addToSelection(o);
+ 		}
++		redrawDirtyRect();
+ 	}
+ 	
+ 	private void insertPressed()
+@@ -1201,13 +1217,12 @@
+ 		s.addToSelection(lastAdded);
+ 	}
+ 	
+-	public void toggleGroup()
++	public void toggleGroup(List<Graphics> selection)
+ 	{
+-		Boolean Grouped = true;
++		boolean grouped = true;
+ 
+ 		// Check Group status of current selection
+ 		String topRef = null;
+-		List<Graphics> selection = getSelectedGraphics();
+ 		for (Graphics g : selection)
+ 		{
+ 			PathwayElement pe = g.getGmmlData();
+@@ -1218,7 +1233,7 @@
+ 			{
+ 				// selection includes an ungrouped element; therefore, currently
+ 				// Ungrouped
+-				Grouped = false;
++				grouped = false;
+ 				break;
+ 			} else if (id == null)
+ 			{
+@@ -1240,7 +1255,7 @@
+ 				{
+ 					// selection includes elements in distinct, non-nested
+ 					// groups; therefore, currently Ungrouped
+-					Grouped = false;
++					grouped = false;
+ 					break;
+ 				}
+ 
+@@ -1250,7 +1265,7 @@
+ 		}
+ 
+ 		// Group or Ungroup based on current Group status
+-		if (Grouped && topRef != null)
++		if (grouped && topRef != null)
+ 		{
+ 			// Ungroup all elements asociated with topRef
+ 			for (VPathwayElement vpe : this.getDrawingObjects())
+@@ -1327,52 +1342,25 @@
+ 	
+ 	public static final KeyStroke KEY_MOVEDOWN = KeyStroke.getKeyStroke(
+ 			java.awt.event.KeyEvent.VK_DOWN, java.awt.Event.CTRL_MASK);
++		
++	public ViewActions getViewActions() {
++		return viewActions;
++	}
+ 	
+-	// TODO: remove Swing dependency, create enum with keymappings and implement
+-	// mappings to SWT and Swing
++	/**
++	 * Several {@link Action}s related to the view
++	 */
++	private ViewActions viewActions;
++	
+ 	private void registerKeyboardActions()
+ 	{
+-
++		viewActions = new ViewActions(this);
+ 		if (parent != null)
+ 		{
+-			parent.registerKeyboardAction(KEY_SELECT_DATA_NODES,
+-					new AbstractAction()
+-					{
+-						public void actionPerformed(ActionEvent e)
+-						{
+-					selectGeneProducts();
+-					redraw();
+-				}
+-			});
+-			parent.registerKeyboardAction(KEY_GROUP, new AbstractAction()
+-			{
+-				public void actionPerformed(ActionEvent e)
+-				{
+-					toggleGroup();
+-				}
+-			});
+-			parent.registerKeyboardAction(KEY_SELECT_ALL, new AbstractAction()
+-			{
+-				public void actionPerformed(ActionEvent e)
+-				{
+-					selectAll();
+-					redraw();
+-				}
+-			});
+-			parent.registerKeyboardAction(KEY_DELETE, new AbstractAction()
+-			{
+-				public void actionPerformed(ActionEvent e)
+-				{
+-					ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
+-					for(VPathwayElement o : drawingObjects)
+-					{
+-						if (!o.isSelected() || o == s || o == infoBox)
+-							continue; // Object not selected, skip
+-						toRemove.add(o);
+-					}
+-					removeDrawingObjects(toRemove);	
+-				}
+-			});
++			parent.registerKeyboardAction(KEY_SELECT_DATA_NODES, viewActions.selectDataNodes);
++			parent.registerKeyboardAction(KEY_GROUP, viewActions.toggleGroup);
++			parent.registerKeyboardAction(KEY_SELECT_ALL, viewActions.selectAll);
++			parent.registerKeyboardAction(KEY_DELETE, viewActions.delete);
+ 			parent.registerKeyboardAction(KEY_MOVELEFT, new AbstractAction()
+ 					{
+ 						public void actionPerformed(ActionEvent e)
+@@ -1402,7 +1390,6 @@
+ 						}
+ 					});
+ 		}
+-                
+ 	}
+ 
+ 	public void keyReleased(KeyEvent e)
+Index: trunk/src/core/org/pathvisio/view/ViewActions.java
+===================================================================
+--- trunk/src/core/org/pathvisio/view/ViewActions.java	(revision 0)
++++ trunk/src/core/org/pathvisio/view/ViewActions.java	(revision 1087)
+@@ -0,0 +1,114 @@
++package org.pathvisio.view;
++
++import java.awt.event.ActionEvent;
++import java.util.ArrayList;
++
++import javax.swing.AbstractAction;
++import javax.swing.Action;
++import javax.swing.KeyStroke;
++
++import org.pathvisio.view.SelectionBox.SelectionEvent;
++import org.pathvisio.view.SelectionBox.SelectionListener;
++
++public class ViewActions {
++	VPathway vPathway;
++	
++	public final SelectClassAction selectDataNodes;
++	public final SelectAllAction selectAll;
++	public final GroupAction toggleGroup;
++	public final DeleteAction delete;
++	
++	
++	public ViewActions(VPathway vp) {
++		vPathway = vp;
++		
++		selectDataNodes = new SelectClassAction("DataNode", GeneProduct.class);
++		selectAll = new SelectAllAction();
++		toggleGroup = new GroupAction();
++		delete = new DeleteAction();
++	}
++	
++	private class SelectClassAction extends AbstractAction {
++		Class c;
++		public SelectClassAction(String name, Class c) {
++			super("Select all " + name + " objects");
++			this.c = c;
++		}
++		public void actionPerformed(ActionEvent e) {
++			vPathway.selectObjects(c);
++		}
++	}
++	
++	private class SelectAllAction extends AbstractAction {
++		public SelectAllAction() {
++			super("Select all");
++		}
++		public void actionPerformed(ActionEvent e) {
++			vPathway.selectAll();
++		}
++	}
++	
++	private class GroupAction extends AbstractAction implements SelectionListener {
++		public GroupAction() {
++			super("Group");
++			setLabel();
++			vPathway.addSelectionListener(this);
++		}
++
++		public void actionPerformed(ActionEvent e) {
++				vPathway.toggleGroup(vPathway.getSelectedGraphics());
++		}
++
++		public void selectionEvent(SelectionEvent e) {
++			switch(e.type) {
++			case SelectionEvent.OBJECT_ADDED:
++			case SelectionEvent.OBJECT_REMOVED:
++			case SelectionEvent.SELECTION_CLEARED:
++				setLabel();
++			}
++		}
++		
++		private void setLabel() {
++			int groups = 0;
++			int unGrouped = 0;
++			for(Graphics g : vPathway.getSelectedGraphics()) {
++				if(g instanceof Group) groups++;
++				if(g.getGmmlData().getGroupRef() == null) {
++					unGrouped++;
++				}
++			}
++			setEnabled(true);
++			if(unGrouped >= 2) {
++				putValue(Action.NAME, "Group");
++			} else if(groups == 1) {
++				putValue(Action.NAME, "Ungroup");
++			} else {
++				setEnabled(false);
++			}
++		}		
++	}
++	
++	private class DeleteAction extends AbstractAction implements SelectionListener {
++		public DeleteAction() {
++			super("Delete");
++			putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(
++			java.awt.event.KeyEvent.VK_DELETE, 0));
++			vPathway.addSelectionListener(this);
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
++			for(VPathwayElement o : vPathway.getDrawingObjects())
++			{
++				if (!o.isSelected() || o == vPathway.s || o == vPathway.infoBox)
++					continue; // Object not selected, skip
++				toRemove.add(o);
++			}
++			vPathway.removeDrawingObjects(toRemove);	
++		}
++		
++		public void selectionEvent(SelectionEvent e) {
++			setEnabled(vPathway.getSelectedGraphics().size() > 0);
++		}
++	}
++}

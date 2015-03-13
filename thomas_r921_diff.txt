@@ -1,0 +1,607 @@
+Index: branches/g2d-branch/src/core/org/pathvisio/view/InputEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/InputEvent.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/InputEvent.java	(revision 921)
+@@ -0,0 +1,21 @@
++package org.pathvisio.view;
++
++import java.util.EventObject;
++
++public class InputEvent extends EventObject {
++	public static final int M_SHIFT = java.awt.event.InputEvent.SHIFT_MASK;
++	public static final int M_CTRL = java.awt.event.InputEvent.CTRL_MASK;
++	public static final int M_ALT = java.awt.event.InputEvent.ALT_MASK;
++	public static final int M_META = java.awt.event.InputEvent.META_MASK;
++	
++	private int modifier;
++	
++	public InputEvent(Object source, int modifier) {
++		super(source);
++		this.modifier = modifier;
++	}
++	
++	public boolean isKeyDown(int key) {
++		return (modifier & key) != 0;
++	}
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 920)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 921)
+@@ -28,13 +28,6 @@
+ import java.util.Map;
+ import java.util.Set;
+ 
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.KeyEvent;
+-import org.eclipse.swt.events.KeyListener;
+-import org.eclipse.swt.events.MouseEvent;
+-import org.eclipse.swt.events.MouseListener;
+-import org.eclipse.swt.events.MouseMoveListener;
+-import org.eclipse.swt.events.MouseTrackListener;
+ import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.model.Color;
+ import org.pathvisio.model.GroupStyle;
+@@ -59,7 +52,7 @@
+  * visualized. The class also provides methods for mouse  and key
+  * event handling.
+  */
+-public class VPathway implements MouseListener, MouseMoveListener, MouseTrackListener, KeyListener, PathwayListener, VisualizationListener
++public class VPathway implements PathwayListener, VisualizationListener
+ {	
+ 	private static final long serialVersionUID = 1L;
+ 	static final double M_PASTE_OFFSET = 10 * 15;
+@@ -368,22 +361,22 @@
+ 	 */
+ 	public void mouseMove(MouseEvent ve)
+ 	{
+-		boolean altPressed = (ve.stateMask & SWT.ALT) != 0;
++		boolean altPressed = ve.isKeyDown(MouseEvent.M_ALT);
+ 		// If draggin, drag the pressed object
+ 		if (pressedObject != null && isDragging)
+ 		{
+-			double vdx = ve.x - vPreviousX;
+-			double vdy = ve.y - vPreviousY;
++			double vdx = ve.getX() - vPreviousX;
++			double vdy = ve.getY() - vPreviousY;
+ 			pressedObject.vMoveBy(vdx, vdy);
+ 				
+-			vPreviousX = ve.x;
+-			vPreviousY = ve.y;
++			vPreviousX = ve.getX();
++			vPreviousY = ve.getY();
+ 			
+ 			if (pressedObject instanceof Handle && altPressed && newGraphics == NEWNONE &&
+ 					((Handle)pressedObject).parent instanceof VPoint)
+ 			{
+ 				resetHighlight();
+-				Point2D p2d = new Point2D.Double(ve.x, ve.y);
++				Point2D p2d = new Point2D.Double(ve.getX(), ve.getY());
+ 				List<VPathwayElement> objects = getObjectsAt (p2d);
+ 				Collections.sort(objects);
+ 				Handle g = (Handle)pressedObject;
+@@ -423,12 +416,12 @@
+ 		{
+ 			if (newGraphics != NEWNONE)
+ 			{
+-				newObject(new Point(e.x, e.y));
++				newObject(new Point(e.getX(), e.getY()));
+ 				Engine.getWindow().deselectNewItemActions();
+ 			}
+ 			else
+ 			{
+-				editObject(new Point(e.x, e.y), e);
++				editObject(new Point(e.getX(), e.getY()), e);
+ 			}
+ 		}
+ 		else
+@@ -452,8 +445,8 @@
+ 			// check if we placed a new object by clicking or dragging
+ 			// if it was a click, give object the initial size.
+ 			else if (newObject != null && 
+-					Math.abs(newObjectDragStart.x - e.x) <= MIN_DRAG_LENGTH &&
+-					Math.abs(newObjectDragStart.y - e.y) <= MIN_DRAG_LENGTH)
++					Math.abs(newObjectDragStart.x - e.getX()) <= MIN_DRAG_LENGTH &&
++					Math.abs(newObjectDragStart.y - e.getY()) <= MIN_DRAG_LENGTH)
+ 			{
+ 				newObject.setInitialSize();
+ 			}
+@@ -556,7 +549,7 @@
+ 	 */
+ 	private void mouseDownViewMode(MouseEvent e) 
+ 	{
+-		Point2D p2d = new Point2D.Double(e.x, e.y);
++		Point2D p2d = new Point2D.Double(e.getX(), e.getY());
+ 
+ 		pressedObject = getObjectAt(p2d);
+ 		
+@@ -632,6 +625,7 @@
+ 	 * if you want to get more than one @see #getObjectsAt(Point2D)
+ 	 */
+ 	VPathwayElement getObjectAt(Point2D p2d) {
++		System.out.println(p2d);
+ 		Collections.sort(drawingObjects);
+ 		VPathwayElement probj = null;
+ 		for (VPathwayElement o : drawingObjects)
+@@ -672,7 +666,7 @@
+ 	
+ 	void doClickSelect(Point2D p2d, MouseEvent e) {
+ 		//Ctrl pressed, add/remove from selection
+-		boolean ctrlPressed =  (e.stateMask & SWT.CTRL) != 0;
++		boolean ctrlPressed =  e.isKeyDown(MouseEvent.M_CTRL);
+ 		if(ctrlPressed) 
+ 		{
+ 			if(pressedObject instanceof SelectionBox) {
+@@ -986,7 +980,7 @@
+ 	public void mouseHover(MouseEvent e) {
+ 		Visualization v = VisualizationManager.getCurrent();
+ 		if(v != null && v.usesToolTip()) {
+-			Point2D p = new Point2D.Double(e.x, e.y);
++			Point2D p = new Point2D.Double(e.getX(), e.getY());
+ 			
+ 			VPathwayElement o = getObjectAt(p);
+ 			if(o != null && o instanceof Graphics) {
+@@ -1058,27 +1052,25 @@
+ 	}
+ 
+ 	public void keyPressed(KeyEvent e) { 
+-		//if(e.keyCode == SWT.CTRL) ctrlPressed();
+-		//if(e.keyCode == SWT.ALT) altPressed();
+-		if(e.keyCode == SWT.INSERT) insertPressed();
+-		if(e.keyCode == 100) //CTRL-D to select all gene-products
+-			if((e.stateMask & SWT.CTRL) != 0) {
+-				selectGeneProducts();
+-				parent.redraw();
+-			}
+-		if(e.keyCode == 103) //CTRL-G to select all gene-products
+-			if((e.stateMask & SWT.CTRL) != 0) {
+-				//do group thing
+-				createGroup();
+-			}
++		if(e.isKey(KeyEvent.INSERT)) insertPressed();
++		if(e.isKey('d') && e.isKeyDown(KeyEvent.M_CTRL)) //CTRL-D to select all gene-products 
++		{
++			selectGeneProducts();
++			parent.redraw();
++		}
++//		System.out.println(e.getKeyCode());
++//		System.out.println("is g? " + e.isKey('g'));
++//		System.out.println("is CTRL down? " + e.isKeyDown(KeyEvent.CTRL));
++		if(e.isKey('g') && e.isKeyDown(KeyEvent.M_CTRL)) //CTRL-G to select all gene-products
++		{
++			createGroup();
++		}
+ 	}
+ 
+ 	
+ 	
+ 	public void keyReleased(KeyEvent e) {		
+-		//if(e.keyCode == SWT.CTRL) ctrlReleased();
+-		//if(e.keyCode == SWT.ALT) altReleased();
+-		if(e.keyCode == SWT.DEL) {
++		if(e.isKey(KeyEvent.DEL)) {
+ 			ArrayList<VPathwayElement> toRemove = new ArrayList<VPathwayElement>();
+ 			for(VPathwayElement o : drawingObjects)
+ 			{
+Index: branches/g2d-branch/src/core/org/pathvisio/view/GeneProduct.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/GeneProduct.java	(revision 920)
++++ branches/g2d-branch/src/core/org/pathvisio/view/GeneProduct.java	(revision 921)
+@@ -16,6 +16,7 @@
+ //
+ package org.pathvisio.view;
+ 
++import java.awt.Color;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+ 
+@@ -126,10 +127,12 @@
+ 
+ 	public void draw(Graphics2D g2d)
+ 	{
++		Graphics2D g = (Graphics2D)g2d.create();
++		if(isSelected()) g.setColor(Color.RED);
+ 		Rectangle area = new Rectangle(
+ 				getVLeft(), getVTop(), getVWidth(), getVHeight());
+ 		
+-		g2d.draw(area);
++		g.draw(area);
+ 		
+ //		Color c = null;
+ //		Color b = SwtUtils.changeColor(c, new RGB(255, 255, 255), e.display);
+Index: branches/g2d-branch/src/core/org/pathvisio/view/MouseEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/MouseEvent.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/MouseEvent.java	(revision 921)
+@@ -0,0 +1,72 @@
++package org.pathvisio.view;
++
++import java.awt.Point;
++
++public abstract class MouseEvent extends InputEvent {
++
++	//Buttons
++	public static final int BUTTON_NONE = -1;
++	public static final int BUTTON1 = 1;
++	public static final int BUTTON2 = 2;
++	public static final int BUTTON3 = 3;
++	
++	//Types
++	public static final int MOUSE_DOWN = 10;
++	public static final int MOUSE_UP = 11;
++	public static final int MOUSE_MOVE = 12;
++	public static final int MOUSE_EXIT = 13;
++	public static final int MOUSE_ENTER = 14;
++	public static final int MOUSE_HOVER = 15;
++	public static final int MOUSE_CLICK = 16;
++	
++	private int type;
++	private int button;
++	private int clickCount;
++	private int x; //x relative to source
++	private int y; //y relative to source
++	
++	public MouseEvent(Object source, int type, int button, int x, int y, int clickCount, int modifier) {
++		super(source, modifier);
++		this.x = x;
++		this.y = y;
++		this.type = type;
++		this.button = button;
++		this.clickCount = clickCount;
++	}
++	
++	//public abstract Point getLocationOnScreen();
++
++	public int getButton() {
++		return button;
++	}
++
++	public int getClickCount() {
++		return clickCount;
++	}
++
++	public int getType() {
++		return type;
++	}
++
++	public int getX() {
++		return x;
++	}
++
++	public int getY() {
++		return y;
++	}
++	
++	public Point getLocation() {
++		return new Point(x, y);
++	}
++	
++	/*
++	public int getXOnScreen() {
++		return getLocationOnScreen().x;
++	}
++	
++	public int getYOnScreen() {
++		return getLocationOnScreen().y;
++	}
++	*/
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/KeyEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/KeyEvent.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/KeyEvent.java	(revision 921)
+@@ -0,0 +1,51 @@
++package org.pathvisio.view;
++
++import java.util.EventObject;
++
++public class KeyEvent extends InputEvent {
++	//Types
++	public static final int KEY_PRESSED = 0;
++	public static final int KEY_RELEASED = 1;
++	
++	//Keys
++	public static final int MIN_VALUE = Character.MAX_VALUE;
++	public static final int NONE = 0;
++	public static final int CTRL = MIN_VALUE + 1;
++	public static final int ALT = MIN_VALUE + 2;
++	public static final int SHIFT = MIN_VALUE + 3;
++	public static final int DEL = MIN_VALUE + 4;
++	public static final int INSERT = MIN_VALUE + 5;
++	
++	private static int twoPower(int p) { return (int)Math.pow(2, p); }
++
++	private int keyCode;
++	private int type;
++	
++	public KeyEvent(Object source, int keyCode, int type, int modifier) {
++		super(source, modifier);
++		this.keyCode = keyCode;
++		this.type = type;
++	}
++	
++	public KeyEvent(Object source, char keyCode, int type, int modifier) {
++		this(source, Character.getNumericValue(keyCode), type, modifier);
++	}
++	
++	public int getKeyCode() {
++		return keyCode;
++	}	
++	
++	public int getType() {
++		return type;
++	}
++	
++	public boolean isKey(char c) {
++		System.out.println("ask: " + (int)c);
++		System.out.println("have: " + keyCode);
++		return (int)c == keyCode;
++	}
++	
++	public boolean isKey(int i) {
++		return keyCode == i;
++	}
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 920)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 921)
+@@ -3,18 +3,26 @@
+ import java.awt.Color;
+ import java.awt.Dimension;
+ import java.awt.Graphics2D;
+-import java.awt.Point;
+ import java.awt.Rectangle;
+ 
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.KeyEvent;
++import org.eclipse.swt.events.KeyListener;
++import org.eclipse.swt.events.MouseEvent;
++import org.eclipse.swt.events.MouseListener;
++import org.eclipse.swt.events.MouseMoveListener;
++import org.eclipse.swt.events.MouseTrackListener;
+ import org.eclipse.swt.events.PaintEvent;
+ import org.eclipse.swt.events.PaintListener;
+ import org.eclipse.swt.graphics.GC;
+ import org.eclipse.swt.widgets.Canvas;
+ import org.eclipse.swt.widgets.Composite;
++import org.pathvisio.view.InputEvent;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ 
+-public class VPathwaySWT extends Canvas implements VPathwayWrapper, PaintListener {
++public class VPathwaySWT extends Canvas implements VPathwayWrapper, PaintListener, 
++				MouseListener, KeyListener, MouseMoveListener, MouseTrackListener {
+ 	final SWTGraphics2DRenderer renderer = new SWTGraphics2DRenderer();
+ 	
+ 	private VPathway child;
+@@ -26,10 +34,10 @@
+ 	public void setChild(VPathway c) {
+ 		child = c;
+ 		addPaintListener(this);
+-		addMouseListener(child);
+-		addMouseMoveListener(child);
+-		addMouseTrackListener(child);
+-		addKeyListener(child);
++		addMouseListener(this);
++		addMouseMoveListener(this);
++		addMouseTrackListener(this);
++		addKeyListener(this);
+ 	}
+ 	
+ 	public void redraw(Rectangle r) {
+@@ -69,47 +77,72 @@
+ 		
+ 		renderer.render(gc);
+ 	}
+-}
+ 
+-/*
+-Canvas canvas = new Canvas(shell, SWT.NO_BACKGROUND);
+-final Graphics2DRenderer renderer = new Graphics2DRenderer();
++	public static int convertStateMask(int swtMask) {
++		int newMask = 0;
++		newMask = addModifier(swtMask, SWT.CTRL, newMask, InputEvent.M_CTRL);
++		newMask = addModifier(swtMask, SWT.ALT, newMask, InputEvent.M_ALT);
++		//newMask = addModifier(stateMask, SWT.)//TODO: find SWT mapping for M_META
++		newMask = addModifier(swtMask, SWT.SHIFT, newMask, InputEvent.M_SHIFT);
++		return newMask;
++	}
+ 
+-canvas.addPaintListener(new PaintListener() {
+-  public void paintControl(PaintEvent e) {
+-    Point controlSize = ((Control) e.getSource()).getSize();
++	private static int addModifier(int swtMask, int swtModifier, int pvMask, int pvModifier) {
++		if((swtMask & swtModifier) != 0) {
++			pvMask |= pvModifier;
++		}
++		return pvMask;
++	}
++	
++	public void mouseDoubleClick(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_CLICK, 2);
++		child.mouseDoubleClick(pve);
++	}
+ 
+-    GC gc = e.gc; // gets the SWT graphics context from the event
++	public void mouseDown(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_DOWN, 0);
++		child.mouseDown(pve);
++	}
+ 
+-    renderer.prepareRendering(gc); // prepares the Graphics2D renderer
++	public void mouseUp(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_UP, 0);
++		child.mouseUp(pve);
++	}
+ 
+-    // gets the Graphics2D context and switch on the antialiasing
+-    Graphics2D g2d = renderer.getGraphics2D();
+-    g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+-      RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
++	public void keyPressed(KeyEvent e) {
++		SwtKeyEvent pve = new SwtKeyEvent(e, org.pathvisio.view.KeyEvent.KEY_PRESSED);
++		child.keyPressed(pve);
++	}
+ 
+-    // paints the background with a color gradient
+-    g2d.setPaint(new GradientPaint(0.0f, 0.0f, java.awt.Color.yellow,
+-      (float) controlSize.x, (float) controlSize.y, java.awt.Color.white));
+-    g2d.fillRect(0, 0, controlSize.x, controlSize.y);
++	public void keyReleased(KeyEvent e) {
++		SwtKeyEvent pve = new SwtKeyEvent(e, org.pathvisio.view.KeyEvent.KEY_RELEASED);
++		child.keyReleased(pve);
++	}
+ 
+-    // draws rotated text
+-    g2d.setFont(new java.awt.Font("SansSerif", java.awt.Font.BOLD, 16));
+-    g2d.setColor(java.awt.Color.blue);
++	public void mouseMove(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_MOVE, 0);
++		child.mouseMove(pve);
++	}
+ 
+-    g2d.translate(controlSize.x / 2, controlSize.y / 2);
+-    int nbOfSlices = 18;
+-    for (int i = 0; i < nbOfSlices; i++) {
+-      g2d.drawString("Angle = " + (i * 360 / nbOfSlices) + "\u00B0", 30, 0);
+-      g2d.rotate(-2 * Math.PI / nbOfSlices);
+-    }
++	public void mouseEnter(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_ENTER, 0);
++		child.mouseEnter(pve);
++	}
+ 
+-    // now that we are done with Java 2D, renders Graphics2D operation
+-    // on the SWT graphics context
+-    renderer.render(gc);
++	public void mouseExit(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_ENTER, 0);
++		child.mouseExit(pve);
++	}
+ 
+-    // now we can continue with pure SWT paint operations
+-    gc.drawOval(0, 0, controlSize.x, controlSize.y);
+-  }
+-});
+-*/
+\ No newline at end of file
++	public void mouseHover(MouseEvent e) {
++		SwtMouseEvent pve = new SwtMouseEvent(
++				e, org.pathvisio.view.MouseEvent.MOUSE_HOVER, 0);
++		child.mouseHover(pve);	
++	}
++}
+\ No newline at end of file
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtKeyEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtKeyEvent.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtKeyEvent.java	(revision 921)
+@@ -0,0 +1,30 @@
++package org.pathvisio.view.swt;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.KeyEvent;
++
++public class SwtKeyEvent extends org.pathvisio.view.KeyEvent {
++	KeyEvent swtEvent;
++	
++	public SwtKeyEvent(KeyEvent swtEvent, int type) {
++		super(swtEvent.getSource(), convertKeyCode(swtEvent), type, VPathwaySWT.convertStateMask(swtEvent.stateMask));
++		this.swtEvent = swtEvent;
++	}
++
++	protected static int convertKeyCode(KeyEvent swtEvent) {
++		switch(swtEvent.keyCode) {
++		case SWT.CTRL:
++			return org.pathvisio.view.KeyEvent.CTRL;
++		case SWT.ALT:
++			return org.pathvisio.view.KeyEvent.ALT;
++		case SWT.DEL:
++			return org.pathvisio.view.KeyEvent.DEL;
++		case SWT.INSERT:
++			return org.pathvisio.view.KeyEvent.INSERT;
++		case SWT.SHIFT:
++			return org.pathvisio.view.KeyEvent.SHIFT;
++		default:
++			return swtEvent.keyCode;
++		}
++	}
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtMouseEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtMouseEvent.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtMouseEvent.java	(revision 921)
+@@ -0,0 +1,31 @@
++package org.pathvisio.view.swt;
++
++import java.awt.Point;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.MouseEvent;
++
++public class SwtMouseEvent extends org.pathvisio.view.MouseEvent {
++
++	private MouseEvent swtEvent;
++	
++	public SwtMouseEvent(MouseEvent swtEvent, int type, int clickCount) {
++		super(swtEvent.getSource(), type, convertButton(swtEvent), swtEvent.x, swtEvent.y, 
++				clickCount, VPathwaySWT.convertStateMask(swtEvent.stateMask));
++		
++		this.swtEvent = swtEvent;
++	}
++
++	protected static int convertButton(MouseEvent se) {
++		switch(se.button) {
++		case SWT.BUTTON1:
++			return org.pathvisio.view.MouseEvent.BUTTON1;
++		case SWT.BUTTON2:
++			return org.pathvisio.view.MouseEvent.BUTTON2;
++		case SWT.BUTTON3:
++			return org.pathvisio.view.MouseEvent.BUTTON3;
++		}
++		return org.pathvisio.view.MouseEvent.BUTTON_NONE;
++	}
++		
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/SelectionBox.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/SelectionBox.java	(revision 920)
++++ branches/g2d-branch/src/core/org/pathvisio/view/SelectionBox.java	(revision 921)
+@@ -399,14 +399,18 @@
+ 	
+ 	static List<SelectionListener> listeners;
+ 
++	private static List<SelectionListener> getListeners() {
++		if(listeners == null)
++			listeners = new ArrayList<SelectionListener>();
++		return listeners;
++	}
++	
+ 	/**
+ 	 * Add a {@link SelectionListener}, that will be notified if a selection event occurs
+ 	 * @param l The {@link SelectionListener} to add
+ 	 */
+ 	public static void addListener(SelectionListener l) {
+-		if(listeners == null)
+-			listeners = new ArrayList<SelectionListener>();
+-		listeners.add(l);
++		getListeners().add(l);
+ 	}
+ 
+ 	/**
+@@ -415,7 +419,7 @@
+ 	 * @param e
+ 	 */
+ 	public static void fireSelectionEvent(SelectionEvent e) {
+-		for(SelectionListener l : listeners) {
++		for(SelectionListener l : getListeners()) {
+ 			l.drawingEvent(e);
+ 		}
+ 	}

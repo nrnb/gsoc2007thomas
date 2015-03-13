@@ -1,0 +1,224 @@
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1078)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/Actions.java	(revision 1079)
+@@ -58,8 +58,12 @@
+ 		}
+ 
+ 		public void actionPerformed(ActionEvent e) {
+-			// TODO Auto-generated method stub
+-			
++			try {
++				wiki.saveUI();
++			} catch(Exception ex) {
++				Logger.log.error("Unable to save pathway", ex);
++				JOptionPane.showMessageDialog(null, "Unable to save pathway:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
++			}
+ 		}
+ 	}
+ }
+Index: trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1078)
++++ trunk/src/wikipathways/org/pathvisio/gui/wikipathways/AppletMain.java	(revision 1079)
+@@ -16,7 +16,6 @@
+ //
+ package org.pathvisio.gui.wikipathways;
+ 
+-import java.awt.Component;
+ import java.net.CookieHandler;
+ import java.net.URL;
+ import java.util.HashMap;
+@@ -28,9 +27,10 @@
+ import javax.swing.JLabel;
+ import javax.swing.JOptionPane;
+ import javax.swing.SwingUtilities;
++import javax.swing.event.HyperlinkEvent;
++import javax.swing.event.HyperlinkListener;
+ 
+ import org.pathvisio.ApplicationEvent;
+-import org.pathvisio.debug.Logger;
+ import org.pathvisio.Engine;
+ import org.pathvisio.debug.Logger;
+ import org.pathvisio.gui.swing.GuiInit;
+@@ -72,6 +72,14 @@
+ 					mainPanel.addToToolbar(saveAction, MainPanel.TB_GROUP_HIDE_ON_EDIT);
+ 					mainPanel.addToToolbar(discardAction);
+ 
++					mainPanel.getBackpagePane().addHyperlinkListener(new HyperlinkListener() {
++						public void hyperlinkUpdate(HyperlinkEvent e) {
++							if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
++								getAppletContext().showDocument(e.getURL(), "_blank");
++							}
++						}
++					});
++					
+ 					getContentPane().add(mainPanel);
+ 					mainPanel.setVisible(true);
+ 				}
+Index: trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java
+===================================================================
+--- trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1078)
++++ trunk/src/wikipathways/org/pathvisio/wikipathways/WikiPathways.java	(revision 1079)
+@@ -77,7 +77,7 @@
+ 				"Missing required argument '" + p.name() + "'";
+ 		}
+ 
+-		progress.setTaskName("Loading pathway...");
++		progress.report("Loading pathway...");
+ 		
+ 		if(isNew()) { //Create new pathway
+ 			Logger.log.trace("WIKIPATHWAYS INIT: new pathway");
+@@ -89,8 +89,13 @@
+ 
+ 		//TODO: notify user about this and hide edit actions
+ 		Engine.getCurrent().getActiveVPathway().setEditMode(!isReadOnly());
++		if(isReadOnly()) {
++			uiHandler.showInfo("Read-only", 
++					"You are not logged in to " + Globals.SERVER_NAME +
++					" so the pathway will be opened in read-only mode");
++		}
+ 		
+-		progress.setTaskName("Connecting to database...");
++		progress.report("Connecting to database...");
+ 		
+ 		//Connect to the gene database
+ 		DBConnector connector = new DBConnectorDerbyServer("wikipathways.org", 1527);
+Index: trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1078)
++++ trunk/src/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 1079)
+@@ -328,6 +328,10 @@
+ 		return splitPane;
+ 	}
+ 	
++	public BackpagePane getBackpagePane() {
++		return backpagePane;
++	}
++	
+ 	private Frame findParentFrame() {
+ 		Container c = this;
+ 		while (c != null) {
+Index: trunk/src/swing/org/pathvisio/gui/swing/progress/ProgressDialog.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/progress/ProgressDialog.java	(revision 1078)
++++ trunk/src/swing/org/pathvisio/gui/swing/progress/ProgressDialog.java	(revision 1079)
+@@ -81,8 +81,14 @@
+ 	}
+ 
+ 	public void progressFinished(ProgressEvent e) {
+-		if(e.getType() == ProgressEvent.FINISHED) {
++		switch(e.getType()) {
++		case ProgressEvent.FINISHED:
+ 			setVisible(false);
++		case ProgressEvent.TASK_NAME_CHANGED:
++			setTitle(keeper.getTaskName());	
++		case ProgressEvent.REPORT:
++			String task = keeper.getTaskName();
++			setTitle(task == null ? keeper.getReport() : task + " - " + keeper.getReport());
+ 		}
+ 	}
+ }
+\ No newline at end of file
+Index: trunk/src/swing/org/pathvisio/gui/swing/progress/SwingProgressKeeper.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/progress/SwingProgressKeeper.java	(revision 1078)
++++ trunk/src/swing/org/pathvisio/gui/swing/progress/SwingProgressKeeper.java	(revision 1079)
+@@ -31,9 +31,9 @@
+ 		}
+ 	}
+ 	
+-	public void report(String name) {
+-		super.setTaskName(name);
+-		progressBar.setString(name);
++	public void report(String message) {
++		super.report(message);
++		progressBar.setString(message);
+ 	}
+ 	
+ 	public void worked(int w) {
+Index: trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1078)
++++ trunk/src/swing/org/pathvisio/gui/swing/propertypanel/PathwayTableModel.java	(revision 1079)
+@@ -195,7 +195,9 @@
+ 	}
+ 	
+ 	public boolean isCellEditable(int rowIndex, int columnIndex) {
+-		return columnIndex == 1;
++		return columnIndex == 1 &&
++				Engine.getCurrent().hasVPathway() && 
++				Engine.getCurrent().getActiveVPathway().isEditMode();
+ 	}
+ 		
+ 	public void selectionEvent(SelectionEvent e) {
+Index: trunk/src/core/org/pathvisio/Engine.java
+===================================================================
+--- trunk/src/core/org/pathvisio/Engine.java	(revision 1078)
++++ trunk/src/core/org/pathvisio/Engine.java	(revision 1079)
+@@ -247,10 +247,16 @@
+ 	/**
+ 	 * Find out whether a drawing is currently open or not
+ 	 * @return true if a drawing is open, false if not
++	 * @deprecated use {@link #hasVPathway}
+ 	 */
+ 	public boolean isDrawingOpen() { return vPathway != null; }
++	
++	/**
++	 * Find out whether a VPathway is currently available or not
++	 * @return true if a VPathway is currently available, false if not
++	 */
++	public boolean hasVPathway() { return vPathway != null; }
+ 
+-
+ 	private HashMap<String, PathwayExporter> exporters = new HashMap<String, PathwayExporter>();
+ 	private HashMap<String, PathwayImporter> importers = new HashMap<String, PathwayImporter>();
+ 	/**
+Index: trunk/src/core/org/pathvisio/util/ProgressKeeper.java
+===================================================================
+--- trunk/src/core/org/pathvisio/util/ProgressKeeper.java	(revision 1078)
++++ trunk/src/core/org/pathvisio/util/ProgressKeeper.java	(revision 1079)
+@@ -24,6 +24,7 @@
+ 	public static final int PROGRESS_UNKNOWN = -1;
+ 	volatile String taskName;
+ 	volatile boolean cancelled;
++	volatile String report;
+ 	
+ 	int total;
+ 	int progress;
+@@ -42,8 +43,11 @@
+ 	
+ 	public void setTaskName(String name) {
+ 		taskName = name;
++		fireProgressEvent(ProgressEvent.TASK_NAME_CHANGED);
+ 	}
+ 	
++	public String getTaskName() { return taskName; }
++	
+ 	public void finished() {
+ 		progress = total;
+ 		fireProgressEvent(ProgressEvent.FINISHED);
+@@ -66,9 +70,12 @@
+ 	}
+ 	
+ 	public void report(String message) {
+-		//To be implemented by subclasses if needed
++		report = message;
++		fireProgressEvent(ProgressEvent.REPORT);
+ 	}
+-		
++	
++	public String getReport() { return report; }
++	
+ 	void fireProgressEvent(int type) {
+ 		for(ProgressListener l : listeners)
+ 			l.progressFinished(new ProgressEvent(this, type));
+@@ -82,6 +89,8 @@
+ 	
+ 	public class ProgressEvent extends EventObject {
+ 		public static final int FINISHED = 0;
++		public static final int TASK_NAME_CHANGED = 1;
++		public static final int REPORT = 2;
+ 		
+ 		private int type;
+ 		public ProgressEvent(ProgressKeeper source, int type) {

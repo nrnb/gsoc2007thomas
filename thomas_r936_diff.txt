@@ -1,0 +1,2975 @@
+Index: branches/g2d-branch/swing/org/pathvisio/preferences/swing/SwingPreferences.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/preferences/swing/SwingPreferences.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/preferences/swing/SwingPreferences.java	(revision 936)
+@@ -0,0 +1,38 @@
++package org.pathvisio.preferences.swing;
++
++import org.pathvisio.preferences.Preference;
++
++public class SwingPreferences extends PreferenceCollection {
++
++}
++
++public enum SwingPreference implements Preference {
++
++	String value;
++	String defaultValue;
++	
++	
++	SwingPreference(String defaultValue) {
++		this.defaultValue = defaultValue;
++	}
++	
++	public String getDefault() {
++		return defaultValue;
++	}
++
++	public String getValue() {
++		if(value == null) {
++			return defaultValue;
++		} else {
++			return value;
++		}
++	}
++
++	public void setDefault(String defValue) {
++		defaultValue = defValue;
++	}
++
++	public void setValue(String newValue) {
++		value = newValue;
++	}
++}
+\ No newline at end of file
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainWindow.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainWindow.java	(revision 935)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainWindow.java	(revision 936)
+@@ -1,7 +0,0 @@
+-package org.pathvisio.gui.swing;
+-
+-import javax.swing.JFrame;
+-
+-public class MainWindow extends JFrame {
+-
+-}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 936)
+@@ -0,0 +1,11 @@
++package org.pathvisio.gui.swing;
++
++import javax.swing.JPanel;
++import javax.swing.JToolBar;
++
++public class MainPanel extends JPanel {
++	public MainPanel() {
++		JToolBar tb = new JToolBar();
++		
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 936)
+@@ -0,0 +1,66 @@
++package org.pathvisio.gui.swing;
++
++import java.awt.Component;
++import java.awt.event.ActionEvent;
++import java.io.File;
++
++import javax.swing.AbstractAction;
++import javax.swing.JFileChooser;
++import javax.swing.filechooser.FileFilter;
++
++import org.pathvisio.Engine;
++import org.pathvisio.model.PathwayImporter;
++
++public abstract class CommonActions {
++	static class SaveAction extends AbstractAction {
++		public void actionPerformed(ActionEvent e) {
++			//TODO
++		}
++	}
++	
++	static class ImportAction extends AbstractAction {
++		Component parent;
++		
++		public void actionPerformed(ActionEvent e) {
++				//Open file dialog
++				JFileChooser jfc = new JFileChooser();
++				jfc.setAcceptAllFileFilterUsed(false);
++				jfc.setDialogTitle("Import pathway");
++				jfc.setDialogType(JFileChooser.OPEN_DIALOG);
++				
++				for(final PathwayImporter imp : Engine.getPathwayImporters().values()) {
++					FileFilter ff = new FileFilter() {
++						public boolean accept(File f) {
++							String fn = f.toString();
++							int i = fn.lastIndexOf('.');
++							if(i > 0) {
++								String ext = fn.substring(i + 1);
++								for(String impExt : imp.getExtensions()) {
++									if(impExt.equalsIgnoreCase(ext)) {
++										return true;
++									}
++								}
++							}
++							return false;
++						}
++
++						public String getDescription() {
++							return imp.getName();
++						}
++					};
++					jfc.addChoosableFileFilter(ff);
++				}
++				
++				int status = jfc.showDialog((Component)e.getSource(), "Import");
++				if(status == JFileChooser.APPROVE_OPTION) {
++					jfc.getFileFilter();
++				}
++		}
++	}
++	
++	static class ExportAction extends AbstractAction {
++		public void actionPerformed(ActionEvent e) {
++			//TODO
++		}
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 935)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 936)
+@@ -96,4 +96,9 @@
+ 	public void mouseMoved(MouseEvent e) {
+ 		child.mouseMove(new SwingMouseEvent(e));
+ 	}
++
++	public VPathway createVPathway() {
++		setChild(new VPathway(this));
++		return child;
++	}
+ }
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 935)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionImagePlugin.java	(revision 936)
+@@ -71,7 +71,7 @@
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.view.Graphics;
+@@ -84,7 +84,7 @@
+ 		"This plugin displays one or more images on Gene Product objects and \n" +
+ 		"colors the image(s) accoring to the expression value for the Gene Product.";
+ 		
+-	static final Color DEFAULT_TRANSPARENT = Engine.TRANSPARENT_COLOR;
++	static final Color DEFAULT_TRANSPARENT = SwtEngine.TRANSPARENT_COLOR;
+ 		
+ 	List<URL> imageURLs;
+ 	
+@@ -101,8 +101,8 @@
+ 
+ 	private List<URL> defaultURLs() {
+ 		return new ArrayList<URL>(Arrays.asList(new URL[] {
+-				Engine.getResourceURL("images/protein_hi.bmp"),
+-				Engine.getResourceURL("images/mRNA_hi.bmp") }));
++				SwtEngine.getResourceURL("images/protein_hi.bmp"),
++				SwtEngine.getResourceURL("images/mRNA_hi.bmp") }));
+ 	}
+ 	
+ 	List<URL> getImageURLs() { 
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java	(revision 935)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionAsTextPlugin.java	(revision 936)
+@@ -56,7 +56,7 @@
+ import org.pathvisio.data.CachedData.Data;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.Graphics;
+@@ -233,7 +233,7 @@
+ 	Font getFont(boolean adjustZoom) {
+ 		Font f = font == null ? DEFAULT_FONT : font;
+ 		if(adjustZoom) {
+-			int size = (int)Math.ceil(Engine.getVPathway().vFromM(f.getSize()) * 15);
++			int size = (int)Math.ceil(SwtEngine.getActiveVPathway().vFromM(f.getSize()) * 15);
+ 			f = new Font(f.getName(), size, f.getStyle());
+ 		}
+ 		return f;
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java	(revision 935)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/PluginWithColoredSamples.java	(revision 936)
+@@ -66,7 +66,7 @@
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.util.TableColumnResizer;
+ import org.pathvisio.view.GeneProduct;
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionColorPlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionColorPlugin.java	(revision 935)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/ExpressionColorPlugin.java	(revision 936)
+@@ -47,7 +47,7 @@
+ import org.pathvisio.data.CachedData.Data;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.Gex.Sample;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.view.Graphics;
+Index: branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java
+===================================================================
+--- branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java	(revision 935)
++++ branches/g2d-branch/src/plugins/org/pathvisio/visualization/plugins/LabelPlugin.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.visualization.plugins;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.Graphics;
+ 
+@@ -201,7 +201,7 @@
+ 	Font getFont(boolean adjustZoom) {
+ 		Font f = font == null ? DEFAULT_FONT : font;
+ 		if(adjustZoom) {
+-			int fs = (int)Math.ceil(Engine.getVPathway().vFromM(f.getSize()) * 15);
++			int fs = (int)Math.ceil(SwtEngine.getActiveVPathway().vFromM(f.getSize()) * 15);
+ 			f = new Font(f.getName(), f.getStyle(), f.getSize());
+ 		}
+ 		return f;
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/wizard/RWizard.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/wizard/RWizard.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/wizard/RWizard.java	(revision 936)
+@@ -26,7 +26,7 @@
+ import org.eclipse.jface.wizard.WizardDialog;
+ import org.eclipse.swt.widgets.Shell;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+ import org.pathvisio.R.RDataIn;
+ import org.pathvisio.R.RCommands.RException;
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageData.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageData.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageData.java	(revision 936)
+@@ -43,7 +43,7 @@
+ import org.pathvisio.R.RDataOut;
+ import org.pathvisio.R.RCommands.RInterruptedException;
+ import org.pathvisio.data.Gex;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ 
+ public class PageData extends WizardPage {
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageStats.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageStats.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/wizard/PageStats.java	(revision 936)
+@@ -17,7 +17,7 @@
+ 
+ package org.pathvisio.R.wizard;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ 
+ import java.text.SimpleDateFormat;
+ import java.util.Calendar;
+@@ -140,7 +140,7 @@
+ 	}
+ 	
+ 	protected void doSetTopToParent(final Control top) {
+-		Engine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
++		SwtEngine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
+ 			public void run() {
+ 				((StackLayout)((Composite)getControl()).getLayout()).topControl = top.getParent();
+ 				((Composite)getControl()).layout();
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RDataIn.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RDataIn.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RDataIn.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.R;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.gui.swt.TabbedSidePanel;
+ 
+ import java.io.File;
+@@ -99,7 +99,7 @@
+ 	}
+ 	
+ 	public static void displayResults(List<ResultSet> results, String tabName) {		
+-		TabbedSidePanel sp = Engine.getWindow().getSidePanel();
++		TabbedSidePanel sp = SwtEngine.getWindow().getSidePanel();
+ 		
+ 		StatsResultTable srt = new StatsResultTable(sp.getTabFolder(), SWT.NULL);
+ 		srt.setResults(results);
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RDataOut.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RDataOut.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RDataOut.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.R;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ 
+ import java.io.File;
+ import java.lang.reflect.InvocationTargetException;
+@@ -94,7 +94,7 @@
+ 	public RDataOut(File pathways, boolean recursive) {
+ 		this();
+ 		//Get the pathway files
+-		pwFiles = FileUtils.getFiles(pathways, Engine.PATHWAY_FILE_EXTENSION, recursive);
++		pwFiles = FileUtils.getFiles(pathways, SwtEngine.PATHWAY_FILE_EXTENSION, recursive);
+ 	}
+ 	
+ 	public List<File> getPathwayFiles() { return pwFiles; }
+@@ -113,7 +113,7 @@
+ 	public void doExport() throws RException, InvocationTargetException, InterruptedException {
+ 		Rengine re = RController.getR();
+ 		
+-		ProgressMonitorDialog dialog = new ProgressMonitorDialog(Engine.getWindow().getShell());
++		ProgressMonitorDialog dialog = new ProgressMonitorDialog(SwtEngine.getWindow().getShell());
+ 		SimpleRunnableWithProgress rwp = null;
+ 		try {
+ 			if(exportData) {
+@@ -155,7 +155,7 @@
+ 			
+ 		checkValid();
+ 		
+-		pwFiles = FileUtils.getFiles(pwDir, Engine.PATHWAY_FILE_EXTENSION, true);
++		pwFiles = FileUtils.getFiles(pwDir, SwtEngine.PATHWAY_FILE_EXTENSION, true);
+ 
+ 		if(pwFiles.size() == 0) throw new Exception("No pathway files (*.gpml) found in " + pwDir);
+ 		
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RController.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RController.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RController.java	(revision 936)
+@@ -16,9 +16,9 @@
+ //
+ package org.pathvisio.R;
+ 
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.gui.swt.Engine.ApplicationEvent;
+-import org.pathvisio.gui.swt.Engine.ApplicationEventListener;
++import org.pathvisio.gui.swt.SwtEngine;
++import org.pathvisio.gui.swt.SwtEngine.ApplicationEvent;
++import org.pathvisio.gui.swt.SwtEngine.ApplicationEventListener;
+ 
+ import java.io.BufferedReader;
+ import java.io.File;
+@@ -65,7 +65,7 @@
+ 	public static boolean startR() {
+ 		//Start R-engine (with progress monitor)
+ 		try {
+-			new ProgressMonitorDialog(Engine.getWindow().getShell()).run(true, true,
++			new ProgressMonitorDialog(SwtEngine.getWindow().getShell()).run(true, true,
+ 					new IRunnableWithProgress() {
+ 				public void run(IProgressMonitor m) throws 	InvocationTargetException, 
+ 				InterruptedException 
+@@ -87,7 +87,7 @@
+ 			return false;
+ 		} finally {
+ 			//Add a listener to close R on closing PathVisio
+-			Engine.addApplicationEventListener(new RController());
++			SwtEngine.addApplicationEventListener(new RController());
+ 		}
+ 
+ 		return true;
+@@ -206,10 +206,10 @@
+ 	
+ 	private static String locateRExec() {
+ 		final StringBuilder cmd = new StringBuilder();
+-		Engine.getWindow().getShell().getDisplay().syncExec(new Runnable() {
++		SwtEngine.getWindow().getShell().getDisplay().syncExec(new Runnable() {
+ 			public void run() {
+ 				String exec = Utils.getOS() == Utils.OS_WINDOWS ? "R.exe" : "R";
+-				InputDialog libDialog = new InputDialog(Engine.getWindow().getShell(),
++				InputDialog libDialog = new InputDialog(SwtEngine.getWindow().getShell(),
+ 						"Unable to find R executable",
+ 						"Unable to locate " + exec + "\nPlease install R (" + WWW_R + ") " +
+ 						" or specify location:", "", null);
+@@ -395,9 +395,9 @@
+ 	}
+ 		
+ 	public static void openError(final String msg, final Throwable e) {
+-		Engine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
++		SwtEngine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
+ 			public void run() {
+-				MessageDialog.openError(Engine.getWindow().getShell(), 
++				MessageDialog.openError(SwtEngine.getWindow().getShell(), 
+ 						ERR_MSG_PRE, (msg == null ? "" : msg + "\n \n Details:\n") + e.getMessage() + 
+ 						" (" + e.getClass().getName() + ")");
+ 			}
+Index: branches/g2d-branch/src/v2/org/pathvisio/R/RFunctionLoader.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/R/RFunctionLoader.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/R/RFunctionLoader.java	(revision 936)
+@@ -53,7 +53,7 @@
+ import org.eclipse.swt.widgets.Text;
+ import org.pathvisio.R.RCommands.RException;
+ import org.pathvisio.R.wizard.RWizard;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.JarUtils;
+ import org.pathvisio.util.Utils;
+ import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+@@ -69,7 +69,7 @@
+ 	
+ 	
+ 	public static void loadFunctions() throws IOException, RException {
+-		URL url = Engine.getResourceURL(FUN_DIR);
++		URL url = SwtEngine.getResourceURL(FUN_DIR);
+ 		
+ 		String protocol = url.getProtocol();
+ 		if(protocol.equals("jar")) {
+Index: branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java
+===================================================================
+--- branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 935)
++++ branches/g2d-branch/src/v2/org/pathvisio/gui/swt/MainWindow.java	(revision 936)
+@@ -19,7 +19,6 @@
+ import java.io.File;
+ import java.net.URL;
+ import java.util.Vector;
+-import java.util.prefs.Preferences;
+ 
+ import org.eclipse.jface.action.Action;
+ import org.eclipse.jface.action.ActionContributionItem;
+@@ -51,7 +50,10 @@
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Menu;
+ import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.R.RController;
+ import org.pathvisio.R.RDataIn;
+ import org.pathvisio.R.RCommands.RException;
+@@ -62,14 +64,11 @@
+ import org.pathvisio.data.GexImportWizard;
+ import org.pathvisio.data.Gex.ExpressionDataEvent;
+ import org.pathvisio.data.Gex.ExpressionDataListener;
+-import org.pathvisio.gui.swt.Engine.ApplicationEvent;
+-import org.pathvisio.gui.swt.Engine.ApplicationEventListener;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.PathwaySearchComposite;
+ import org.pathvisio.view.GeneProduct;
+ import org.pathvisio.view.VPathway;
+-import org.pathvisio.view.swt.VPathwaySWT;
+ import org.pathvisio.visualization.LegendPanel;
+ import org.pathvisio.visualization.VisualizationDialog;
+ import org.pathvisio.visualization.VisualizationManager;
+@@ -221,11 +220,11 @@
+ 			{
+ 				deselectNewItemActions();
+ 				setChecked(true);
+-				Engine.getVPathway().setNewGraphics(element);
++				Engine.getActiveVPathway().setNewGraphics(element);
+ 			}
+ 			else
+ 			{	
+-				Engine.getVPathway().setNewGraphics(VPathway.NEWNONE);
++				Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+ 			}
+ 		}
+ 		
+@@ -285,7 +284,7 @@
+ 		public void run () {
+ 			if(Engine.isDrawingOpen())
+ 			{
+-				VPathway drawing = Engine.getVPathway();
++				VPathway drawing = Engine.getActiveVPathway();
+ 				if(isChecked())
+ 				{
+ 					//Switch to edit mode: show edit toolbar, show property table in sidebar
+@@ -321,7 +320,7 @@
+ 
+ 		public void applicationEvent(ApplicationEvent e) {
+ 			if(e.type == ApplicationEvent.OPEN_PATHWAY) {
+-				Engine.getVPathway().setEditMode(isChecked());
++				Engine.getActiveVPathway().setEditMode(isChecked());
+ 			}
+ 			else if(e.type == ApplicationEvent.NEW_PATHWAY) {
+ 				switchEditMode(true);
+@@ -387,7 +386,7 @@
+ 	{
+ 		if(Engine.isDrawingOpen())
+ 		{
+-			VPathway drawing = Engine.getVPathway();
++			VPathway drawing = Engine.getActiveVPathway();
+ 			//Check for neccesary connections
+ 			if(Gex.isConnected() && Gdb.isConnected())
+ 			{
+@@ -741,7 +740,7 @@
+ 				((ActionContributionItem)items[i]).getAction().setChecked(false);
+ 			}
+ 		}
+-		Engine.getVPathway().setNewGraphics(VPathway.NEWNONE);
++		Engine.getActiveVPathway().setNewGraphics(VPathway.NEWNONE);
+ 	}
+ 	
+ 	// Elements of the coolbar
+@@ -918,7 +917,7 @@
+ 		dataMenu.add(createGexAction);
+ 		dataMenu.add(colorSetManagerAction);
+ 		dataMenu.add(visualizationDialogAction);
+-		if(Engine.USE_R) {
++		if(SwtEngine.USE_R) {
+ 			MenuManager statsMenu = new MenuManager("&Pathway statistics");
+ 			dataMenu.add(statsMenu);
+ 			statsMenu.add(rStatsAction);
+@@ -996,7 +995,7 @@
+ 		
+ 		GuiMain.loadImages(shell.getDisplay());
+ 		
+-		shell.setImage(Engine.getImageRegistry().get("shell.icon"));
++		shell.setImage(SwtEngine.getImageRegistry().get("shell.icon"));
+ 		
+ 		Composite viewComposite = new Composite(parent, SWT.NULL);
+ 		viewComposite.setLayout(new FillLayout());
+@@ -1048,28 +1047,16 @@
+ 		
+ 		else rightPanel.hideTab("Legend");
+ 	}
+-			
+-	/**
+-	 * Creates a new empty drawing canvas
+-	 * @return the empty {@link VPathway}
+-	 */
+-	public VPathway createNewDrawing()
+-	{		
+-		VPathwaySWT pswt = new VPathwaySWT(sc, SWT.NO_BACKGROUND);
+-		VPathway p = new VPathway(pswt);
+-		pswt.setChild(p);
+-		return p;
+-	}
+-	
++				
+ 	public void applicationEvent(ApplicationEvent e) {
+ 		VPathway drawing = null;
+ 		switch(e.type) {
+ 		case ApplicationEvent.NEW_PATHWAY:
+-			drawing = Engine.getVPathway();
++			drawing = Engine.getActiveVPathway();
+ 			sc.setContent((Canvas)drawing.getWrapper());
+ 			break;
+ 		case ApplicationEvent.OPEN_PATHWAY:
+-			drawing = Engine.getVPathway();
++			drawing = Engine.getActiveVPathway();
+ 			sc.setContent((Canvas)drawing.getWrapper());
+ 			if(Gex.isConnected()) cacheExpressionData();
+ 			break;	
+Index: branches/g2d-branch/src/core/org/pathvisio/model/PathwayImporter.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/PathwayImporter.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/model/PathwayImporter.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.model;
+ 
+-import java.io.File;
++import java.io.File;
+ 
+ public interface PathwayImporter {
+ 	public String getName();
+Index: branches/g2d-branch/src/core/org/pathvisio/model/PathwayExporter.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/PathwayExporter.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/model/PathwayExporter.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.model;
+ 
+-import java.io.File;
++import java.io.File;
+ 
+ public interface PathwayExporter {
+ 	public String getName();
+Index: branches/g2d-branch/src/core/org/pathvisio/model/MappFormat.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/MappFormat.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/model/MappFormat.java	(revision 936)
+@@ -33,8 +33,8 @@
+ import java.util.List;
+ import java.util.Map;
+ 
++import org.pathvisio.Engine;
+ import org.pathvisio.data.DataSources;
+-import org.pathvisio.gui.swt.Engine;
+ 
+ /**
+  * The class MappFormat is responsible for all interaction with 
+Index: branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/model/GpmlFormat.java	(revision 936)
+@@ -30,7 +30,7 @@
+ import org.jdom.Document;
+ import org.jdom.Element;
+ import org.jdom.Namespace;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ 
+ /**
+  * class responsible for interaction with Gpml format.
+Index: branches/g2d-branch/src/core/org/pathvisio/model/ImageExporter.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/model/ImageExporter.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/model/ImageExporter.java	(revision 936)
+@@ -16,20 +16,20 @@
+ //
+ package org.pathvisio.model;
+ 
+-import java.io.File;
+-import java.io.FileOutputStream;
+-import java.io.OutputStream;
++import java.io.File;
++import java.io.FileOutputStream;
++import java.io.OutputStream;
++
++import org.apache.batik.transcoder.Transcoder;
++import org.apache.batik.transcoder.TranscoderInput;
++import org.apache.batik.transcoder.TranscoderOutput;
++import org.apache.batik.transcoder.image.ImageTranscoder;
++import org.apache.batik.transcoder.image.PNGTranscoder;
++import org.apache.batik.transcoder.image.TIFFTranscoder;
++import org.jdom.Document;
++import org.jdom.JDOMException;
++import org.jdom.output.DOMOutputter;
+ 
+-import org.apache.batik.transcoder.Transcoder;
+-import org.apache.batik.transcoder.TranscoderInput;
+-import org.apache.batik.transcoder.TranscoderOutput;
+-import org.apache.batik.transcoder.image.ImageTranscoder;
+-import org.apache.batik.transcoder.image.PNGTranscoder;
+-import org.apache.batik.transcoder.image.TIFFTranscoder;
+-import org.jdom.Document;
+-import org.jdom.JDOMException;
+-import org.jdom.output.DOMOutputter;
+-
+ public class ImageExporter implements PathwayExporter {
+ 	public static final int TYPE_PNG = 0;
+ 	public static final int TYPE_TIFF = 1;
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/swt/SwtPreferences.java	(revision 936)
+@@ -18,12 +18,12 @@
+ 
+ import java.io.File;
+ import java.io.IOException;
+-import java.util.Collection;
+ 
+ import org.eclipse.jface.preference.PreferenceStore;
+ import org.eclipse.jface.util.IPropertyChangeListener;
+ import org.eclipse.jface.util.PropertyChangeEvent;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.Preference;
+ import org.pathvisio.preferences.PreferenceCollection;
+@@ -34,7 +34,7 @@
+  * This class contains all user preferences used in this application
+  */
+ public class SwtPreferences extends PreferenceStore implements PreferenceCollection, IPropertyChangeListener {
+-	private static final File preferenceFile = new File(Engine.getApplicationDir(), ".PathVisio");
++	private static final File preferenceFile = new File(SwtEngine.getApplicationDir(), ".PathVisio");
+ 	
+ 	public SwtPreferences() {
+ 		this(preferenceFile.toString());
+@@ -137,13 +137,13 @@
+ 			//if(e.getNewValue() instanceof RGB) Graphics.selectColor = (RGB)e.getNewValue();
+ 			//else 
+ 				Graphics.selectColor = ColorConverter.parseColorString((String)e.getNewValue());
+-			Engine.getVPathway().redraw();
++			Engine.getActiveVPathway().redraw();
+ 		}
+ 		else if(e.getProperty().equals(GlobalPreference.COLOR_HIGHLIGHTED.name())) {
+ 			//if(e.getNewValue() instanceof RGB) Graphics.highlightColor = (RGB)e.getNewValue();
+ 			//else 
+ 				Graphics.highlightColor = ColorConverter.parseColorString((String)e.getNewValue());
+-			Engine.getVPathway().redraw();
++				Engine.getActiveVPathway().redraw();
+ 		}
+ 		else if(e.getProperty().startsWith("directories")) {
+ 			createDataDirectories();
+@@ -151,10 +151,10 @@
+ 	}
+ 	
+ 	public enum SwtPreference implements Preference {
+-		SWT_DIR_PWFILES(new File(Engine.getDataDir().toString(), "pathways").toString()),
+-		SWT_DIR_GDB(new File(Engine.getDataDir().toString(), "gene databases").toString()),
+-		SWT_DIR_EXPR(new File(Engine.getDataDir().toString(), "expression datasets").toString()),
+-		SWT_DIR_RDATA(new File(Engine.getDataDir().toString(), "R data").toString()),
++		SWT_DIR_PWFILES(new File(SwtEngine.getDataDir().toString(), "pathways").toString()),
++		SWT_DIR_GDB(new File(SwtEngine.getDataDir().toString(), "gene databases").toString()),
++		SWT_DIR_EXPR(new File(SwtEngine.getDataDir().toString(), "expression datasets").toString()),
++		SWT_DIR_RDATA(new File(SwtEngine.getDataDir().toString(), "R data").toString()),
+ 
+ 		SWT_CURR_GDB("none"),
+ 		SWT_DB_ENGINE_GDB("org.pathvisio.data.DBConnDerby"),
+Index: branches/g2d-branch/src/core/org/pathvisio/preferences/swt/PreferenceDlg.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/preferences/swt/PreferenceDlg.java	(revision 936)
+@@ -24,7 +24,7 @@
+ import org.eclipse.jface.preference.PreferenceManager;
+ import org.eclipse.jface.preference.PreferenceNode;
+ import org.eclipse.jface.preference.StringFieldEditor;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ 
+@@ -76,7 +76,7 @@
+ 					"Expression datasets:", getFieldEditorParent());
+ 			addField(d3);
+ 
+-			if(Engine.isUseR()) {
++			if(SwtEngine.isUseR()) {
+ 				DirectoryFieldEditor d4 = new DirectoryFieldEditor(SwtPreference.SWT_DIR_RDATA.name(),
+ 						"Results from pathway statistics:", getFieldEditorParent());
+ 				addField(d4);
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/Visualization.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/Visualization.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/Visualization.java	(revision 936)
+@@ -38,10 +38,10 @@
+ import org.eclipse.swt.widgets.Listener;
+ import org.eclipse.swt.widgets.Shell;
+ import org.jdom.Element;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gex.ExpressionDataEvent;
+ import org.pathvisio.data.Gex.ExpressionDataListener;
+-import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.util.Utils;
+ import org.pathvisio.view.Graphics;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationDialog.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationDialog.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationDialog.java	(revision 936)
+@@ -63,14 +63,14 @@
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+ import org.eclipse.swt.widgets.Text;
+-
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
++import org.pathvisio.data.Gex;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.TableColumnResizer;
+ import org.pathvisio.util.Utils;
+ import org.pathvisio.visualization.Visualization.PluginSet;
+ import org.pathvisio.visualization.colorset.ColorSetComposite;
+ import org.pathvisio.visualization.plugins.PluginManager;
+-import org.pathvisio.data.Gex;
+ 
+ /**
+  * Dialog to configure visualizations
+@@ -577,9 +577,9 @@
+ 	}
+ 	
+ 	class PluginTableLabelProvider implements ITableLabelProvider {
+-		final Image checkTrue = Engine.getImageRegistry().get("checkbox.checked");
+-		final Image checkFalse = Engine.getImageRegistry().get("checkbox.unchecked");
+-		final Image checkUnavailable = Engine.getImageRegistry().get("checkbox.unavailable");
++		final Image checkTrue = SwtEngine.getImageRegistry().get("checkbox.checked");
++		final Image checkFalse = SwtEngine.getImageRegistry().get("checkbox.unchecked");
++		final Image checkUnavailable = SwtEngine.getImageRegistry().get("checkbox.unavailable");
+ 		
+ 		public String getColumnText(Object element, int columnIndex) {
+ 			PluginSet ps = (PluginSet)element;
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/plugins/PluginManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/plugins/PluginManager.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/plugins/PluginManager.java	(revision 936)
+@@ -36,13 +36,13 @@
+ import org.jdom.input.SAXBuilder;
+ import org.jdom.output.Format;
+ import org.jdom.output.XMLOutputter;
+-
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
++import org.pathvisio.data.Gex;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.Utils;
+ import org.pathvisio.visualization.Visualization;
+ import org.pathvisio.visualization.VisualizationManager;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+-import org.pathvisio.data.Gex;
+ 
+ public abstract class PluginManager {
+ 	//static final String PLUGIN_PKG = "org.pathvisio.visualization.plugins";
+@@ -118,7 +118,7 @@
+ 	public static void loadPlugins() throws Throwable {	
+ 		Engine.log.trace("> Loading visualization plugins");
+ 		Enumeration<URL> resources = 
+-			Engine.class.getClassLoader().getResources(".");
++			SwtEngine.class.getClassLoader().getResources(".");
+         while (resources.hasMoreElements()) {
+         	URL url = resources.nextElement();
+         	Engine.log.trace("visualization.plugins package found in: " + url);
+@@ -156,7 +156,7 @@
+ 	
+ 	static Document getAdditionalXML() {
+ 		if(addDoc == null) {
+-			File f = new File(Engine.getApplicationDir(), FILE_ADD_PLUGINS);
++			File f = new File(SwtEngine.getApplicationDir(), FILE_ADD_PLUGINS);
+ 			if(!f.exists()) {
+ 				return createXML();
+ 			} else {
+@@ -226,7 +226,7 @@
+ 	static void saveXML(Document doc) {
+ 		XMLOutputter out = new XMLOutputter(Format.getPrettyFormat());
+ 		try {
+-			FileWriter fw = new FileWriter(new File(Engine.getApplicationDir(), FILE_ADD_PLUGINS));
++			FileWriter fw = new FileWriter(new File(SwtEngine.getApplicationDir(), FILE_ADD_PLUGINS));
+ 			out.output(doc, fw);
+ 			fw.close();
+ 		} catch(IOException e) {
+@@ -260,7 +260,7 @@
+ 			if(fn.endsWith(".class") && !fn.contains("$")) { //Ignore inner classes for now
+ 				String cn = fn.substring(base.length() + 1);
+ 				cn = removeClassExt(cn.replace('/', '.'));
+-				addPlugin(Class.forName(cn, false, Engine.class.getClassLoader()));
++				addPlugin(Class.forName(cn, false, SwtEngine.class.getClassLoader()));
+ 			}
+ 		}
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/CriterionComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/CriterionComposite.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/CriterionComposite.java	(revision 936)
+@@ -31,7 +31,6 @@
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.List;
+ import org.eclipse.swt.widgets.Text;
+-
+ import org.pathvisio.data.Gex;
+ 
+ public class CriterionComposite extends Composite {
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetManager.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetManager.java	(revision 936)
+@@ -25,7 +25,6 @@
+ import org.jdom.Element;
+ import org.jdom.JDOMException;
+ import org.jdom.input.SAXBuilder;
+-
+ import org.pathvisio.visualization.VisualizationManager;
+ import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSet.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSet.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSet.java	(revision 936)
+@@ -25,7 +25,8 @@
+ import org.eclipse.jface.dialogs.MessageDialog;
+ import org.eclipse.swt.graphics.RGB;
+ import org.jdom.Element;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.GlobalPreference;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.visualization.VisualizationManager;
+@@ -212,7 +213,7 @@
+ 	static void printParseError(String criterion, Exception e) {
+ 		Engine.log.error("Unable to parse colorset data stored in " +
+ 				"expression database: " + criterion, e);
+-		MessageDialog.openWarning(Engine.getWindow().getShell(), 
++		MessageDialog.openWarning(SwtEngine.getWindow().getShell(), 
+ 					"Warning", "Unable to parse the colorset data in this expression dataset");
+ 	}
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorGradient.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorGradient.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorGradient.java	(revision 936)
+@@ -46,7 +46,7 @@
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+ import org.jdom.Element;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.util.TableColumnResizer;
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorCriterion.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorCriterion.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorCriterion.java	(revision 936)
+@@ -16,11 +16,11 @@
+ //
+ package org.pathvisio.visualization.colorset;
+ 
++import java.awt.Color;
+ import java.util.HashMap;
+ 
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.custom.CLabel;
+-import java.awt.Color;
+ import org.eclipse.swt.graphics.RGB;
+ import org.eclipse.swt.layout.GridData;
+ import org.eclipse.swt.layout.GridLayout;
+@@ -32,7 +32,7 @@
+ import org.eclipse.swt.widgets.Listener;
+ import org.eclipse.swt.widgets.Text;
+ import org.jdom.Element;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ import org.pathvisio.util.ColorConverter;
+ import org.pathvisio.util.SwtUtils;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetComposite.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/ColorSetComposite.java	(revision 936)
+@@ -65,7 +65,6 @@
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+ import org.eclipse.swt.widgets.Text;
+-
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.util.TableColumnResizer;
+ import org.pathvisio.util.Utils;
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/Criterion.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/Criterion.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/colorset/Criterion.java	(revision 936)
+@@ -19,12 +19,11 @@
+ import java.util.HashMap;
+ 
+ import org.eclipse.swt.widgets.Composite;
+-
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.visualization.VisualizationManager;
+-import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.data.Gex.Sample;
++import org.pathvisio.visualization.VisualizationManager;
++import org.pathvisio.visualization.VisualizationManager.VisualizationEvent;
+ 
+ public class Criterion {
+ 	static final String displaySample = "|Displayed sample|";
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationManager.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/VisualizationManager.java	(revision 936)
+@@ -43,16 +43,16 @@
+ import org.jdom.input.SAXBuilder;
+ import org.jdom.output.Format;
+ import org.jdom.output.XMLOutputter;
+-
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.gui.swt.Engine.ApplicationEvent;
+-import org.pathvisio.gui.swt.Engine.ApplicationEventListener;
++import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
++import org.pathvisio.data.Gex;
++import org.pathvisio.data.Gex.ExpressionDataEvent;
++import org.pathvisio.data.Gex.ExpressionDataListener;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.view.Graphics;
+ import org.pathvisio.view.SelectionBox;
+ import org.pathvisio.view.SelectionBox.SelectionListener;
+-import org.pathvisio.data.Gex;
+-import org.pathvisio.data.Gex.ExpressionDataEvent;
+-import org.pathvisio.data.Gex.ExpressionDataListener;
+ 
+ /**
+  * Manages visualizations
+@@ -204,7 +204,7 @@
+ 	}
+ 	
+ 	static File getGenericFile() {
+-		return new File(Engine.getApplicationDir(), FILENAME_GENERIC);
++		return new File(SwtEngine.getApplicationDir(), FILENAME_GENERIC);
+ 	}
+ 	
+ 	static VisComboItem visComboItem = new VisComboItem("VisualizationCombo");
+Index: branches/g2d-branch/src/core/org/pathvisio/visualization/LegendPanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/visualization/LegendPanel.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/visualization/LegendPanel.java	(revision 936)
+@@ -16,6 +16,8 @@
+ //
+ package org.pathvisio.visualization;
+ 
++import static org.pathvisio.visualization.LegendPanel.FONT;
++
+ import java.util.ArrayList;
+ import java.util.EventObject;
+ import java.util.List;
+@@ -45,7 +47,7 @@
+ import org.eclipse.swt.widgets.Control;
+ import org.eclipse.swt.widgets.Group;
+ import org.eclipse.swt.widgets.Label;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.util.SwtUtils;
+ import org.pathvisio.visualization.LegendPanel.CollapseGroup.CollapseListener;
+ import org.pathvisio.visualization.Visualization.PluginSet;
+@@ -726,7 +728,7 @@
+ 				gd.heightHint = computeSize(SWT.DEFAULT, SWT.DEFAULT).y;
+ 			}
+ 			layout();
+-			switchLabel.setImage(Engine.getImageRegistry().get(
++			switchLabel.setImage(SwtEngine.getImageRegistry().get(
+ 					expanded ? "tree.expanded" : "tree.collapsed"));
+ 		}
+ 		
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxDialog.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxDialog.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxDialog.java	(revision 936)
+@@ -9,8 +9,8 @@
+ import org.eclipse.swt.widgets.Control;
+ import org.eclipse.swt.widgets.Shell;
+ import org.eclipse.swt.widgets.Text;
++import org.pathvisio.Engine;
+ import org.pathvisio.biopax.BiopaxManager;
+-import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxCellEditor.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxCellEditor.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/gui/BiopaxCellEditor.java	(revision 936)
+@@ -7,8 +7,8 @@
+ import org.eclipse.swt.widgets.Button;
+ import org.eclipse.swt.widgets.Composite;
+ import org.jdom.Document;
++import org.pathvisio.Engine;
+ import org.pathvisio.gui.swt.ButtonCellEditor;
+-import org.pathvisio.gui.swt.Engine;
+ 
+ public class BiopaxCellEditor extends ButtonCellEditor {
+ 	Document biopax;
+@@ -21,7 +21,7 @@
+ 		b.addSelectionListener(new SelectionAdapter() {
+ 			public void widgetSelected(SelectionEvent e) {
+ 				BiopaxDialog d = new BiopaxDialog(e.display.getActiveShell());
+-				d.setPathway(Engine.getPathway());
++				d.setPathway(Engine.getActivePathway());
+ 				d.open();
+ 			}
+ 		});
+Index: branches/g2d-branch/src/core/org/pathvisio/biopax/BiopaxManager.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/biopax/BiopaxManager.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/biopax/BiopaxManager.java	(revision 936)
+@@ -13,7 +13,7 @@
+ import org.jdom.input.SAXBuilder;
+ import org.jdom.output.Format;
+ import org.jdom.output.XMLOutputter;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.util.Utils;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/Engine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/Engine.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/Engine.java	(revision 936)
+@@ -1,336 +0,0 @@
+-// PathVisio,
+-// a tool for data visualization and analysis using Biological Pathways
+-// Copyright 2006-2007 BiGCaT Bioinformatics
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License"); 
+-// you may not use this file except in compliance with the License. 
+-// You may obtain a copy of the License at 
+-// 
+-// http://www.apache.org/licenses/LICENSE-2.0 
+-//  
+-// Unless required by applicable law or agreed to in writing, software 
+-// distributed under the License is distributed on an "AS IS" BASIS, 
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-// See the License for the specific language governing permissions and 
+-// limitations under the License.
+-//
+-package org.pathvisio.gui.swt;
+-
+-import java.awt.Color;
+-import java.io.File;
+-import java.net.URL;
+-import java.util.ArrayList;
+-import java.util.EventObject;
+-import java.util.HashMap;
+-import java.util.List;
+-
+-import org.eclipse.jface.dialogs.MessageDialog;
+-import org.eclipse.jface.resource.ImageRegistry;
+-import org.eclipse.jface.window.ApplicationWindow;
+-import org.eclipse.swt.graphics.DeviceData;
+-import org.eclipse.swt.widgets.Display;
+-import org.eclipse.swt.widgets.Shell;
+-import org.pathvisio.Globals;
+-import org.pathvisio.data.DBConnector;
+-import org.pathvisio.debug.Logger;
+-import org.pathvisio.debug.Sleak;
+-import org.pathvisio.model.ConverterException;
+-import org.pathvisio.model.Pathway;
+-import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.model.PathwayExporter;
+-import org.pathvisio.preferences.PreferenceCollection;
+-import org.pathvisio.preferences.swt.SwtPreferences;
+-import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+-import org.pathvisio.util.Utils;
+-import org.pathvisio.view.VPathway;
+-
+-/**
+- * This class contains the essential parts of the program: the window, drawing and gpml data
+- */
+-public abstract class Engine {
+-	public static final String SVG_FILE_EXTENSION = "svg";
+-	public static final String SVG_FILTER_NAME = "Scalable Vector Graphics (*." + SVG_FILE_EXTENSION + ")";
+-	public static final String PATHWAY_FILE_EXTENSION = "gpml";
+-	public static final String PATHWAY_FILTER_NAME = "PathVisio Pathway (*." + PATHWAY_FILE_EXTENSION + ")";
+-	public static final String GENMAPP_FILE_EXTENSION = "mapp";
+-	public static final String GENMAPP_FILTER_NAME = "GenMAPP Pathway (*." + GENMAPP_FILE_EXTENSION + ")";
+-	
+-	/**
+-	 * the transparent color used in the icons for visualization of protein/mrna data
+-	 */
+-	public static final Color TRANSPARENT_COLOR = new Color(255, 0, 255);
+-	
+-	/**
+-	 * {@link Pathway} object containing JDOM representation of the gpml pathway 
+-	 * and handle gpml related actions
+-	 */
+-	
+-	static MainWindow window;
+-	static VPathway vPathway;
+-	static Pathway pathway;
+-	
+-	private static ImageRegistry imageRegistry;
+-	private static SwtPreferences preferences;
+-	public static final Logger log = new Logger();
+-	
+-	private static File DIR_APPLICATION;
+-	private static File DIR_DATA;
+-	static boolean USE_R;
+-		
+-	/**
+-	 * Get the {@link ApplicationWindow}, the UI of the program
+-	 */
+-	public static MainWindow getWindow() {
+-		if(window == null) window = new MainWindow();
+-		return window;
+-	}
+-	
+-	/**
+-	 * Initiates an instance of {@link MainWindow} that is monitored by Sleak.java,
+-	 * to monitor what handles (to OS device context) are in use. For debug purposes only 
+-	 * (to check for undisposed widgets)
+-	 * @return The {@link MainWindow} monitored by Sleak.java
+-	 */
+-	public static MainWindow getSleakWindow() {
+-		//<DEBUG to find undisposed system resources>
+-		DeviceData data = new DeviceData();
+-		data.tracking = true;
+-		Display display = new Display(data);
+-		Sleak sleak = new Sleak();
+-		sleak.open();
+-		
+-		Shell shell = new Shell(display);
+-		window = new MainWindow(shell);
+-		return window;
+-		//</DEBUG>
+-	}
+-	
+-	/**
+-	 * Get the {@link SwtPreferences} containing the user preferences
+-	 */
+-	public static PreferenceCollection getPreferences() { 
+-		if(preferences == null) preferences = new SwtPreferences();
+-		return preferences; 
+-	}
+-	
+-	/**
+-	 * Get the {@link ImageRegistry} containing commonly used images
+-	 */
+-	public static ImageRegistry getImageRegistry() { 
+-		if(imageRegistry == null) imageRegistry = new ImageRegistry();
+-		return imageRegistry; 
+-	}
+-	
+-	/**
+-	 * Set the {@link ImageRegistry} containing commonly used images
+-	 */
+-	public static void setImageRegistry(ImageRegistry _imageRegistry) {
+-		imageRegistry = _imageRegistry;
+-	}
+-	
+-	/**
+-	 * Get the {@link URL} for the resource stored in a jar file in the classpath
+-	 * @param name	the filename of the resource
+-	 * @return the URL pointing to the resource
+-	 */
+-	public static URL getResourceURL(String name) {
+-		URL url = Engine.class.getClassLoader().getResource(name);
+-		if(url == null) log.error("Couldn't load resource '" + name + "'");
+-		return url;
+-	}
+-	
+-	/**
+-	 * Gets the currently open drawing
+-	 */
+-	public static VPathway getVPathway() {
+-		return vPathway;
+-	}
+-		
+-	/**
+-	 * Returns the currently open Pathway
+-	 */
+-	public static Pathway getPathway() {
+-		return pathway;
+-	}
+-	
+-	/**
+-	 * application global clipboard.
+-	 */
+-	public static List<PathwayElement> clipboard = null;
+-	
+-	/**
+-	 * Open a pathway from a gpml file
+-	 */
+-	public static void openPathway(String pwf)
+-	{
+-		Pathway _gmmlData = null;
+-		VPathway _drawing = getWindow().createNewDrawing();
+-		
+-		// initialize new JDOM gpml representation and read the file
+-		try { 
+-			
+-			_gmmlData = new Pathway();
+-			if (pwf.endsWith(".mapp"))
+-			{
+-				_gmmlData.readFromMapp(new File(pwf));
+-			}
+-			else
+-			{
+-				_gmmlData.readFromXml(new File(pwf), true);
+-			}
+-		} catch(ConverterException e) {		
+-			if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
+-			{
+-				MessageDialog.openError(getWindow().getShell(), 
+-						"Unable to open Gpml file", 
+-						"Unable to open Gpml file.\n\n" +
+-						"The most likely cause for this error is that you are trying to open an old Gpml file. " +
+-						"Please note that the Gpml format has changed as of March 2007. " +
+-						"The standard pathway set can be re-downloaded from http://pathvisio.org " +
+-						"Non-standard pathways need to be recreated or upgraded. " +
+-						"Please contact the authors at martijn.vaniersel@bigcat.unimaas.nl if you need help with this.\n" +
+-						"\nSee error log for details");
+-				log.error("Unable to open Gpml file", e);
+-			}
+-			else
+-			{
+-				MessageDialog.openError(getWindow().getShell(), 
+-						"Unable to open Gpml file", e.getClass() + e.getMessage());
+-				log.error("Unable to open Gpml file", e);
+-			}
+-		}
+-		
+-		if(_gmmlData != null) //Only continue if the data is correctly loaded
+-		{
+-			vPathway = _drawing;
+-			pathway = _gmmlData;
+-			vPathway.fromGmmlData(_gmmlData);
+-			fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.OPEN_PATHWAY));
+-		}
+-		
+-	}
+-	
+-	/**
+-	 * Create a new pathway (drawing + gpml data)
+-	 */
+-	public static void newPathway() {
+-		pathway = new Pathway();
+-		pathway.initMappInfo();
+-		vPathway = getWindow().createNewDrawing();
+-		vPathway.fromGmmlData(pathway);
+-		fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.NEW_PATHWAY));
+-	}
+-	
+-	/**
+-	 * Find out whether a drawing is currently open or not
+-	 * @return true if a drawing is open, false if not
+-	 */
+-	public static boolean isDrawingOpen() { return vPathway != null; }
+-
+-
+-	private static HashMap<String, PathwayExporter> exporters = new HashMap<String, PathwayExporter>();
+-	
+-	/**
+-	 * Add a {@link PathwayImporterExporter} that handles export of GPML to another file format
+-	 * @param export
+-	 */
+-	public static void addGpmlExporter(PathwayExporter export) {
+-		for(String ext : export.getExtensions()) {
+-			exporters.put(ext, export);
+-		}
+-	}
+-	
+-	public static PathwayExporter getGpmlExporter(String ext) {
+-		return exporters.get(ext);
+-	}
+-	
+-	public static HashMap<String, PathwayExporter> getGpmlExporters() {
+-		return exporters;
+-	}
+-	
+-	/**
+-	 * Get the working directory of this application
+-	 */
+-	public static File getApplicationDir() {
+-		if(DIR_APPLICATION == null) {
+-			DIR_APPLICATION = new File(System.getProperty("user.home"), "." + Globals.APPLICATION_NAME);
+-			if(!DIR_APPLICATION.exists()) DIR_APPLICATION.mkdir();
+-		}
+-		return DIR_APPLICATION;
+-	}
+-		
+-	public static File getDataDir() {
+-		if(DIR_DATA == null) {
+-			DIR_DATA = new File(System.getProperty("user.home"), Globals.APPLICATION_NAME + "-Data");
+-			if(!DIR_DATA.exists()) DIR_DATA.mkdir();
+-		}
+-		return DIR_DATA;
+-	}
+-	
+-	public static DBConnector getDbConnector(int type) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+-		DBConnector connector = null;
+-		String className = null;
+-		switch(type) {
+-		case DBConnector.TYPE_GDB:
+-			className = SwtPreference.SWT_DB_ENGINE_GDB.getValue();
+-			break;
+-		case DBConnector.TYPE_GEX:
+-			className = SwtPreference.SWT_DB_ENGINE_GDB.getValue();
+-			break;
+-		}
+-		if(className == null) return null;
+-		
+-		Class dbc = Class.forName(className);
+-		
+-		if(Utils.isSubClass(dbc, DBConnector.class)) {
+-			connector = (DBConnector)dbc.newInstance();
+-			connector.setDbType(type);
+-		}
+-	
+-		return connector;
+-	}
+-		
+-	public static boolean isUseR() { return USE_R; }
+-	
+-	
+-	static List<ApplicationEventListener> applicationEventListeners  = new ArrayList<ApplicationEventListener>();
+-	
+-	/**
+-	 * Add an {@link ApplicationEventListener}, that will be notified if a
+-	 * property changes that has an effect throughout the program (e.g. opening a pathway)
+-	 * @param l The {@link ApplicationEventListener} to add
+-	 */
+-	public static void addApplicationEventListener(ApplicationEventListener l) {
+-		applicationEventListeners.add(l);
+-	}
+-	
+-	/**
+-	 * Fire a {@link ApplicationEvent} to notify all {@link ApplicationEventListener}s registered
+-	 * to this class
+-	 * @param e
+-	 */
+-	public static void fireApplicationEvent(ApplicationEvent e) {
+-		for(ApplicationEventListener l : applicationEventListeners) l.applicationEvent(e);
+-	}
+-	
+-	public interface ApplicationEventListener {
+-		public void applicationEvent(ApplicationEvent e);
+-	}
+-	
+-	public static class ApplicationEvent extends EventObject {
+-		private static final long serialVersionUID = 1L;
+-		public static final int OPEN_PATHWAY = 1;
+-		public static final int NEW_PATHWAY = 2;
+-		public static final int CLOSE_APPLICATION = 3;
+-
+-		public Object source;
+-		public int type;
+-		
+-		public ApplicationEvent(Object source, int type) {
+-			super(source);
+-			this.source = source;
+-			this.type = type;
+-		}
+-	}
+-
+-}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/AboutDlg.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/AboutDlg.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/AboutDlg.java	(revision 936)
+@@ -63,7 +63,7 @@
+ 		lbl.setLayoutData (gd);
+ 		
+ 		lbl = new Label (shell, SWT.NULL);
+-		lbl.setImage (Engine.getImageRegistry().get("about.logo"));
++		lbl.setImage (SwtEngine.getImageRegistry().get("about.logo"));
+ 
+ 		lbl = new Label (shell, SWT.NULL);
+ 		lbl.setText ("R.M.H. Besseling\nS.P.M.Crijns\nI.Kaashoek\nM.M.Palm\n" +
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/ButtonCellEditor.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/ButtonCellEditor.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/ButtonCellEditor.java	(revision 936)
+@@ -2,7 +2,6 @@
+ 
+ import org.eclipse.jface.viewers.CellEditor;
+ import org.eclipse.swt.SWT;
+-import org.eclipse.swt.layout.FillLayout;
+ import org.eclipse.swt.widgets.Button;
+ import org.eclipse.swt.widgets.Composite;
+ import org.eclipse.swt.widgets.Control;
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/GdbCellEditor.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/GdbCellEditor.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/GdbCellEditor.java	(revision 936)
+@@ -16,35 +16,34 @@
+ //
+ package org.pathvisio.gui.swt;
+ 
+-import java.sql.ResultSet;
+-import java.sql.SQLException;
+-import java.sql.Statement;
+-import java.util.ArrayList;
+-import java.util.HashMap;
+-import java.util.List;
+-
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.FocusAdapter;
+-import org.eclipse.swt.events.FocusEvent;
+-import org.eclipse.swt.events.SelectionAdapter;
+-import org.eclipse.swt.events.SelectionEvent;
+-import org.eclipse.swt.graphics.Point;
+-import org.eclipse.swt.graphics.Rectangle;
+-import org.eclipse.swt.widgets.Button;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Control;
+-import org.eclipse.swt.widgets.Layout;
+-
+-import org.pathvisio.util.SuggestCellEditor;
+-import org.pathvisio.util.SuggestCombo;
+-import org.pathvisio.util.SuggestCombo.SuggestionListener;
+-import org.pathvisio.util.SuggestCombo.SuggestionProvider;
+-import org.pathvisio.data.DataSources;
+-import org.pathvisio.data.Gdb;
+-import org.pathvisio.model.PathwayElement;
+-import org.pathvisio.model.MappFormat;
+-import org.pathvisio.model.PropertyType;
++import java.sql.ResultSet;
++import java.sql.SQLException;
++import java.sql.Statement;
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.List;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.FocusAdapter;
++import org.eclipse.swt.events.FocusEvent;
++import org.eclipse.swt.events.SelectionAdapter;
++import org.eclipse.swt.events.SelectionEvent;
++import org.eclipse.swt.graphics.Point;
++import org.eclipse.swt.graphics.Rectangle;
++import org.eclipse.swt.widgets.Button;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Layout;
++import org.pathvisio.Engine;
++import org.pathvisio.data.DataSources;
++import org.pathvisio.data.Gdb;
+ import org.pathvisio.gui.swt.PropertyPanel.AutoFillData;
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.model.PropertyType;
++import org.pathvisio.util.SuggestCellEditor;
++import org.pathvisio.util.SuggestCombo;
++import org.pathvisio.util.SuggestCombo.SuggestionListener;
++import org.pathvisio.util.SuggestCombo.SuggestionProvider;
+ 
+ public class GdbCellEditor extends SuggestCellEditor implements SuggestionProvider, SuggestionListener {
+ 	public static final int TYPE_IDENTIFIER = 0;
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java	(revision 936)
+@@ -0,0 +1,150 @@
++// PathVisio,
++// a tool for data visualization and analysis using Biological Pathways
++// Copyright 2006-2007 BiGCaT Bioinformatics
++//
++// Licensed under the Apache License, Version 2.0 (the "License"); 
++// you may not use this file except in compliance with the License. 
++// You may obtain a copy of the License at 
++// 
++// http://www.apache.org/licenses/LICENSE-2.0 
++//  
++// Unless required by applicable law or agreed to in writing, software 
++// distributed under the License is distributed on an "AS IS" BASIS, 
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
++// See the License for the specific language governing permissions and 
++// limitations under the License.
++//
++package org.pathvisio.gui.swt;
++
++import java.io.File;
++
++import org.eclipse.jface.dialogs.MessageDialog;
++import org.eclipse.jface.resource.ImageRegistry;
++import org.eclipse.jface.window.ApplicationWindow;
++import org.eclipse.swt.graphics.DeviceData;
++import org.eclipse.swt.widgets.Display;
++import org.eclipse.swt.widgets.Shell;
++import org.pathvisio.Engine;
++import org.pathvisio.Globals;
++import org.pathvisio.debug.Sleak;
++import org.pathvisio.model.ConverterException;
++import org.pathvisio.model.Pathway;
++import org.pathvisio.preferences.PreferenceCollection;
++import org.pathvisio.preferences.swt.SwtPreferences;
++
++/**
++ * This class contains the essential parts of the program: the window, drawing and gpml data
++ */
++public class SwtEngine {
++	/**
++	 * {@link Pathway} object containing JDOM representation of the gpml pathway 
++	 * and handle gpml related actions
++	 */
++	
++	private static MainWindow window;
++	
++	private static ImageRegistry imageRegistry;
++	private static PreferenceCollection preferences;
++	
++	private static File DIR_APPLICATION;
++	private static File DIR_DATA;
++	static boolean USE_R;
++		
++	/**
++	 * Get the {@link ApplicationWindow}, the UI of the program
++	 */
++	public static MainWindow getWindow() {
++		if(window == null) window = new MainWindow();
++		return window;
++	}
++	
++	/**
++	 * Initiates an instance of {@link MainWindow} that is monitored by Sleak.java,
++	 * to monitor what handles (to OS device context) are in use. For debug purposes only 
++	 * (to check for undisposed widgets)
++	 * @return The {@link MainWindow} monitored by Sleak.java
++	 */
++	public static MainWindow getSleakWindow() {
++		//<DEBUG to find undisposed system resources>
++		DeviceData data = new DeviceData();
++		data.tracking = true;
++		Display display = new Display(data);
++		Sleak sleak = new Sleak();
++		sleak.open();
++		
++		Shell shell = new Shell(display);
++		window = new MainWindow(shell);
++		return window;
++		//</DEBUG>
++	}
++	
++	public static void openPathway(String fileName) {
++		try {
++			Engine.openPathway(fileName);
++		} catch(ConverterException e) {		
++			if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
++			{
++				MessageDialog.openError(getWindow().getShell(), 
++						"Unable to open Gpml file", 
++						"Unable to open Gpml file.\n\n" +
++						"The most likely cause for this error is that you are trying to open an old Gpml file. " +
++						"Please note that the Gpml format has changed as of March 2007. " +
++						"The standard pathway set can be re-downloaded from http://pathvisio.org " +
++						"Non-standard pathways need to be recreated or upgraded. " +
++						"Please contact the authors at martijn.vaniersel@bigcat.unimaas.nl if you need help with this.\n" +
++						"\nSee error log for details");
++				Engine.log.error("Unable to open Gpml file", e);
++			}
++			else
++			{
++				MessageDialog.openError(getWindow().getShell(), 
++						"Unable to open Gpml file", e.getClass() + e.getMessage());
++				Engine.log.error("Unable to open Gpml file", e);
++			}
++		}
++	}
++	
++	/**
++	 * Get the {@link SwtPreferences} containing the user preferences
++	 */
++	public static PreferenceCollection getPreferences() { 
++		if(preferences == null) preferences = new SwtPreferences();
++		return preferences; 
++	}
++	
++	/**
++	 * Get the {@link ImageRegistry} containing commonly used images
++	 */
++	public static ImageRegistry getImageRegistry() { 
++		if(imageRegistry == null) imageRegistry = new ImageRegistry();
++		return imageRegistry; 
++	}
++	
++	/**
++	 * Set the {@link ImageRegistry} containing commonly used images
++	 */
++	public static void setImageRegistry(ImageRegistry _imageRegistry) {
++		imageRegistry = _imageRegistry;
++	}
++			
++	/**
++	 * Get the working directory of this application
++	 */
++	public static File getApplicationDir() {
++		if(DIR_APPLICATION == null) {
++			DIR_APPLICATION = new File(System.getProperty("user.home"), "." + Globals.APPLICATION_NAME);
++			if(!DIR_APPLICATION.exists()) DIR_APPLICATION.mkdir();
++		}
++		return DIR_APPLICATION;
++	}
++		
++	public static File getDataDir() {
++		if(DIR_DATA == null) {
++			DIR_DATA = new File(System.getProperty("user.home"), Globals.APPLICATION_NAME + "-Data");
++			if(!DIR_DATA.exists()) DIR_DATA.mkdir();
++		}
++		return DIR_DATA;
++	}
++			
++	public static boolean isUseR() { return USE_R; }
++}
+\ No newline at end of file
+
+Property changes on: branches/g2d-branch/src/core/org/pathvisio/gui/swt/SwtEngine.java
+___________________________________________________________________
+Name: svn:eol-style
+   + native
+
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/PropertyPanel.java	(revision 936)
+@@ -42,6 +42,7 @@
+ import org.eclipse.swt.widgets.Table;
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
++import org.pathvisio.Engine;
+ import org.pathvisio.biopax.gui.BiopaxCellEditor;
+ import org.pathvisio.data.DataSources;
+ import org.pathvisio.model.DataNodeType;
+@@ -475,7 +476,7 @@
+ 				o.setProperty(key, value);
+ 			}
+ 			tableViewer.refresh();
+-			Engine.getVPathway().redrawDirtyRect();
++			Engine.getActiveVPathway().redrawDirtyRect();
+ 		}
+ 	};
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/SidePanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/SidePanel.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/SidePanel.java	(revision 936)
+@@ -88,16 +88,16 @@
+ 					}
+ 				}
+ 			});
+-			minButton.setImage(Engine.getImageRegistry().get("sidepanel.minimize"));
++			minButton.setImage(SwtEngine.getImageRegistry().get("sidepanel.minimize"));
+ 			final Button hideButton = new Button(buttonBar, SWT.PUSH);
+ 			hideButton.setToolTipText("Close this sidepanel (use view menu to open again)");
+ 			hideButton.addSelectionListener(new SelectionAdapter() {
+ 				public void widgetSelected(SelectionEvent e) {
+ 					hide();
+-					Engine.getWindow().showRightPanelAction.setChecked(false);
++					SwtEngine.getWindow().showRightPanelAction.setChecked(false);
+ 				}
+ 			});
+-			hideButton.setImage(Engine.getImageRegistry().get("sidepanel.hide"));
++			hideButton.setImage(SwtEngine.getImageRegistry().get("sidepanel.hide"));
+ 			
+ 			GridData buttonGrid = new GridData();
+ 			buttonGrid.widthHint = 12;
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/CommonActions.java	(revision 936)
+@@ -32,6 +32,7 @@
+ import org.eclipse.jface.resource.ImageDescriptor;
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.widgets.FileDialog;
++import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+ import org.pathvisio.biopax.gui.BiopaxDialog;
+ import org.pathvisio.model.ConverterException;
+@@ -42,6 +43,7 @@
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.SwtUtils.SimpleRunnableWithProgress;
+ import org.pathvisio.view.VPathway;
++import org.pathvisio.view.swt.VPathwaySWT;
+ 
+ /**
+    This class contains a large number of JFace Actions that are both in V1 and V2.
+@@ -59,9 +61,9 @@
+ 		}
+ 		public void run() 
+ 		{
+-			if (Engine.pathway != null)
++			if (Engine.getActivePathway() != null)
+ 			{
+-				Engine.pathway.undo();
++				Engine.getActivePathway().undo();
+ 			}
+ 		}
+ 	}
+@@ -81,12 +83,13 @@
+ 					Engine.getResourceURL("icons/new.gif")));
+ 		}
+ 		public void run () {
+-			if (Engine.pathway == null ||
++			if (Engine.getActivePathway() == null ||
+ 				MessageDialog.openQuestion(window.getShell(), "Discard changes?",
+ 						"Warning: This will discard any changes to " +
+ 						"the current pathway. Are you sure?"))
+ 			{
+-				Engine.newPathway();
++				VPathwaySWT pswt = new VPathwaySWT(window.sc, SWT.NO_BACKGROUND);
++				Engine.newPathway(pswt);
+ 			}
+ 		}
+ 	}
+@@ -106,8 +109,8 @@
+ 		}
+ 		public void run () 
+ 		{
+-			VPathway drawing = Engine.getVPathway();
+-			Pathway gmmlData = Engine.getPathway();
++			VPathway drawing = Engine.getActiveVPathway();
++			Pathway gmmlData = Engine.getActivePathway();
+ 			// Check if a gpml pathway is loaded
+ 			if (drawing != null)
+ 			{
+@@ -197,7 +200,7 @@
+ 	        // Only open pathway if user selected a file
+ 	        
+ 	        if(fnMapp != null) { 
+-	        	Engine.openPathway(fnMapp); 
++	        	SwtEngine.openPathway(fnMapp); 
+ 	        }
+ 		}
+ 	}
+@@ -225,7 +228,7 @@
+ 	        // Only open pathway if user selected a file
+ 	        
+ 	        if(fnMapp != null) { 
+-	        	Engine.openPathway(fnMapp); 
++	        	SwtEngine.openPathway(fnMapp); 
+ 	        }
+ 		}
+ 	}
+@@ -245,8 +248,8 @@
+ 		
+ 		static public void do_run(MainWindow window)
+ 		{
+-			VPathway drawing = Engine.getVPathway();
+-			Pathway gmmlData = Engine.getPathway();
++			VPathway drawing = Engine.getActiveVPathway();
++			Pathway gmmlData = Engine.getActivePathway();
+ 			// Check if a gpml pathway is loaded
+ 			if (drawing != null)
+ 			{
+@@ -328,8 +331,8 @@
+ 			setToolTipText ("Export Pathway to GenMAPP format");
+ 		}
+ 		public void run () {
+-			VPathway drawing = Engine.getVPathway();
+-			Pathway gmmlData = Engine.getPathway();
++			VPathway drawing = Engine.getActiveVPathway();
++			Pathway gmmlData = Engine.getActivePathway();
+ 			// Check if a gpml pathway is loaded
+ 			if (drawing != null)
+ 			{
+@@ -346,7 +349,7 @@
+ 				}
+ 				
+ 				ArrayList<FileType> fts = new ArrayList<FileType>();
+-				HashMap<String, PathwayExporter> exporters = Engine.getGpmlExporters();
++				HashMap<String, PathwayExporter> exporters = Engine.getPathwayExporters();
+ 								
+ 				for(String ext : exporters.keySet()) {
+ 					fts.add(new FileType(
+@@ -386,7 +389,7 @@
+ 				if(dot >= 0) {
+ 					ext = fileName.substring(dot + 1, fileName.length());
+ 				}
+-				PathwayExporter exporter = Engine.getGpmlExporter(ext);
++				PathwayExporter exporter = Engine.getPathwayExporter(ext);
+ 				
+ 				if(exporter == null) 
+ 					MessageDialog.openError (window.getShell(), "Error", 
+@@ -473,7 +476,7 @@
+ 		public void run () {
+ 			PreferenceManager pg = new PreferenceDlg();
+ 			PreferenceDialog pd = new PreferenceDialog(window.getShell(), pg);
+-			pd.setPreferenceStore((SwtPreferences)Engine.getPreferences());
++			pd.setPreferenceStore((SwtPreferences)SwtEngine.getPreferences());
+ 			pd.open();
+ 		}
+ 	}
+@@ -507,7 +510,7 @@
+ 			}
+ 		}
+ 		public void run () {
+-			VPathway drawing = Engine.getVPathway();
++			VPathway drawing = Engine.getActiveVPathway();
+ 			if (drawing != null)
+ 			{
+ 				double newPctZoomFactor = pctZoomFactor;
+@@ -592,7 +595,7 @@
+ 		}
+ 		public void run()
+ 		{
+-			Engine.vPathway.copyToClipboard();
++			Engine.getActiveVPathway().copyToClipboard();
+ 		}
+ 	}
+ 
+@@ -607,7 +610,7 @@
+ 		}
+ 		public void run()
+ 		{
+-			Engine.vPathway.pasteFromClipboad();
++			Engine.getActiveVPathway().pasteFromClipboad();
+ 		}
+ 	}
+ 	
+@@ -626,8 +629,8 @@
+ 		}
+ 		
+ 		public void run () {
+-			Pathway gmmlData = Engine.getPathway();
+-			VPathway drawing = Engine.getVPathway();
++			Pathway gmmlData = Engine.getActivePathway();
++			VPathway drawing = Engine.getActiveVPathway();
+ 			
+ 			double usedZoom = drawing.getPctZoom();
+ 			// Set zoom to 100%
+@@ -670,7 +673,7 @@
+ 		
+ 		public void run () {
+ 			BiopaxDialog d = new BiopaxDialog(window.getShell());
+-			d.setPathway(Engine.getPathway());
++			d.setPathway(Engine.getActivePathway());
+ 			d.open();
+ 		}
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/GuiMain.java	(revision 936)
+@@ -24,6 +24,7 @@
+ import org.eclipse.swt.graphics.Image;
+ import org.eclipse.swt.graphics.ImageData;
+ import org.eclipse.swt.widgets.Display;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.Gdb;
+ import org.pathvisio.data.Gex;
+ import org.pathvisio.model.ImageExporter;
+@@ -56,14 +57,14 @@
+ 			}
+ 			else if(a.equalsIgnoreCase("--UseR") ||
+ 					a.equalsIgnoreCase("-ur")) {
+-				Engine.USE_R = true;
++				SwtEngine.USE_R = true;
+ 			}
+ 		}
+ 		
+ 		//Setup the application window
+ 		MainWindow window = null;
+-		if(debugHandles)	window = Engine.getSleakWindow();
+-		else				window = Engine.getWindow();
++		if(debugHandles)	window = SwtEngine.getSleakWindow();
++		else				window = SwtEngine.getWindow();
+ 		
+ 		initiate();
+ 		
+@@ -87,7 +88,7 @@
+ 	public static void initiate() {
+ 		//initiate logger
+ 		try { 
+-			GlobalPreference.FILE_LOG.setDefault(new File(Engine.getApplicationDir(), ".PathVisioLog").toString());
++			GlobalPreference.FILE_LOG.setDefault(new File(SwtEngine.getApplicationDir(), ".PathVisioLog").toString());
+ 			Engine.log.setStream(new PrintStream(GlobalPreference.FILE_LOG.getValue())); 
+ 		} catch(Exception e) {}
+ 		Engine.log.setLogLevel(true, true, true, true, true, true);//Modify this to adjust log level
+@@ -140,11 +141,11 @@
+ 	}
+ 	
+ 	static void registerExporters() {
+-		Engine.addGpmlExporter(new MappFormat());
+-		Engine.addGpmlExporter(new SvgFormat());
+-		Engine.addGpmlExporter(new ImageExporter(ImageExporter.TYPE_PNG));
+-		Engine.addGpmlExporter(new ImageExporter(ImageExporter.TYPE_TIFF));
+-		Engine.addGpmlExporter(new ImageExporter(ImageExporter.TYPE_PDF));
++		Engine.addPathwayExporter(new MappFormat());
++		Engine.addPathwayExporter(new SvgFormat());
++		Engine.addPathwayExporter(new ImageExporter(ImageExporter.TYPE_PNG));
++		Engine.addPathwayExporter(new ImageExporter(ImageExporter.TYPE_TIFF));
++		Engine.addPathwayExporter(new ImageExporter(ImageExporter.TYPE_PDF));
+ 	}
+ 	
+ 	static void loadVisualizations() {
+@@ -159,7 +160,7 @@
+ 	}
+ 	
+ 	static void loadPreferences() {
+-		Engine.getPreferences();
++		SwtEngine.getPreferences();
+ 	}
+ 	
+ 	/**
+@@ -198,7 +199,7 @@
+ 				ImageDescriptor.createFromURL(cl.getResource("icons/tree_collapsed.gif")));
+ 		imageRegistry.put("tree.expanded",
+ 				ImageDescriptor.createFromURL(cl.getResource("icons/tree_expanded.gif")));
+-		Engine.setImageRegistry(imageRegistry);
++		SwtEngine.setImageRegistry(imageRegistry);
+ 	}
+ 	
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/gui/swt/BackpagePanel.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/gui/swt/BackpagePanel.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/gui/swt/BackpagePanel.java	(revision 936)
+@@ -23,6 +23,7 @@
+ import org.eclipse.swt.browser.Browser;
+ import org.eclipse.swt.layout.FillLayout;
+ import org.eclipse.swt.widgets.Composite;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.DataSources;
+ import org.pathvisio.data.Gdb;
+ import org.pathvisio.data.Gex;
+Index: branches/g2d-branch/src/core/org/pathvisio/Engine.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/Engine.java	(revision 936)
+@@ -0,0 +1,242 @@
++package org.pathvisio;
++
++import java.awt.Color;
++import java.io.File;
++import java.net.URL;
++import java.util.ArrayList;
++import java.util.EventObject;
++import java.util.HashMap;
++import java.util.List;
++
++import org.pathvisio.data.DBConnector;
++import org.pathvisio.debug.Logger;
++import org.pathvisio.model.ConverterException;
++import org.pathvisio.model.Pathway;
++import org.pathvisio.model.PathwayElement;
++import org.pathvisio.model.PathwayExporter;
++import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
++import org.pathvisio.util.Utils;
++import org.pathvisio.view.VPathway;
++import org.pathvisio.view.VPathwayWrapper;
++
++public class Engine {
++	private static Pathway pathway;
++	private static VPathway vPathway;
++		
++	public static final String SVG_FILE_EXTENSION = "svg";
++	public static final String SVG_FILTER_NAME = "Scalable Vector Graphics (*." + SVG_FILE_EXTENSION + ")";
++	public static final String PATHWAY_FILE_EXTENSION = "gpml";
++	public static final String PATHWAY_FILTER_NAME = "PathVisio Pathway (*." + PATHWAY_FILE_EXTENSION + ")";
++	public static final String GENMAPP_FILE_EXTENSION = "mapp";
++	public static final String GENMAPP_FILTER_NAME = "GenMAPP Pathway (*." + GENMAPP_FILE_EXTENSION + ")";
++	
++	/**
++	 * the transparent color used in the icons for visualization of protein/mrna data
++	 */
++	public static final Color TRANSPARENT_COLOR = new Color(255, 0, 255);
++	
++	public final static Logger log = new Logger();
++			
++	/**
++	 * Get the {@link URL} for the resource stored in a jar file in the classpath
++	 * @param name	the filename of the resource
++	 * @return the URL pointing to the resource
++	 */
++	public static URL getResourceURL(String name) {
++		URL url = Engine.class.getClassLoader().getResource(name);
++		if(url == null) log.error("Couldn't load resource '" + name + "'");
++		return url;
++	}
++	
++	/**
++	 * Gets the currently open drawing
++	 */
++	public static VPathway getActiveVPathway() {
++		return vPathway;
++	}
++
++	/**
++	 * Returns the currently open Pathway
++	 */
++	public static Pathway getActivePathway() {
++		return pathway;
++	}
++	
++	/**
++	 * application global clipboard.
++	 */
++	public static List<PathwayElement> clipboard = null;
++
++	public static void openPathway(String fileName) throws ConverterException {
++		openPathway(new File(fileName));
++	}
++	
++	public static void openPathway(File pathwayFile) throws ConverterException {
++		openPathway(pathwayFile, null);
++	}
++	
++	/**
++	 * Open a pathway from a gpml file
++	 */
++	public static void openPathway(File pathwayFile, VPathwayWrapper wrapper) throws ConverterException
++	{
++		Pathway _pathway = null;		
++		String pwf = pathwayFile.toString();
++		
++		// initialize new JDOM gpml representation and read the file
++		_pathway = new Pathway();
++		if (pwf.endsWith(".mapp"))
++		{
++			_pathway.readFromMapp(new File(pwf));
++		}
++		else
++		{
++			_pathway.readFromXml(new File(pwf), true);
++		}
++		if(_pathway != null) //Only continue if the data is correctly loaded
++		{
++			if(wrapper != null) {
++				VPathway _drawing = wrapper.createVPathway();
++				vPathway = _drawing;
++				vPathway.fromGmmlData(_pathway);
++			}
++			pathway = _pathway;
++			fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.OPEN_PATHWAY));
++		}
++		
++	}
++	
++	/**
++	 * Create a new pathway
++	 */
++	public static void newPathway() {
++		newPathway(null);
++	}
++	
++	/**
++	 * Create a new pathway and view (Pathay and VPathway)
++	 */
++	public static void newPathway(VPathwayWrapper wrapper) {
++		pathway = new Pathway();
++		pathway.initMappInfo();
++		
++		if(wrapper != null) {
++			newVPathway(pathway, wrapper);
++		}
++		fireApplicationEvent(new ApplicationEvent(vPathway, ApplicationEvent.NEW_PATHWAY));
++	}
++	
++	public static void newVPathway(Pathway pathway, VPathwayWrapper wrapper) {
++		vPathway = wrapper.createVPathway();
++		vPathway.fromGmmlData(pathway);
++	}
++	
++	/**
++	 * Find out whether a drawing is currently open or not
++	 * @return true if a drawing is open, false if not
++	 */
++	public static boolean isDrawingOpen() { return vPathway != null; }
++
++
++	private static HashMap<String, PathwayExporter> exporters = new HashMap<String, PathwayExporter>();
++	private static HashMap<String, PathwayImporter> importers = new HashMap<String, PathwayImporter>();
++	/**
++	 * Add a {@link PathwayExporter} that handles export of GPML to another file format
++	 * @param export
++	 */
++	public static void addPathwayExporter(PathwayExporter export) {
++		for(String ext : export.getExtensions()) {
++			exporters.put(ext, export);
++		}
++	}
++
++	/**
++	 * Add a {@link PathwayImporter} that handles imoprt of GPML to another file format
++	 * @param export
++	 */
++	public static void addPathwayImporter(PathwayImporter importer) {
++		for(String ext : importer.getExtensions()) {
++			importers.put(ext, importer);
++		}
++	}
++	
++	public static PathwayExporter getPathwayExporter(String ext) {
++		return exporters.get(ext);
++	}
++
++	public static PathwayImporter getPathwayImporter(String ext) {
++		return importers.get(ext);
++	}
++	
++	public static HashMap<String, PathwayExporter> getPathwayExporters() {
++		return exporters;
++	}
++		
++	public static HashMap<String, PathwayImporter> getPathwayImporters() {
++		return importers;
++	}
++	
++	public static DBConnector getDbConnector(int type) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
++		DBConnector connector = null;
++		String className = null;
++		switch(type) {
++		case DBConnector.TYPE_GDB:
++			className = SwtPreference.SWT_DB_ENGINE_GDB.getValue();
++			break;
++		case DBConnector.TYPE_GEX:
++			className = SwtPreference.SWT_DB_ENGINE_GDB.getValue();
++			break;
++		}
++		if(className == null) return null;
++		
++		Class dbc = Class.forName(className);
++		
++		if(Utils.isSubClass(dbc, DBConnector.class)) {
++			connector = (DBConnector)dbc.newInstance();
++			connector.setDbType(type);
++		}
++	
++		return connector;
++	}
++		
++	private static List<ApplicationEventListener> applicationEventListeners  = new ArrayList<ApplicationEventListener>();
++	
++	/**
++	 * Add an {@link ApplicationEventListener}, that will be notified if a
++	 * property changes that has an effect throughout the program (e.g. opening a pathway)
++	 * @param l The {@link ApplicationEventListener} to add
++	 */
++	public static void addApplicationEventListener(ApplicationEventListener l) {
++		applicationEventListeners.add(l);
++	}
++	
++	/**
++	 * Fire a {@link ApplicationEvent} to notify all {@link ApplicationEventListener}s registered
++	 * to this class
++	 * @param e
++	 */
++	public static void fireApplicationEvent(ApplicationEvent e) {
++		for(ApplicationEventListener l : applicationEventListeners) l.applicationEvent(e);
++	}
++	
++	public interface ApplicationEventListener {
++		public void applicationEvent(ApplicationEvent e);
++	}
++	
++	public static class ApplicationEvent extends EventObject {
++		private static final long serialVersionUID = 1L;
++		public static final int OPEN_PATHWAY = 1;
++		public static final int NEW_PATHWAY = 2;
++		public static final int CLOSE_APPLICATION = 3;
++
++		public Object source;
++		public int type;
++		
++		public ApplicationEvent(Object source, int type) {
++			super(source);
++			this.source = source;
++			this.type = type;
++		}
++	}
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/search/PathwaySearchComposite.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/search/PathwaySearchComposite.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/search/PathwaySearchComposite.java	(revision 936)
+@@ -38,8 +38,8 @@
+ import org.eclipse.swt.widgets.Group;
+ import org.eclipse.swt.widgets.Label;
+ import org.eclipse.swt.widgets.Text;
++import org.pathvisio.Engine;
+ import org.pathvisio.data.DataSources;
+-import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.gui.swt.MainWindow;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.search.SearchMethods.SearchException;
+Index: branches/g2d-branch/src/core/org/pathvisio/search/SearchMethods.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/search/SearchMethods.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/search/SearchMethods.java	(revision 936)
+@@ -16,26 +16,24 @@
+ //
+ package org.pathvisio.search;
+ 
+-import org.pathvisio.gui.swt.Engine;
+-
+ import java.io.File;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
+ 
+-import org.xml.sax.SAXException;
+-import org.xml.sax.XMLReader;
+-import org.xml.sax.helpers.XMLReaderFactory;
+-
++import org.pathvisio.Engine;
++import org.pathvisio.data.Gdb;
++import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.search.PathwaySearchComposite.SearchRunnableWithProgress;
+ import org.pathvisio.util.FileUtils;
+ import org.pathvisio.util.PathwayParser;
+ import org.pathvisio.util.tableviewer.PathwayTable;
+ import org.pathvisio.util.tableviewer.TableData;
+ import org.pathvisio.util.tableviewer.TableData.Row;
+-import org.pathvisio.data.Gdb;
+-import org.pathvisio.data.Gdb.IdCodePair;
++import org.xml.sax.SAXException;
++import org.xml.sax.XMLReader;
++import org.xml.sax.helpers.XMLReaderFactory;
+ 
+ public abstract class SearchMethods {	
+ 	public static final String MSG_NOT_IN_GDB = "Gene not found in selected gene database";
+Index: branches/g2d-branch/src/core/org/pathvisio/search/SearchResultTable.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/search/SearchResultTable.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/search/SearchResultTable.java	(revision 936)
+@@ -28,9 +28,9 @@
+ import org.eclipse.swt.widgets.Button;
+ import org.eclipse.swt.widgets.Composite;
+ import org.eclipse.swt.widgets.Label;
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.gui.swt.Engine.ApplicationEvent;
+-import org.pathvisio.gui.swt.Engine.ApplicationEventListener;
++import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.util.tableviewer.PathwayTable;
+ import org.pathvisio.util.tableviewer.TableData.Row;
+ import org.pathvisio.view.GeneProduct;
+@@ -53,7 +53,7 @@
+ 	public int getNrResults() { return getNrRows(); }
+ 		
+ 	public void highlightResults(boolean highlight) {
+-		VPathway drawing = Engine.getVPathway();
++		VPathway drawing = Engine.getActiveVPathway();
+ 		if(drawing == null) return; //No drawing open
+ 		
+ 		if(highlight) { 
+Index: branches/g2d-branch/src/core/org/pathvisio/debug/StopWatch.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/debug/StopWatch.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/debug/StopWatch.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.debug;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ 
+ /**
+    A simple helper class for speed optimizations
+Index: branches/g2d-branch/src/core/org/pathvisio/data/GexImportWizard.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/GexImportWizard.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/GexImportWizard.java	(revision 936)
+@@ -48,8 +48,8 @@
+ import org.eclipse.swt.widgets.TableColumn;
+ import org.eclipse.swt.widgets.TableItem;
+ import org.eclipse.swt.widgets.Text;
++import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
+-import org.pathvisio.gui.swt.Engine;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.TableColumnResizer;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/data/DBConnector.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/DBConnector.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/DBConnector.java	(revision 936)
+@@ -24,8 +24,7 @@
+ import org.eclipse.swt.widgets.DirectoryDialog;
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Shell;
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.preferences.swt.SwtPreferences;
++import org.pathvisio.Engine;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ 
+ /**
+Index: branches/g2d-branch/src/core/org/pathvisio/data/ImportInformation.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/ImportInformation.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/ImportInformation.java	(revision 936)
+@@ -21,7 +21,7 @@
+ import java.io.FileReader;
+ import java.io.IOException;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ 
+ /**
+  * This class contains the information needed to start importing a delimited
+Index: branches/g2d-branch/src/core/org/pathvisio/data/CachedData.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/CachedData.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/CachedData.java	(revision 936)
+@@ -16,14 +16,14 @@
+ //
+ package org.pathvisio.data;
+ 
+-import java.sql.Types;
+-import java.util.ArrayList;
+-import java.util.HashMap;
+-import java.util.List;
++import java.sql.Types;
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.List;
++
++import org.pathvisio.data.Gdb.IdCodePair;
++import org.pathvisio.data.Gex.Sample;
+ 
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.data.Gex.Sample;
+-
+ /**
+  * This class represents cached expression data for a pathway.
+  * The caching of expression data will occur when a pathway is opened and an expression dataset is loaded.
+Index: branches/g2d-branch/src/core/org/pathvisio/data/DBConnHsqldb.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/DBConnHsqldb.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/DBConnHsqldb.java	(revision 936)
+@@ -28,9 +28,8 @@
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Shell;
+-
++import org.pathvisio.Engine;
+ import org.pathvisio.debug.StopWatch;
+-import org.pathvisio.gui.swt.Engine;
+ 
+ /**
+    DBConnector implementation using the hsqldb driver
+Index: branches/g2d-branch/src/core/org/pathvisio/data/Gex.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/Gex.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/Gex.java	(revision 936)
+@@ -48,13 +48,13 @@
+ import org.jdom.input.SAXBuilder;
+ import org.jdom.output.Format;
+ import org.jdom.output.XMLOutputter;
++import org.pathvisio.Engine;
++import org.pathvisio.Engine.ApplicationEvent;
++import org.pathvisio.Engine.ApplicationEventListener;
+ import org.pathvisio.data.CachedData.Data;
+ import org.pathvisio.data.Gdb.IdCodePair;
+ import org.pathvisio.data.GexImportWizard.ImportPage;
+ import org.pathvisio.debug.StopWatch;
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.gui.swt.Engine.ApplicationEvent;
+-import org.pathvisio.gui.swt.Engine.ApplicationEventListener;
+ import org.pathvisio.util.FileUtils;
+ import org.pathvisio.visualization.VisualizationManager;
+ import org.pathvisio.visualization.colorset.ColorSetManager;
+Index: branches/g2d-branch/src/core/org/pathvisio/data/GpmlTransfer.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/GpmlTransfer.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/GpmlTransfer.java	(revision 936)
+@@ -25,10 +25,9 @@
+ import org.jdom.Namespace;
+ import org.jdom.output.Format;
+ import org.jdom.output.XMLOutputter;
+-
+-import org.pathvisio.model.PathwayElement;
++import org.pathvisio.Engine;
+ import org.pathvisio.model.GpmlFormat;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.model.PathwayElement;
+ 
+ /**
+    Clipboard Transfer Object, for transferring Gpml fragments
+Index: branches/g2d-branch/src/core/org/pathvisio/data/DBConnDerby.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/DBConnDerby.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/DBConnDerby.java	(revision 936)
+@@ -16,8 +16,6 @@
+ //
+ package org.pathvisio.data;
+ 
+-import org.pathvisio.gui.swt.Engine;
+-
+ import java.io.File;
+ import java.io.FileInputStream;
+ import java.io.FileOutputStream;
+@@ -35,9 +33,9 @@
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Shell;
+-
+-import org.pathvisio.util.FileUtils;
++import org.pathvisio.Engine;
+ import org.pathvisio.debug.StopWatch;
++import org.pathvisio.util.FileUtils;
+ 
+ /**
+    DBConnector implementation using the Derby driver, with the database in a
+Index: branches/g2d-branch/src/core/org/pathvisio/data/Gdb.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/Gdb.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/Gdb.java	(revision 936)
+@@ -34,10 +34,10 @@
+ 
+ import org.eclipse.core.runtime.IProgressMonitor;
+ import org.eclipse.jface.operation.IRunnableWithProgress;
++import org.pathvisio.Engine;
+ import org.pathvisio.debug.StopWatch;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.preferences.GlobalPreference;
+-import org.pathvisio.preferences.swt.SwtPreferences;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ 
+ /**
+@@ -95,7 +95,7 @@
+ 	public static void setCurrentGdb(String dbNm) {
+ 		dbName = dbNm;
+ 		SwtPreference.SWT_CURR_GDB.setValue(dbNm);
+-		try { Engine.getPreferences().save(); } 
++		try { SwtEngine.getPreferences().save(); } 
+ 		catch(Exception e) { Engine.log.error("Unable to save preferences", e); } 
+ 	}
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/data/DBConnDerbyDirectory.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/data/DBConnDerbyDirectory.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/data/DBConnDerbyDirectory.java	(revision 936)
+@@ -16,12 +16,11 @@
+ //
+ package org.pathvisio.data;
+ 
+-import org.pathvisio.gui.swt.Engine;
+-
+ import java.sql.DriverManager;
++
+ import org.eclipse.swt.widgets.DirectoryDialog;
+ import org.eclipse.swt.widgets.Shell;
+-
++import org.pathvisio.Engine;
+ import org.pathvisio.util.FileUtils;
+ 
+ /**
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayOld.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayOld.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayOld.java	(revision 936)
+@@ -16,7 +16,7 @@
+ //
+ package org.pathvisio.view;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ 
+ import java.awt.Rectangle;
+ import java.awt.geom.Point2D;
+@@ -299,7 +299,7 @@
+ 		{
+ 			clearSelection();
+ 		}
+-		Engine.getWindow().showLegend(!editMode);	
++		SwtEngine.getWindow().showLegend(!editMode);	
+ 		redraw();
+ 	}
+ 	
+@@ -417,7 +417,7 @@
+ 			if (newGraphics != NEWNONE)
+ 			{
+ 				newObject(new Point(e.x, e.y));
+-				Engine.getWindow().deselectNewItemActions();
++				SwtEngine.getWindow().deselectNewItemActions();
+ 			}
+ 			else
+ 			{
+@@ -1133,11 +1133,11 @@
+ 		}
+ 		if (result.size() > 0)
+ 		{
+-			Engine.clipboard = result;
++			SwtEngine.clipboard = result;
+ 		}
+ 		else
+ 		{
+-			Engine.clipboard = null;
++			SwtEngine.clipboard = null;
+ 		}
+ 		
+ 		//clipboard.dispose();
+@@ -1168,7 +1168,7 @@
+ 	 */
+ 	public void pasteFromClipboad()
+ 	{
+-		if (Engine.clipboard != null)
++		if (SwtEngine.clipboard != null)
+ 		{
+ 			clearSelection();
+ 			Map<String, String> idmap = new HashMap<String, String>();
+@@ -1177,7 +1177,7 @@
+ 			/*
+ 			 * Step 1: generate new unique ids for copied items
+ 			 */
+-			for (PathwayElement o : Engine.clipboard)
++			for (PathwayElement o : SwtEngine.clipboard)
+ 			{
+ 				String id = o.getGraphId();
+ 				if (id != null) 
+@@ -1201,7 +1201,7 @@
+ 			/*
+ 			 * Step 2: do the actual copying 
+ 			 */
+-			for (PathwayElement o : Engine.clipboard)
++			for (PathwayElement o : SwtEngine.clipboard)
+ 			{
+ 				if (o.getObjectType() == ObjectType.MAPPINFO ||
+ 					o.getObjectType() == ObjectType.INFOBOX)
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 936)
+@@ -30,7 +30,8 @@
+ import java.util.Map;
+ import java.util.Set;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -300,7 +301,7 @@
+ 		{
+ 			clearSelection();
+ 		}
+-		Engine.getWindow().showLegend(!editMode);	
++		SwtEngine.getWindow().showLegend(!editMode);	
+ 		parent.redraw();
+ 	}
+ 	
+@@ -418,7 +419,7 @@
+ 			if (newGraphics != NEWNONE)
+ 			{
+ 				newObject(new Point(e.getX(), e.getY()));
+-				Engine.getWindow().deselectNewItemActions();
++				SwtEngine.getWindow().deselectNewItemActions();
+ 			}
+ 			else
+ 			{
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayWrapper.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayWrapper.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayWrapper.java	(revision 936)
+@@ -11,4 +11,5 @@
+ 	public Dimension getVSize();
+ 	public Rectangle getVBounds();
+ 	
++	public VPathway createVPathway();
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/view/Label.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/Label.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/view/Label.java	(revision 936)
+@@ -19,11 +19,9 @@
+ import java.awt.Dimension;
+ import java.awt.Font;
+ import java.awt.Graphics2D;
+-import java.awt.Polygon;
+ import java.awt.Rectangle;
+ import java.awt.Shape;
+ import java.awt.font.TextAttribute;
+-import java.awt.font.TextLayout;
+ import java.awt.geom.Rectangle2D;
+ import java.text.AttributedString;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/VPathwaySWT.java	(revision 936)
+@@ -1,10 +1,8 @@
+ package org.pathvisio.view.swt;
+ 
+-import java.awt.Color;
+ import java.awt.Dimension;
+ import java.awt.Graphics2D;
+ import java.awt.Rectangle;
+-import java.awt.RenderingHints;
+ 
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.events.KeyEvent;
+@@ -32,7 +30,12 @@
+ 		super(parent, style);
+ 	}
+ 
+-	public void setChild(VPathway c) {
++	public VPathway createVPathway() {
++		setChild(new VPathway(this));
++		return child;
++	}
++	
++	protected void setChild(VPathway c) {
+ 		child = c;
+ 		addPaintListener(this);
+ 		addMouseListener(this);
+Index: branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtMouseEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtMouseEvent.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/view/swt/SwtMouseEvent.java	(revision 936)
+@@ -1,7 +1,5 @@
+ package org.pathvisio.view.swt;
+ 
+-import java.awt.Point;
+-
+ import org.eclipse.swt.SWT;
+ import org.eclipse.swt.events.MouseEvent;
+ 
+Index: branches/g2d-branch/src/core/org/pathvisio/util/FileUtils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/FileUtils.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/FileUtils.java	(revision 936)
+@@ -24,7 +24,7 @@
+ import java.io.RandomAccessFile;
+ import java.util.ArrayList;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ 
+ public class FileUtils {	
+ 	/**
+Index: branches/g2d-branch/src/core/org/pathvisio/util/Utils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/Utils.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/Utils.java	(revision 936)
+@@ -23,7 +23,7 @@
+ import java.util.Collection;
+ import java.util.List;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ 
+ public class Utils {
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/util/SuggestCombo.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/SuggestCombo.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/SuggestCombo.java	(revision 936)
+@@ -16,25 +16,24 @@
+ //
+ package org.pathvisio.util;
+ 
+-import java.util.ArrayList;
++import java.util.ArrayList;
++
++import org.eclipse.swt.SWT;
++import org.eclipse.swt.events.DisposeEvent;
++import org.eclipse.swt.events.DisposeListener;
++import org.eclipse.swt.events.ShellAdapter;
++import org.eclipse.swt.events.ShellEvent;
++import org.eclipse.swt.graphics.Point;
++import org.eclipse.swt.layout.FillLayout;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.eclipse.swt.widgets.Event;
++import org.eclipse.swt.widgets.List;
++import org.eclipse.swt.widgets.Listener;
++import org.eclipse.swt.widgets.Shell;
++import org.eclipse.swt.widgets.Text;
++import org.pathvisio.util.SuggestCombo.SuggestionProvider.SuggestThread;
+ 
+-import org.eclipse.swt.SWT;
+-import org.eclipse.swt.events.DisposeEvent;
+-import org.eclipse.swt.events.DisposeListener;
+-import org.eclipse.swt.events.ShellAdapter;
+-import org.eclipse.swt.events.ShellEvent;
+-import org.eclipse.swt.graphics.Point;
+-import org.eclipse.swt.layout.FillLayout;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Control;
+-import org.eclipse.swt.widgets.Event;
+-import org.eclipse.swt.widgets.List;
+-import org.eclipse.swt.widgets.Listener;
+-import org.eclipse.swt.widgets.Shell;
+-import org.eclipse.swt.widgets.Text;
+-
+-import org.pathvisio.util.SuggestCombo.SuggestionProvider.SuggestThread;
+-
+ public class SuggestCombo extends Composite {
+ 	protected boolean ignoreModify;
+ 	protected boolean ignoreFocusOut;
+Index: branches/g2d-branch/src/core/org/pathvisio/util/ColorConverter.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/ColorConverter.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/ColorConverter.java	(revision 936)
+@@ -20,7 +20,7 @@
+ 
+ import org.eclipse.swt.graphics.RGB;
+ import org.jdom.Element;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ 
+ public abstract class ColorConverter
+ {		    
+Index: branches/g2d-branch/src/core/org/pathvisio/util/Converter.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/Converter.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/Converter.java	(revision 936)
+@@ -24,9 +24,9 @@
+ 
+ import java.io.File;
+ 
++import org.pathvisio.debug.Logger;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.Pathway;
+-import org.pathvisio.debug.Logger;
+ 
+ /**
+  * @author Thomas Kelder (t.a.j.kelder@student.tue.nl)
+Index: branches/g2d-branch/src/core/org/pathvisio/util/SuggestCellEditor.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/SuggestCellEditor.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/SuggestCellEditor.java	(revision 936)
+@@ -16,16 +16,15 @@
+ //
+ package org.pathvisio.util;
+ 
+-import org.eclipse.jface.viewers.CellEditor;
+-import org.eclipse.swt.events.FocusAdapter;
+-import org.eclipse.swt.events.FocusEvent;
+-import org.eclipse.swt.events.KeyAdapter;
+-import org.eclipse.swt.events.KeyEvent;
+-import org.eclipse.swt.widgets.Composite;
+-import org.eclipse.swt.widgets.Control;
++import org.eclipse.jface.viewers.CellEditor;
++import org.eclipse.swt.events.FocusAdapter;
++import org.eclipse.swt.events.FocusEvent;
++import org.eclipse.swt.events.KeyAdapter;
++import org.eclipse.swt.events.KeyEvent;
++import org.eclipse.swt.widgets.Composite;
++import org.eclipse.swt.widgets.Control;
++import org.pathvisio.util.SuggestCombo.SuggestionProvider;
+ 
+-import org.pathvisio.util.SuggestCombo.SuggestionProvider;
+-
+ public abstract class SuggestCellEditor extends CellEditor {
+ 	protected SuggestCombo suggestCombo;
+ 	
+Index: branches/g2d-branch/src/core/org/pathvisio/util/tableviewer/PathwayTable.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/tableviewer/PathwayTable.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/tableviewer/PathwayTable.java	(revision 936)
+@@ -38,7 +38,7 @@
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Table;
+ import org.eclipse.swt.widgets.TableColumn;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ import org.pathvisio.preferences.swt.SwtPreferences.SwtPreference;
+ import org.pathvisio.util.TableColumnResizer;
+ import org.pathvisio.util.SwtUtils.FileInputDialog;
+Index: branches/g2d-branch/src/core/org/pathvisio/util/PathwayParser.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/PathwayParser.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/PathwayParser.java	(revision 936)
+@@ -18,17 +18,15 @@
+ 
+ import java.util.ArrayList;
+ 
++import org.pathvisio.Engine;
++import org.pathvisio.data.DataSources;
++import org.pathvisio.data.Gdb.IdCodePair;
+ import org.xml.sax.Attributes;
+ import org.xml.sax.SAXException;
+ import org.xml.sax.SAXParseException;
+ import org.xml.sax.XMLReader;
+ import org.xml.sax.helpers.DefaultHandler;
+ 
+-import org.pathvisio.gui.swt.Engine;
+-import org.pathvisio.data.DataSources;
+-import org.pathvisio.data.Gdb.IdCodePair;
+-import org.pathvisio.model.MappFormat;
+-
+ /**
+  * This sax handler can be used to quickly parse pathway information from
+  * a gpml file
+Index: branches/g2d-branch/src/core/org/pathvisio/util/JarUtils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/JarUtils.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/JarUtils.java	(revision 936)
+@@ -30,8 +30,9 @@
+ import java.util.jar.JarEntry;
+ import java.util.jar.JarFile;
+ 
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
+ import org.pathvisio.Globals;
++import org.pathvisio.gui.swt.SwtEngine;
+ 
+ public class JarUtils {
+ 	static final String PREFIX_TMP = Globals.APPLICATION_NAME;
+@@ -75,7 +76,7 @@
+ 	public static List<String> listResources(String path) throws IOException {
+ 		List<String> resNames = new ArrayList<String>();
+ 
+-		URL url = Engine.class.getClassLoader().getResource(path);
++		URL url = SwtEngine.class.getClassLoader().getResource(path);
+ 		if(url != null) {
+ 			if(url.getProtocol().equals("jar")) {
+ 				JarURLConnection conn = (JarURLConnection)url.openConnection();
+@@ -97,7 +98,7 @@
+ 	 * @return the URL pointing to the resource
+ 	 */
+ 	public static URL getResourceURL(String name) {
+-		URL url = Engine.class.getClassLoader().getResource(name);
++		URL url = SwtEngine.class.getClassLoader().getResource(name);
+ 		if(url == null) Engine.log.error("Couldn't load resource '" + name + "'");
+ 		return url;
+ 	}
+@@ -108,7 +109,7 @@
+ 	 * @return the URL pointing to the resource
+ 	 */
+ 	public static InputStream getResourceInputStream(String name) {
+-		InputStream in = Engine.class.getClassLoader().getResourceAsStream(name);
++		InputStream in = SwtEngine.class.getClassLoader().getResourceAsStream(name);
+ 		if(in == null) Engine.log.error("Couldn't load resource '" + name + "'");
+ 		return in;
+ 	}
+Index: branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 935)
++++ branches/g2d-branch/src/core/org/pathvisio/util/SwtUtils.java	(revision 936)
+@@ -48,7 +48,8 @@
+ import org.eclipse.swt.widgets.Display;
+ import org.eclipse.swt.widgets.FileDialog;
+ import org.eclipse.swt.widgets.Shell;
+-import org.pathvisio.gui.swt.Engine;
++import org.pathvisio.Engine;
++import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.model.Pathway;
+ import org.pathvisio.view.VPathway;
+ 
+@@ -204,7 +205,7 @@
+ 	static int ii;
+ 	static int pixratio;
+ 	public static Font adjustFontSize(Font f, Point toFit, String text, GC gc, Display display) {
+-		VPathway d = Engine.getVPathway();
++		VPathway d = Engine.getActiveVPathway();
+ 		pixratio = (int)Math.ceil(3 * (d == null ? 1 : d.getZoomFactor()));
+ 		ii = 3;
+ 		incrs = new int[3];
+@@ -455,7 +456,7 @@
+ 
+ 			runException = null;
+ 			if(runAsSyncExec) {//Invoke in syncExec, method may access widgets from this thread
+-				Engine.getWindow().getShell().getDisplay().syncExec(new Runnable() {
++				SwtEngine.getWindow().getShell().getDisplay().syncExec(new Runnable() {
+ 					public void run() {
+ 						runException = doInvoke();
+ 					}
+@@ -497,7 +498,7 @@
+ 		 * @param w
+ 		 */
+ 		public static void monitorWorked(final int w) {
+-			Engine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
++			SwtEngine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
+ 				public void run() {
+ 					if(monitor != null) monitor.worked(w);
+ 				}
+@@ -510,7 +511,7 @@
+ 		 * @see IProgressMonitor#setTaskName(String)
+ 		 */
+ 		public static void monitorSetTaskName(final String taskName) {
+-			Engine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
++			SwtEngine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
+ 				public void run() {
+ 					if(monitor != null) monitor.setTaskName(taskName);
+ 				}
+@@ -524,9 +525,9 @@
+ 		 * @see MessageDialog#openInformation(org.eclipse.swt.widgets.Shell, String, String)
+ 		 */
+ 		public void openMessageDialog(final String title, final String msg) {
+-			Engine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
++			SwtEngine.getWindow().getShell().getDisplay().asyncExec(new Runnable() {
+ 				public void run() {
+-					MessageDialog.openInformation(Engine.getWindow().getShell(), title, msg);
++					MessageDialog.openInformation(SwtEngine.getWindow().getShell(), title, msg);
+ 				}
+ 			});
+ 		}

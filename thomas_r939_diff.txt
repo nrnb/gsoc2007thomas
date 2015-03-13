@@ -1,0 +1,261 @@
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 938)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/MainPanel.java	(revision 939)
+@@ -2,19 +2,21 @@
+ 
+ import java.awt.BorderLayout;
+ 
+-import javax.swing.BoxLayout;
+ import javax.swing.JMenu;
+ import javax.swing.JMenuBar;
+ import javax.swing.JPanel;
++import javax.swing.JScrollPane;
+ import javax.swing.JToolBar;
+ 
+ import org.pathvisio.gui.swing.CommonActions.ExportAction;
+ import org.pathvisio.gui.swing.CommonActions.ImportAction;
+ import org.pathvisio.gui.swing.CommonActions.SaveAction;
++import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public class MainPanel extends JPanel {
+ 	private JMenuBar menuBar;
+ 	private JToolBar toolBar;
++	private JScrollPane scrollPane;
+ 	
+ 	public MainPanel() {
+ 		setLayout(new BorderLayout());
+@@ -25,6 +27,10 @@
+ 		addToolBarActions(toolBar);
+ 		
+ 		add(toolBar, BorderLayout.NORTH);
++		//menuBar will be added by container (JFrame or JApplet)
++		
++		scrollPane = new JScrollPane(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
++		add(scrollPane, BorderLayout.CENTER);
+ 	}
+ 	
+ 	protected void addMenuActions(JMenuBar mb) {
+@@ -40,6 +46,8 @@
+ 		tb.add(new SaveAction());
+ 		tb.add(new ImportAction());
+ 		tb.add(new ExportAction());
++		tb.addSeparator();
++		
+ 	}
+ 	
+ 	public JMenuBar getMenuBar() {
+@@ -49,5 +57,9 @@
+ 	public JToolBar getToolBar() {
+ 		return toolBar;
+ 	}
++	
++	public void setPathway(VPathwaySwing vPathway) {
++		scrollPane.setViewportView(vPathway);
++	}
+ }
+ 
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiInit.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiInit.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiInit.java	(revision 939)
+@@ -0,0 +1,19 @@
++package org.pathvisio.gui.swing;
++
++import org.pathvisio.Engine;
++import org.pathvisio.model.GpmlFormat;
++
++public class GuiInit {
++	public static void init() {
++		initImporters();
++		initExporters();
++	}
++	
++	private static void initImporters() {
++		Engine.addPathwayImporter(new GpmlFormat());
++	}
++	
++	private static void initExporters() {
++		Engine.addPathwayExporter(new GpmlFormat());
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 938)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/CommonActions.java	(revision 939)
+@@ -10,13 +10,13 @@
+ import javax.swing.Action;
+ import javax.swing.ImageIcon;
+ import javax.swing.JFileChooser;
+-import javax.swing.JOptionPane;
+ import javax.swing.KeyStroke;
+ import javax.swing.filechooser.FileFilter;
+ 
+ import org.pathvisio.Engine;
+ import org.pathvisio.model.ConverterException;
+ import org.pathvisio.model.PathwayImporter;
++import org.pathvisio.view.VPathwayWrapper;
+ import org.pathvisio.view.swing.VPathwaySwing;
+ 
+ public abstract class CommonActions {
+@@ -80,9 +80,9 @@
+ 				if(status == JFileChooser.APPROVE_OPTION) {
+ 					try {
+ 						Engine.importPathway(jfc.getSelectedFile(), new VPathwaySwing());
++						Engine.getActiveVPathway().setEditMode(true);
+ 					} catch(ConverterException ex) {
+-						Engine.log.error("Unable to import pathway", ex);
+-						JOptionPane.showMessageDialog((Component)e.getSource(), "Unable to import pathway:\n" + ex.getMessage());
++						SwingEngine.handleConverterException(SwingEngine.MSG_UNABLE_IMPORT, (Component)e.getSource(), ex);
+ 					}
+ 				}
+ 		}
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 938)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/GuiMain.java	(revision 939)
+@@ -14,7 +14,7 @@
+ 		JFrame frame = new JFrame("PathVisio...swing it baby!");
+ 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+ 		
+-		MainPanel mainPanel = new MainPanel();
++		MainPanel mainPanel = SwingEngine.getApplicationPanel();
+ 		frame.add(mainPanel);
+ 		frame.setJMenuBar(mainPanel.getMenuBar());
+ 		frame.setSize(400, 400);
+Index: branches/g2d-branch/swing/org/pathvisio/gui/swing/SwingEngine.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 0)
++++ branches/g2d-branch/swing/org/pathvisio/gui/swing/SwingEngine.java	(revision 939)
+@@ -0,0 +1,43 @@
++package org.pathvisio.gui.swing;
++
++import java.awt.Component;
++
++import javax.swing.JOptionPane;
++
++import org.pathvisio.Engine;
++import org.pathvisio.model.ConverterException;
++
++public class SwingEngine {
++	private static MainPanel mainPanel;
++	
++	public static MainPanel getApplicationPanel() {
++		if(mainPanel == null) mainPanel = new MainPanel();
++		return mainPanel;
++	}
++	
++	public static String MSG_UNABLE_IMPORT = "Unable to import GPML file.";
++	public static String MSG_UNABLE_EXPORT = "Unable to export GPML file.";
++	public static String MSG_UNABLE_SAVE = "Unable to save GPML file.";
++	public static String MSG_UNABLE_OPEN = "Unable to open GPML file.";
++	
++	public static void handleConverterException(String message, Component c, ConverterException e) {
++		if (e.getMessage().contains("Cannot find the declaration of element 'Pathway'"))
++		{
++			JOptionPane.showMessageDialog(c,
++					message + "\n\n" +
++					"The most likely cause for this error is that you are trying to open an old Gpml file. " +
++					"Please note that the Gpml format has changed as of March 2007. " +
++					"The standard pathway set can be re-downloaded from http://pathvisio.org " +
++					"Non-standard pathways need to be recreated or upgraded. " +
++					"Please contact the authors at martijn.vaniersel@bigcat.unimaas.nl if you need help with this.\n" +
++					"\nSee error log for details");
++			Engine.log.error("Unable to open Gpml file", e);
++		}
++		else
++		{
++			JOptionPane.showMessageDialog(c,
++					message + "\n" + e.getClass() + e.getMessage());
++			Engine.log.error("Unable to open Gpml file", e);
++		}
++	}
++}
+Index: branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java
+===================================================================
+--- branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 938)
++++ branches/g2d-branch/swing/org/pathvisio/view/swing/VPathwaySwing.java	(revision 939)
+@@ -12,6 +12,7 @@
+ 
+ import javax.swing.JComponent;
+ 
++import org.pathvisio.gui.swing.SwingEngine;
+ import org.pathvisio.view.VPathway;
+ import org.pathvisio.view.VPathwayWrapper;
+ 
+@@ -90,7 +91,7 @@
+ 	}
+ 
+ 	public void mouseDragged(MouseEvent e) {
+-		// TODO: find out how to handle this one, as mouseMove?
++		child.mouseMove(new SwingMouseEvent(e));
+ 	}
+ 
+ 	public void mouseMoved(MouseEvent e) {
+@@ -99,6 +100,7 @@
+ 
+ 	public VPathway createVPathway() {
+ 		setChild(new VPathway(this));
++		SwingEngine.getApplicationPanel().setPathway(this);
+ 		return child;
+ 	}
+ }
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 938)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathway.java	(revision 939)
+@@ -31,7 +31,6 @@
+ import java.util.Set;
+ 
+ import org.pathvisio.Engine;
+-import org.pathvisio.gui.swt.SwtEngine;
+ import org.pathvisio.model.GroupStyle;
+ import org.pathvisio.model.LineStyle;
+ import org.pathvisio.model.LineType;
+@@ -301,7 +300,7 @@
+ 		{
+ 			clearSelection();
+ 		}
+-		SwtEngine.getWindow().showLegend(!editMode);	
++		//SwtEngine.getWindow().showLegend(!editMode);	
+ 		parent.redraw();
+ 	}
+ 	
+@@ -419,7 +418,7 @@
+ 			if (newGraphics != NEWNONE)
+ 			{
+ 				newObject(new Point(e.getX(), e.getY()));
+-				SwtEngine.getWindow().deselectNewItemActions();
++				//SwtEngine.getWindow().deselectNewItemActions();
+ 			}
+ 			else
+ 			{
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayEvent.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayEvent.java	(revision 939)
+@@ -0,0 +1,14 @@
++package org.pathvisio.view;
++
++import java.util.EventObject;
++
++public class VPathwayEvent extends EventObject {
++	public static final int NEW_ELEMENT_ADDED = 0;
++	public static final int EDIT_MODE_ON = 1;
++	public static final int EDIT_MODE_OFF = 2;
++	
++	public VPathwayEvent(VPathway source, int type) {
++		super(source);
++	}
++
++}
+Index: branches/g2d-branch/src/core/org/pathvisio/view/VPathwayListener.java
+===================================================================
+--- branches/g2d-branch/src/core/org/pathvisio/view/VPathwayListener.java	(revision 0)
++++ branches/g2d-branch/src/core/org/pathvisio/view/VPathwayListener.java	(revision 939)
+@@ -0,0 +1,5 @@
++package org.pathvisio.view;
++
++public interface VPathwayListener {
++	public void vPathwayEvent(VPathwayEvent e);
++}

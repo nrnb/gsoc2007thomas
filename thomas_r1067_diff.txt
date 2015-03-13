@@ -1,0 +1,59 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1066)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1067)
+@@ -91,8 +91,6 @@
+ 		$msg .= $line . "\n";
+ 	}
+ 	
+-	//header("Location: " . WPI_TMP_URL . '/' . basename($zipFile));
+-	// Can't get this to work under windows, corrupt zip file
+ 	$time = time();
+ 	ob_clean();
+ 	header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php	(revision 1066)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/extensions/pathwayThumb.php	(revision 1067)
+@@ -122,4 +122,3 @@
+     }
+ 
+ ?>
+-
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1066)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/wpi.php	(revision 1067)
+@@ -1,5 +1,4 @@
+ <?php
+-
+ require_once('globals.php');
+ //Initialize MediaWiki
+ set_include_path(get_include_path().PATH_SEPARATOR.realpath('../includes').PATH_SEPARATOR.realpath('../').PATH_SEPARATOR);
+@@ -155,9 +154,12 @@
+ }
+ 
+ function downloadFile($fileType, $pwTitle) {
++	ob_start();
+ 	$pathway = Pathway::newFromTitle($pwTitle);
+ 	$file = $pathway->getFileLocation($fileType);
+-	$fn = $pathway->getFileName($fileType);	
++	$fn = $pathway->getFileName($fileType);
++	
++	ob_clean();
+ 	switch($fileType) {
+ 		case FILETYPE_GPML:
+ 			header("Content-type: text/xml");
+@@ -172,9 +174,9 @@
+ 	header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+ 	header("Content-Disposition: attachment; filename=\"$fn\"");
+ 	header("Content-Length: " . filesize($file));
+-	ob_clean();
+-	echo(file_get_contents($file));
+-	exit;
++	set_time_limit(0);
++	@readfile($file);
++	exit();
+ }
+ 
+ function getClientOs() {

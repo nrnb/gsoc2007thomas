@@ -1,0 +1,10 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1056)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1057)
+@@ -1,5 +1,4 @@
+ <?php
+-require_once('includes/zip.lib.php');
+ require_once('wpi.php');
+ 
+ //As mediawiki extension

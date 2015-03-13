@@ -1,0 +1,49 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php	(revision 1023)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/skins/WikiPathways.php	(revision 1024)
+@@ -189,27 +189,31 @@
+ 		</div>
+ 	</div>
+ 	<?php } ?>
+-	<div id="p-search" class="portlet">
++
++<!-- AP20070723 Hide old search
++ 	<div id="p-search" class="portlet">
+ 		<h5><label for="searchInput">Pathway search</label></h5>
+ 		<div id="searchBody" class="pBody">
+-			<form action="<?php $this->text('searchaction') ?>" id="searchform"><div>
+-				<input id="searchInput" name="search" type="text" <?php
+-					if($this->haveMsg('accesskey-search')) {
+-						?>accesskey="<?php $this->msg('accesskey-search') ?>"<?php }
+-					if( isset( $this->data['search'] ) ) {
+-						?> value="<?php $this->text('search') ?>"<?php } ?> />
+-				<input type='submit' name="fulltext" class="searchButton" id="mw-searchButton" value="<?php $this->msg('searchbutton') ?>" />
+-			</div></form>
+-		</div>
+-	</div>
++ 			<form action="<?php $this->text('searchaction') ?>" id="searchform"><div>
++ 				<input id="searchInput" name="search" type="text" <?php
++ 					if($this->haveMsg('accesskey-search')) {
++ 						?>accesskey="<?php $this->msg('accesskey-search') ?>"<?php }
++ 					if( isset( $this->data['search'] ) ) {
++ 						?> value="<?php $this->text('search') ?>"<?php } ?> />
++ 				<input type='submit' name="fulltext" class="searchButton" id="mw-searchButton" value="<?php $this->msg('searchbutton') ?>" />
++ 			</div></form>
++ 		</div>
++ 	</div>
++ -->
+ 	<div id="p-search" class="portlet">
+-		<h5><label for="searchInput">Full text search</label></h5>
++		<h5><label for="searchInput">search</label></h5>
+ 		<div id="googleSearch" class="pBody">
+ 			<!-- Google CSE Search Box Begins -->
+ 		  <form id="searchbox_002915365922082279465:6qd0wwvwtwu" action="http://www.wikipathways.org/index.php/WikiPathways:GoogleSearch"><div>
+ 		    <input type="hidden" name="cx" value="002915365922082279465:6qd0wwvwtwu" />
+ 		    <input type="hidden" name="cof" value="FORID:11" />
+-		    <input name="q" type="text" size="17%"/>
++	    	    <input type="hidden" name="filter" value="0" /> <!--set filter=0 to disable omitting similiar hits-->
++		    <input name="q" type="text" size="15%"/>
+ 		    <input type="submit" name="sa" value="Search" />
+ 		  </div></form>
+ 		  <script type="text/javascript" src="http://www.google.com/coop/cse/brand?form=searchbox_002915365922082279465%3A6qd0wwvwtwu"></script>

@@ -1,0 +1,19 @@
+Index: trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java
+===================================================================
+--- trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1126)
++++ trunk/src/swing/org/pathvisio/gui/swing/PathwayElementMenuListener.java	(revision 1127)
+@@ -31,6 +31,10 @@
+ 		selectMenu.add(vActions.selectDataNodes);
+ 		menu.add(selectMenu);
+ 		menu.addSeparator();
++		JMenu groupMenu = new JMenu("Group");
++		groupMenu.add(vActions.toggleGroup);
++		menu.add(groupMenu);
++		menu.addSeparator();
+ 		JMenu litMenu = new JMenu("Literature");
+ 		litMenu.add(new AddLiteratureAction(component, e));
+ 		litMenu.add(new EditLiteratureAction(component, e));
+Index: trunk/tools/GmmlVisio2R/JRI/tools/getsp.class
+===================================================================
+Cannot display: file marked as a binary type.
+svn:mime-type = application/octet-stream

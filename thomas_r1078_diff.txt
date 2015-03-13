@@ -1,0 +1,62 @@
+Index: branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php
+===================================================================
+--- branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1077)
++++ branches/pwywiki-branch/tools/pathwaywiki/www/wpi/batchDownload.php	(revision 1078)
+@@ -94,7 +94,7 @@
+ 	if($status != 0) {
+ 		exit("<H1>Unable process download</H1><P>$msg</P>");
+ 	}
+-	
++
+ 	$time = time();
+ 	ob_clean();
+ 	header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+@@ -102,23 +102,35 @@
+ 	header("Content-Disposition: attachment; filename=wikipathways_$time.zip");
+ 	header('Content-Type: application/octet-stream');
+ 	header("Content-Transfer-Encoding: binary");
+-	header("Content-Length: ".filesize($zipFile));
++	//header("Content-Length: ".filesize($zipFile));
+ 	set_time_limit(0); //In case reading file takes a long time
+ 	readfile_chunked($zipFile);
+ }
+ 
+-function readfile_chunked ($filename) {
+-  $chunksize = 1*(1024*1024); // how many bytes per chunk
+-  $buffer = '';
+-  $handle = fopen($filename, 'rb');
+-  if ($handle === false) {
+-    return false;
+-  }
+-  while (!feof($handle)) {
+-    $buffer = fread($handle, $chunksize);
+-    print $buffer;
+-  }
+-  return fclose($handle);
++function readfile_chunked($filename,$retbytes=true) { 
++   $chunksize = 1*(1024*1024); // how many bytes per chunk 
++   $buffer = ''; 
++   $cnt =0; 
++   // $handle = fopen($filename, 'rb'); 
++   $handle = fopen($filename, 'rb'); 
++   if ($handle === false) { 
++       return false; 
++   } 
++   while (!feof($handle)) { 
++       $buffer = fread($handle, $chunksize); 
++       echo $buffer; 
++       ob_flush(); 
++       flush(); 
++       if ($retbytes) { 
++           $cnt += strlen($buffer); 
++       } 
++   } 
++       $status = fclose($handle); 
++   if ($retbytes && $status) { 
++       return $cnt; // return num. bytes delivered like readfile() does. 
++   } 
++   return $status; 
++
+ } 
+ 
+ ?>
